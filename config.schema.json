@@ -1,0 +1,293 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "https://github.com/MhankBarBar/zero-ichi/config.schema.json",
+    "title": "Zero Ichi Bot Configuration",
+    "description": "Configuration schema for Zero Ichi WhatsApp bot",
+    "type": "object",
+    "properties": {
+        "$schema": {
+            "type": "string",
+            "description": "Reference to the JSON schema"
+        },
+        "bot": {
+            "type": "object",
+            "description": "Bot core settings",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Session identifier used for the database filename (e.g., 'zero_ichi_bot' creates 'zero_ichi_bot.session')",
+                    "default": "zero_ichi_bot"
+                },
+                "prefix": {
+                    "type": "string",
+                    "description": "Command prefix. Supports regex patterns, e.g., '(!|/|.)' for multiple prefixes",
+                    "default": "(!|/|.)"
+                },
+                "login_method": {
+                    "type": "string",
+                    "enum": [
+                        "QR",
+                        "PAIR_CODE"
+                    ],
+                    "description": "Login method: 'QR' for QR code scanning, 'PAIR_CODE' for pairing code",
+                    "default": "QR"
+                },
+                "phone_number": {
+                    "type": "string",
+                    "description": "Phone number in international format without '+' (e.g., '628xxxx'). Used for PAIR_CODE login method",
+                    "pattern": "^[0-9]+$"
+                },
+                "owner_jid": {
+                    "type": "string",
+                    "description": "JID (Jabber ID) of the bot owner for admin commands (e.g., '628xxxx@s.whatsapp.net' or '4089xxxx@lid')"
+                },
+                "auto_read": {
+                    "type": "boolean",
+                    "description": "Automatically mark messages as read",
+                    "default": false
+                },
+                "auto_react": {
+                    "type": "boolean",
+                    "description": "Automatically react to incoming messages",
+                    "default": false
+                },
+                "auto_react_emoji": {
+                    "type": "string",
+                    "description": "Emoji to use for auto-react feature",
+                    "default": "❤️"
+                },
+                "auto_reload": {
+                    "type": "boolean",
+                    "description": "For development: automatically reload bot when files change",
+                    "default": false
+                },
+                "ignore_self_messages": {
+                    "type": "boolean",
+                    "description": "Ignore messages sent by the bot itself",
+                    "default": true
+                }
+            },
+            "required": [
+                "name",
+                "prefix",
+                "login_method",
+                "owner_jid"
+            ]
+        },
+        "logging": {
+            "type": "object",
+            "description": "Logging configuration",
+            "properties": {
+                "log_messages": {
+                    "type": "boolean",
+                    "description": "Log incoming/outgoing messages to console",
+                    "default": true
+                },
+                "level": {
+                    "type": "string",
+                    "enum": [
+                        "DEBUG",
+                        "INFO",
+                        "WARNING",
+                        "ERROR",
+                        "CRITICAL"
+                    ],
+                    "description": "Logging level",
+                    "default": "INFO"
+                },
+                "file_logging": {
+                    "type": "boolean",
+                    "description": "Enable logging to file",
+                    "default": true
+                },
+                "verbose": {
+                    "type": "boolean",
+                    "description": "Enable verbose/detailed logging output",
+                    "default": true
+                }
+            }
+        },
+        "agentic_ai": {
+            "type": "object",
+            "description": "Agentic AI integration settings",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Enable AI-powered responses",
+                    "default": true
+                },
+                "provider": {
+                    "type": "string",
+                    "enum": [
+                        "openai",
+                        "anthropic",
+                        "google"
+                    ],
+                    "description": "AI provider to use",
+                    "default": "openai"
+                },
+                "api_key": {
+                    "type": "string",
+                    "description": "API key for the AI provider. Leave empty to use AI_API_KEY environment variable",
+                    "default": ""
+                },
+                "model": {
+                    "type": "string",
+                    "description": "Model name/identifier for the selected provider",
+                    "default": "gpt-5-mini"
+                },
+                "trigger_mode": {
+                    "type": "string",
+                    "enum": [
+                        "always",
+                        "mention",
+                        "reply"
+                    ],
+                    "description": "When AI should respond: 'always' (all messages), 'mention' (when bot is mentioned), 'reply' (when replying to bot)",
+                    "default": "reply"
+                },
+                "allowed_actions": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "List of allowed command actions for AI. Empty array means all non-dangerous actions are allowed",
+                    "default": []
+                },
+                "blocked_actions": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "List of command actions blocked from AI usage (for security)",
+                    "default": [
+                        "aeval",
+                        "eval",
+                        "addcommand",
+                        "delcommand",
+                        "shutdown"
+                    ]
+                },
+                "owner_only": {
+                    "type": "boolean",
+                    "description": "Restrict AI commands to bot owner only",
+                    "default": true
+                }
+            }
+        },
+        "features": {
+            "type": "object",
+            "description": "Feature toggles for bot functionality",
+            "properties": {
+                "anti_delete": {
+                    "type": "boolean",
+                    "description": "Forward deleted messages to owner",
+                    "default": true
+                },
+                "anti_link": {
+                    "type": "boolean",
+                    "description": "Detect and act on links in group chats",
+                    "default": false
+                },
+                "welcome": {
+                    "type": "boolean",
+                    "description": "Send welcome messages for new group members",
+                    "default": true
+                },
+                "notes": {
+                    "type": "boolean",
+                    "description": "Enable notes/saved replies feature",
+                    "default": true
+                },
+                "filters": {
+                    "type": "boolean",
+                    "description": "Enable message filters feature",
+                    "default": true
+                },
+                "blacklist": {
+                    "type": "boolean",
+                    "description": "Enable user/group blacklist feature",
+                    "default": true
+                },
+                "warnings": {
+                    "type": "boolean",
+                    "description": "Enable user warning system",
+                    "default": true
+                }
+            }
+        },
+        "anti_delete": {
+            "type": "object",
+            "description": "Anti-delete feature settings",
+            "properties": {
+                "forward_to": {
+                    "type": "string",
+                    "description": "JID to forward deleted messages to (usually owner's JID)"
+                },
+                "cache_ttl": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Time-to-live for message cache in seconds",
+                    "default": 60
+                }
+            }
+        },
+        "anti_link": {
+            "type": "object",
+            "description": "Anti-link feature settings",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": [
+                        "warn",
+                        "kick",
+                        "ban"
+                    ],
+                    "description": "Action to take when a link is detected",
+                    "default": "warn"
+                },
+                "whitelist": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "List of JIDs that are allowed to send links",
+                    "default": []
+                }
+            }
+        },
+        "warnings": {
+            "type": "object",
+            "description": "Warning system settings",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Number of warnings before action is taken",
+                    "default": 3
+                },
+                "action": {
+                    "type": "string",
+                    "enum": [
+                        "warn",
+                        "kick",
+                        "ban"
+                    ],
+                    "description": "Action to take when warning limit is reached",
+                    "default": "kick"
+                }
+            }
+        },
+        "disabled_commands": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "description": "List of command names that are disabled",
+            "default": []
+        }
+    },
+    "required": [
+        "bot"
+    ]
+}

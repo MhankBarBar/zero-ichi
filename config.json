@@ -1,0 +1,56 @@
+{
+    "$schema": "./config.schema.json",
+    "bot": {
+        "name": "zero_ichi_bot",
+        "prefix": "(!|/|.)",
+        "login_method": "QR",
+        "owner_jid": "40660455428291@lid",
+        "auto_read": false,
+        "auto_react": false,
+        "auto_react_emoji": "❤️",
+        "auto_reload": true,
+        "ignore_self_messages": false
+    },
+    "logging": {
+        "log_messages": true,
+        "level": "INFO",
+        "file_logging": true,
+        "verbose": true
+    },
+    "agentic_ai": {
+        "enabled": true,
+        "provider": "openai",
+        "model": "gpt-5-mini",
+        "trigger_mode": "reply",
+        "allowed_actions": [],
+        "blocked_actions": [
+            "aeval",
+            "eval",
+            "addcommand",
+            "delcommand"
+        ],
+        "owner_only": true
+    },
+    "features": {
+        "anti_delete": true,
+        "anti_link": false,
+        "welcome": true,
+        "notes": true,
+        "filters": true,
+        "blacklist": true,
+        "warnings": true
+    },
+    "anti_delete": {
+        "forward_to": "40660455428291@lid",
+        "cache_ttl": 60
+    },
+    "anti_link": {
+        "action": "warn",
+        "whitelist": []
+    },
+    "warnings": {
+        "limit": 3,
+        "action": "kick"
+    },
+    "disabled_commands": []
+}
