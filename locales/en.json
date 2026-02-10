@@ -7,7 +7,7 @@
         "owner_only": "This command is only for the owner.",
         "cooldown": "Cooldown: {remaining}s",
         "not_found": "Command `{command}` not found.",
-        "generic": "Error: {error}",
+        "generic": "Something went wrong. Please try again.",
         "invalid_action": "Invalid action. Use: {options}",
         "usage": "Usage: `{usage}`",
         "no_target": "Please reply to a message or mention a user.",
@@ -377,5 +377,70 @@
         "changed": "Language changed to *{lang}*.",
         "invalid": "Invalid language code. Available: {codes}",
         "failed": "Failed to change language."
+    },
+    "uptime": {
+        "title": "Bot Uptime"
+    },
+    "stats": {
+        "title": "Bot Statistics",
+        "uptime": "Uptime",
+        "messages": "Messages Processed",
+        "commands_used": "Commands Executed",
+        "commands_loaded": "Commands Loaded",
+        "groups": "Groups",
+        "platform": "Platform",
+        "python": "Python"
+    },
+    "joke": {
+        "title": "Random Joke"
+    },
+    "quote": {
+        "title": "Inspirational Quote"
+    },
+    "eightball": {
+        "title": "Magic 8-Ball",
+        "ask_question": "Ask a yes/no question!\n\nUsage: `{prefix}8ball <question>`"
+    },
+    "flip": {
+        "title": "Coin Flip",
+        "result": "Result"
+    },
+    "roll": {
+        "title": "Dice Roll",
+        "result": "Result",
+        "usage": "Format: `{prefix}roll [count]d[sides][+/-modifier]`\n\nExamples:\n{bullet} `{prefix}roll` {arrow} Roll 1d6\n{bullet} `{prefix}roll d20` {arrow} Roll 1d20\n{bullet} `{prefix}roll 2d6` {arrow} Roll 2d6\n{bullet} `{prefix}roll 3d8+5` {arrow} Roll 3d8 and add 5",
+        "invalid_count": "Roll 1-100 dice only.",
+        "invalid_sides": "Dice must have 2-1000 sides."
+    },
+    "fact": {
+        "title": "Did You Know?"
+    },
+    "poll": {
+        "title": "Create a Poll",
+        "usage": "Usage: `{prefix}poll \"Question\" \"Option 1\" \"Option 2\" ...`\n\nExample:\n`{prefix}poll \"Favorite color?\" \"Red\" \"Blue\" \"Green\"`",
+        "need_options": "Need a question and at least 2 options.\n\nUsage: `{prefix}poll \"Question\" \"Option 1\" \"Option 2\"`",
+        "max_options": "Maximum 12 options allowed.",
+        "failed": "Failed to create poll: {error}"
+    },
+    "rules": {
+        "title": "Group Rules",
+        "no_rules": "No rules set for this group.\n\nAdmin can set rules with:\n`{prefix}rules set <your rules here>`",
+        "updated": "Group rules updated!",
+        "cleared": "Group rules cleared.",
+        "provide_text": "Provide the rules text.\n\nUsage: `{prefix}rules set <your rules>`",
+        "unknown_action": "Unknown action.\n\nUsage:\n{bullet} `{prefix}rules` - Show rules\n{bullet} `{prefix}rules set <text>` - Set rules\n{bullet} `{prefix}rules clear` - Clear rules"
+    },
+    "lock": {
+        "locked": "Group *locked*. Only admins can send messages.",
+        "unlocked": "Group *unlocked*. Everyone can send messages.",
+        "lock_failed": "Failed to lock group: {error}",
+        "unlock_failed": "Failed to unlock group: {error}"
+    },
+    "afk": {
+        "set": "You are now *AFK*.",
+        "set_reason": "You are now *AFK*.\n{note} Reason: _{reason}_",
+        "welcome_back": "*Welcome back!* You were AFK for {duration}.",
+        "is_afk": "That user is currently *AFK* ({duration})",
+        "is_afk_reason": "That user is currently *AFK* ({duration})\n{note} Reason: _{reason}_"
     }
 }

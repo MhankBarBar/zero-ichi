@@ -255,13 +255,13 @@ class CommandLoader:
         for cmd in self.unique_commands:
             if not cmd.enabled:
                 continue
-            category = cmd.category or "general"
+            category = cmd.category.title() or "General"
             if category not in result:
                 result[category] = []
             result[category].append(cmd)
 
         for category in result:
-            result[category].sort(key=lambda c: c.name)
+            result[category.title()].sort(key=lambda c: c.name)
 
         return result
 
@@ -282,7 +282,7 @@ class CommandLoader:
                 continue
 
             seen.add(cmd.name)
-            category = cmd.category or "Other"
+            category = cmd.category.title() or "Other"
 
             if category not in result:
                 result[category] = []

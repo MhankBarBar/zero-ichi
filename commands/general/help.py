@@ -41,7 +41,6 @@ class HelpCommand(Command):
     name = "help"
     aliases = ["h", "?"]
     description = "Show all available commands"
-    category = "general"
 
     @property
     def usage(self) -> str:

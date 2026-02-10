@@ -371,7 +371,7 @@ class RuntimeConfig:
         self._save()
 
     def is_owner(self, sender_jid: str) -> bool:
-        """Check if the sender is the bot owner."""
+        """Check if the sender is the bot owner (sync fallback, compares user parts only)."""
         owner = self.get_owner_jid()
         if not owner:
             return False
@@ -380,6 +380,28 @@ class RuntimeConfig:
         owner_user = owner.split("@")[0].split(":")[0]
 
         return sender_user == owner_user
+
+    async def is_owner_async(self, sender_jid: str, client=None) -> bool:
+        """
+        Check if the sender is the bot owner (async with JID resolution).
+
+        This method can compare JIDs across PN and LID formats by resolving
+        them through the WhatsApp API.
+
+        Args:
+            sender_jid: The sender's JID to check
+            client: Optional BotClient for API-based resolution
+
+        Returns:
+            True if sender is the owner
+        """
+        owner = self.get_owner_jid()
+        if not owner:
+            return False
+
+        from core.jid_resolver import jids_match
+
+        return await jids_match(sender_jid, owner, client)
 
     def get_feature(self, name: str) -> bool:
         """Get a feature flag value."""

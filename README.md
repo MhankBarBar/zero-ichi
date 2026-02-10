@@ -90,7 +90,7 @@ The bot uses `config.json` with [JSON Schema](https://json-schema.org/) validati
 |--------|---------|-------------|
 | `bot.name` | `zero_ichi_bot` | Session identifier (database filename) |
 | `bot.prefix` | `/` | Command prefix (supports regex) |
-| `bot.login_method` | `qr` | Login method: `qr` or `phone` |
+| `bot.login_method` | `qr` | Login method: `qr` or `pair_code |
 | `bot.owner_jid` | — | Bot owner's JID |
 
 </details>
@@ -101,7 +101,7 @@ The bot uses `config.json` with [JSON Schema](https://json-schema.org/) validati
 Store sensitive config in `.env`:
 
 ```bash
-AI_API_KEY=your_openai_api_key_here
+AI_API_KEY=your_api_key_here
 ```
 
 Copy `.env.example` to `.env` and fill in your values.

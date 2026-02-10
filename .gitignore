@@ -59,3 +59,5 @@ htmlcov/
 
 # mypy
 .mypy_cache/
+
+clean_*

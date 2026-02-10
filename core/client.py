@@ -109,6 +109,40 @@ class BotClient:
             return await result
         return bool(result)
 
+    async def resolve_jid_pair(self, jid: str) -> dict[str, str | None]:
+        """
+        Resolve both PN and LID formats for a JID.
+
+        Uses neonize's get_lid_from_pn/get_pn_from_lid functions with caching.
+
+        Args:
+            jid: Any valid JID string (PN or LID format)
+
+        Returns:
+            Dict with keys "pn" and "lid", values may be None if resolution fails
+            Example: {"pn": "1234567890@s.whatsapp.net", "lid": "123456@lid"}
+        """
+        from core.jid_resolver import resolve_pair
+
+        return await resolve_pair(jid, self)
+
+    async def match_jids(self, jid1: str, jid2: str) -> bool:
+        """
+        Check if two JIDs refer to the same user, regardless of format.
+
+        Handles comparison between PN (@s.whatsapp.net) and LID (@lid) formats.
+
+        Args:
+            jid1: First JID to compare
+            jid2: Second JID to compare
+
+        Returns:
+            True if both JIDs refer to the same user
+        """
+        from core.jid_resolver import jids_match
+
+        return await jids_match(jid1, jid2, self)
+
     def _apply_forwarded(self, message: Message, score: int = 1) -> Message:
         """
         Apply forwarded context to a message.

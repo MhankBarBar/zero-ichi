@@ -72,7 +72,6 @@ class RemindCommand(Command):
     name = "remind"
     aliases = ["reminder", "remindme"]
     description = "Set a reminder (text or media)"
-    category = "utility"
     usage = "/remind <duration> <message> or reply to media with /remind <duration>"
     cooldown = 3
 

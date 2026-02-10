@@ -311,7 +311,7 @@ class ConfigCommand(Command):
 
     async def _handle_ai(self, ctx: CommandContext, args: list[str]) -> None:
         """Handle agentic AI configuration."""
-        from core.ai_agent import agentic_ai
+        from ai import agentic_ai
 
         if not args:
             enabled = agentic_ai.enabled

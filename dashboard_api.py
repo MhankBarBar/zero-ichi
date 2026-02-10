@@ -745,22 +745,26 @@ async def get_notes(group_id: str):
 
     group_storage = GroupData(group_id)
     notes = group_storage.notes
-    
+
     notes_list = []
     for name, data in notes.items():
         if isinstance(data, dict):
-            notes_list.append({
-                "name": name,
-                "content": data.get("content", ""),
-                "media_type": data.get("media_type", "text"),
-            })
+            notes_list.append(
+                {
+                    "name": name,
+                    "content": data.get("content", ""),
+                    "media_type": data.get("media_type", "text"),
+                }
+            )
         else:
-            notes_list.append({
-                "name": name,
-                "content": str(data),
-                "media_type": "text",
-            })
-    
+            notes_list.append(
+                {
+                    "name": name,
+                    "content": str(data),
+                    "media_type": "text",
+                }
+            )
+
     return {"notes": notes_list, "count": len(notes_list)}
 
 
@@ -771,16 +775,16 @@ async def create_note(group_id: str, note: NoteCreate):
 
     group_storage = GroupData(group_id)
     notes = group_storage.notes
-    
+
     if note.name in notes:
         raise HTTPException(status_code=400, detail=f"Note '{note.name}' already exists")
-    
+
     notes[note.name] = {
         "content": note.content,
         "media_type": note.media_type or "text",
     }
     group_storage.save_notes(notes)
-    
+
     return {"success": True, "message": f"Note '{note.name}' created"}
 
 
@@ -791,16 +795,16 @@ async def update_note(group_id: str, note_name: str, note: NoteUpdate):
 
     group_storage = GroupData(group_id)
     notes = group_storage.notes
-    
+
     if note_name not in notes:
         raise HTTPException(status_code=404, detail=f"Note '{note_name}' not found")
-    
+
     notes[note_name] = {
         "content": note.content,
         "media_type": note.media_type or "text",
     }
     group_storage.save_notes(notes)
-    
+
     return {"success": True, "message": f"Note '{note_name}' updated"}
 
 
@@ -811,16 +815,14 @@ async def delete_note(group_id: str, note_name: str):
 
     group_storage = GroupData(group_id)
     notes = group_storage.notes
-    
+
     if note_name not in notes:
         raise HTTPException(status_code=404, detail=f"Note '{note_name}' not found")
-    
+
     del notes[note_name]
     group_storage.save_notes(notes)
-    
+
     return {"success": True, "message": f"Note '{note_name}' deleted"}
-
-
 
 
 class FilterCreate(BaseModel):
@@ -837,14 +839,16 @@ async def get_filters(group_id: str):
 
     group_storage = GroupData(group_id)
     filters = group_storage.filters
-    
+
     filters_list = []
     for trigger, response in filters.items():
-        filters_list.append({
-            "trigger": trigger,
-            "response": response if isinstance(response, str) else str(response),
-        })
-    
+        filters_list.append(
+            {
+                "trigger": trigger,
+                "response": response if isinstance(response, str) else str(response),
+            }
+        )
+
     return {"filters": filters_list, "count": len(filters_list)}
 
 
@@ -855,35 +859,36 @@ async def create_filter(group_id: str, filter_data: FilterCreate):
 
     group_storage = GroupData(group_id)
     filters = group_storage.filters
-    
+
     if filter_data.trigger in filters:
-        raise HTTPException(status_code=400, detail=f"Filter '{filter_data.trigger}' already exists")
-    
+        raise HTTPException(
+            status_code=400, detail=f"Filter '{filter_data.trigger}' already exists"
+        )
+
     filters[filter_data.trigger] = filter_data.response
     group_storage.save_filters(filters)
-    
+
     return {"success": True, "message": f"Filter '{filter_data.trigger}' created"}
 
 
 @app.delete("/api/groups/{group_id}/filters/{trigger}")
 async def delete_filter(group_id: str, trigger: str):
     """Delete a filter."""
-    from core.storage import GroupData
     from urllib.parse import unquote
+
+    from core.storage import GroupData
 
     trigger = unquote(trigger)
     group_storage = GroupData(group_id)
     filters = group_storage.filters
-    
+
     if trigger not in filters:
         raise HTTPException(status_code=404, detail=f"Filter '{trigger}' not found")
-    
+
     del filters[trigger]
     group_storage.save_filters(filters)
-    
+
     return {"success": True, "message": f"Filter '{trigger}' deleted"}
-
-
 
 
 class BlacklistWord(BaseModel):
@@ -899,7 +904,7 @@ async def get_blacklist(group_id: str):
 
     group_storage = GroupData(group_id)
     words = group_storage.blacklist
-    
+
     return {"words": words, "count": len(words)}
 
 
@@ -910,33 +915,34 @@ async def add_blacklist_word(group_id: str, data: BlacklistWord):
 
     group_storage = GroupData(group_id)
     words = group_storage.blacklist
-    
+
     word = data.word.lower().strip()
     if word in words:
         raise HTTPException(status_code=400, detail=f"Word '{word}' already in blacklist")
-    
+
     words.append(word)
     group_storage.save_blacklist(words)
-    
+
     return {"success": True, "message": f"Word '{word}' added to blacklist"}
 
 
 @app.delete("/api/groups/{group_id}/blacklist/{word}")
 async def remove_blacklist_word(group_id: str, word: str):
     """Remove a word from the blacklist."""
-    from core.storage import GroupData
     from urllib.parse import unquote
+
+    from core.storage import GroupData
 
     word = unquote(word).lower().strip()
     group_storage = GroupData(group_id)
     words = group_storage.blacklist
-    
+
     if word not in words:
         raise HTTPException(status_code=404, detail=f"Word '{word}' not in blacklist")
-    
+
     words.remove(word)
     group_storage.save_blacklist(words)
-    
+
     return {"success": True, "message": f"Word '{word}' removed from blacklist"}
 
 
