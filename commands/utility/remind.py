@@ -74,6 +74,7 @@ class RemindCommand(Command):
     description = "Set a reminder (text or media)"
     usage = "/remind <duration> <message> or reply to media with /remind <duration>"
     cooldown = 3
+    category = "utility"
 
     async def execute(self, ctx: CommandContext) -> None:
         """Handle remind command."""

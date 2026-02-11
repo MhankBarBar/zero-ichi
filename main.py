@@ -359,6 +359,7 @@ async def start_bot() -> None:
             project_dir / "commands",
             project_dir / "core",
             project_dir / "config",
+            project_dir / "ai",
         ]
         watch_files = [
             project_dir / "dashboard_api.py",

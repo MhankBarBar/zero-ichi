@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 from neonize.proto.Neonize_pb2 import GroupParticipant
 
 from core.i18n import t_error
+from core.jid_resolver import get_user_part, jids_match
 from core.runtime_config import runtime_config
 
 if TYPE_CHECKING:
@@ -38,9 +39,12 @@ async def get_participant(
     """Get participant info from a group."""
     try:
         group_info = await client._client.get_group_info(client.to_jid(group_jid))
-        user_part = user_jid.split("@")[0].split(":")[0]
+        user_part = get_user_part(user_jid)
         for participant in group_info.Participants:
             if participant.JID.User == user_part:
+                return participant
+            participant_jid = f"{participant.JID.User}@{participant.JID.Server}"
+            if await jids_match(participant_jid, user_jid, client):
                 return participant
     except Exception:
         pass
@@ -59,8 +63,12 @@ async def check_bot_admin(client: BotClient, group_jid: str) -> bool:
     """Check if bot is admin in the group."""
     try:
         me = await client._client.get_me()
+        bot_jid = ""
         if me and me.JID:
             bot_jid = f"{me.JID.User}@{me.JID.Server}"
+        elif me and hasattr(me, "LID") and me.LID and me.LID.User:
+            bot_jid = f"{me.LID.User}@{me.LID.Server}"
+        if bot_jid:
             return await check_admin_permission(client, group_jid, bot_jid)
     except Exception:
         pass
