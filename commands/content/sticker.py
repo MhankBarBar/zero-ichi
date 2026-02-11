@@ -7,6 +7,7 @@ from io import BytesIO
 from PIL import Image
 
 from core.command import Command, CommandContext
+from core.errors import report_error
 from core.i18n import t_error, t_info, t_warning
 from core.logger import log_error, log_info
 
@@ -58,5 +59,4 @@ class StickerCommand(Command):
             )
 
         except Exception as e:
-            log_error(f"Sticker command failed: {e}")
-            await ctx.client.reply(ctx.message, t_error("errors.generic", error=str(e)))
+            await report_error(ctx.client, ctx.message, self.name, e)

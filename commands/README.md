@@ -34,6 +34,11 @@ class MyCommand(Command):
     private_only = False          # Only works in DMs
     owner_only = False            # Only bot owner can use
 
+    # Permissions
+    admin_only = False            # Only admin can use (group admin)
+    bot_admin_required = False    # Bot needs to be admin
+    enabled = True                # Command is enabled
+
     async def execute(self, ctx: CommandContext) -> None:
         # ctx.client - BotClient for sending messages
         # ctx.message - MessageHelper with message data
@@ -57,6 +62,9 @@ class MyCommand(Command):
 | group_only | bool | Only works in groups |
 | private_only | bool | Only works in DMs |
 | owner_only | bool | Only bot owner can use |
+| admin_only | bool | Only group admin can use |
+| bot_admin_required | bool | Bot needs to be admin |
+| enabled | bool | Command is enabled |
 
 ## CommandContext
 

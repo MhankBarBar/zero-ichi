@@ -15,15 +15,11 @@ class WarnCommand(Command):
     description = "Issue a warning to a user"
     usage = "warn @user [reason]"
     group_only = True
+    bot_admin_required = True
 
     async def execute(self, ctx: CommandContext) -> None:
         """Warn a user."""
-        sender_jid = ctx.message.sender_jid
         group_jid = ctx.message.chat_jid
-
-        if not await check_admin_permission(ctx.client, group_jid, sender_jid):
-            await ctx.client.reply(ctx.message, t_error("errors.admin_required"))
-            return
 
         data = GroupData(group_jid)
         warn_config = data.warnings_config

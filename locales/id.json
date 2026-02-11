@@ -7,7 +7,7 @@
         "owner_only": "Command ini khusus owner aja.",
         "cooldown": "Sabar {remaining} detik lagi.",
         "not_found": "Command `{command}` gak ketemu.",
-        "generic": "Error: {error}",
+        "generic": "Terjadi kesalahan. Silakan coba lagi.",
         "invalid_action": "Action salah. Pilih: {options}",
         "usage": "Cara pake: `{usage}`",
         "no_target": "Reply pesan atau mention user yang mau ditarget.",
@@ -377,5 +377,70 @@
         "changed": "Language diubah ke *{lang}*.",
         "invalid": "Invalid language code. Available: {codes}",
         "failed": "Gagal ganti language."
+    },
+    "uptime": {
+        "title": "Bot Uptime"
+    },
+    "stats": {
+        "title": "Statistik Bot",
+        "uptime": "Uptime",
+        "messages": "Pesan Diproses",
+        "commands_used": "Command Dijalankan",
+        "commands_loaded": "Command Loaded",
+        "groups": "Grup",
+        "platform": "Platform",
+        "python": "Python"
+    },
+    "joke": {
+        "title": "Jokes Random"
+    },
+    "quote": {
+        "title": "Quote Inspirasi"
+    },
+    "eightball": {
+        "title": "Magic 8-Ball",
+        "ask_question": "Tanya pertanyaan yes/no!\n\nCara pake: `{prefix}8ball <pertanyaan>`"
+    },
+    "flip": {
+        "title": "Lempar Koin",
+        "result": "Hasil"
+    },
+    "roll": {
+        "title": "Lempar Dadu",
+        "result": "Hasil",
+        "usage": "Format: `{prefix}roll [jumlah]d[sisi][+/-modifier]`\n\nContoh:\n{bullet} `{prefix}roll` {arrow} Lempar 1d6\n{bullet} `{prefix}roll d20` {arrow} Lempar 1d20\n{bullet} `{prefix}roll 2d6` {arrow} Lempar 2d6\n{bullet} `{prefix}roll 3d8+5` {arrow} Lempar 3d8 dan tambah 5",
+        "invalid_count": "Lempar 1-100 dadu aja.",
+        "invalid_sides": "Dadu harus punya 2-1000 sisi."
+    },
+    "fact": {
+        "title": "Tau Gak?"
+    },
+    "poll": {
+        "title": "Bikin Poll",
+        "usage": "Cara pake: `{prefix}poll \"Pertanyaan\" \"Pilihan 1\" \"Pilihan 2\" ...`\n\nContoh:\n`{prefix}poll \"Warna favorit?\" \"Merah\" \"Biru\" \"Hijau\"`",
+        "need_options": "Butuh pertanyaan dan minimal 2 pilihan.\n\nCara pake: `{prefix}poll \"Pertanyaan\" \"Pilihan 1\" \"Pilihan 2\"`",
+        "max_options": "Maksimal 12 pilihan.",
+        "failed": "Gagal bikin poll: {error}"
+    },
+    "rules": {
+        "title": "Aturan Grup",
+        "no_rules": "Belum ada aturan buat grup ini.\n\nAdmin bisa set aturan pake:\n`{prefix}rules set <aturan disini>`",
+        "updated": "Aturan grup di-update!",
+        "cleared": "Aturan grup dihapus.",
+        "provide_text": "Kasih teks aturannya.\n\nCara pake: `{prefix}rules set <aturan>`",
+        "unknown_action": "Action salah.\n\nCara pake:\n{bullet} `{prefix}rules` - Liat aturan\n{bullet} `{prefix}rules set <teks>` - Set aturan\n{bullet} `{prefix}rules clear` - Hapus aturan"
+    },
+    "lock": {
+        "locked": "Grup *dikunci*. Cuma admin yang bisa kirim pesan.",
+        "unlocked": "Grup *dibuka*. Semua bisa kirim pesan.",
+        "lock_failed": "Gagal kunci grup: {error}",
+        "unlock_failed": "Gagal buka kunci grup: {error}"
+    },
+    "afk": {
+        "set": "Lu sekarang *AFK*.",
+        "set_reason": "Lu sekarang *AFK*.\n{note} Alasan: _{reason}_",
+        "welcome_back": "*Welcome back!* Lu AFK selama {duration}.",
+        "is_afk": "User itu lagi *AFK* ({duration})",
+        "is_afk_reason": "User itu lagi *AFK* ({duration})\n{note} Alasan: _{reason}_"
     }
 }

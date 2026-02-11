@@ -3,6 +3,7 @@ Tagall command - Mention all group members.
 """
 
 from core.command import Command, CommandContext
+from core.errors import report_error
 from core.i18n import t, t_error
 
 
@@ -35,4 +36,4 @@ class TagallCommand(Command):
 
             await ctx.client.send(group_jid, message, mentions_are_lids=True)
         except Exception as e:
-            await ctx.client.reply(ctx.message, t_error("tagall.failed", error=str(e)))
+            await report_error(ctx.client, ctx.message, self.name, e)

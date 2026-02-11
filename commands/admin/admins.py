@@ -3,7 +3,8 @@ Admins command - List all group admins.
 """
 
 from core.command import Command, CommandContext
-from core.i18n import t, t_error
+from core.errors import report_error
+from core.i18n import t
 
 
 class AdminsCommand(Command):
@@ -42,4 +43,4 @@ class AdminsCommand(Command):
 
             await ctx.client.reply(ctx.message, "\n".join(lines), mentions_are_lids=True)
         except Exception as e:
-            await ctx.client.reply(ctx.message, t_error("admin.list_failed", error=str(e)))
+            await report_error(ctx.client, ctx.message, self.name, e)

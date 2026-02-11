@@ -9,7 +9,7 @@ import segno
 from dotenv import load_dotenv
 from google.protobuf.json_format import MessageToDict
 from neonize.aioze.client import ClientFactory, NewAClient
-from neonize.events import ConnectedEv, MessageEv
+from neonize.events import ConnectedEv, GroupInfoEv, MessageEv
 from neonize.proto.waCompanionReg.WAWebProtobufsCompanionReg_pb2 import DeviceProps
 
 from config.settings import (
@@ -24,12 +24,13 @@ from core import symbols as sym
 from core.cache import message_cache
 from core.client import BotClient
 from core.command import CommandContext, command_loader
+from core.handlers import afk as afk_handler
 from core.handlers import antidelete
 from core.handlers import antilink as antilink_handler
 from core.handlers import blacklist as blacklist_handler
 from core.handlers import features as features_handler
 from core.handlers import mute as mute_handler
-from core.i18n import init_i18n, set_context, t, t_error
+from core.i18n import init_i18n, set_context, t
 from core.logger import (
     console,
     log_bullet,
@@ -49,7 +50,6 @@ from core.logger import (
     show_qr_prompt,
 )
 from core.message import MessageHelper
-from core.permissions import check_admin_permission, check_bot_admin
 from core.rate_limiter import rate_limiter
 from core.runtime_config import runtime_config
 from core.scheduler import init_scheduler
@@ -112,6 +112,41 @@ async def connected_handler(c: NewAClient, event: ConnectedEv) -> None:
     if scheduler and not scheduler._scheduler.running:
         scheduler.start()
         log_success("Scheduler start() called")
+
+    owner_jid = runtime_config.get_owner_jid()
+    if owner_jid:
+        from core.jid_resolver import resolve_pair
+
+        await resolve_pair(owner_jid, bot)
+        log_info(f"Preloaded JID cache for owner: {owner_jid}")
+
+
+@client.event(GroupInfoEv)
+async def group_info_handler(c: NewAClient, event: GroupInfoEv) -> None:
+    """Handle group info events (join/leave)."""
+    from core.handlers.welcome import handle_member_join, handle_member_leave
+
+    try:
+        event_dict = MessageToDict(event)
+
+        if "join" in event_dict or "leave" in event_dict or "participants" in event_dict:
+            group_jid = event_dict.get("jid", "")
+
+            if "join" in event_dict:
+                for participant in event_dict.get("join", []):
+                    member_jid = participant.get("jid", "")
+                    member_name = participant.get("pushName", member_jid.split("@")[0])
+                    log_info(f"Member joined: {member_name} ({member_jid}) in {group_jid}")
+                    await handle_member_join(bot, group_jid, member_jid, member_name)
+
+            if "leave" in event_dict:
+                for participant in event_dict.get("leave", []):
+                    member_jid = participant.get("jid", "")
+                    member_name = participant.get("pushName", member_jid.split("@")[0])
+                    log_info(f"Member left: {member_name} ({member_jid}) from {group_jid}")
+                    await handle_member_leave(bot, group_jid, member_jid, member_name)
+    except Exception as e:
+        log_warning(f"Error handling group info event: {e}")
 
 
 @client.event(MessageEv)
@@ -187,9 +222,13 @@ async def message_handler(c: NewAClient, event: MessageEv) -> None:
 
     await features_handler.handle_features(bot, msg)
 
-    from core.ai_agent import agentic_ai
+    await afk_handler.handle_afk_mentions(bot, msg)
 
-    if await agentic_ai.should_respond(msg, bot):
+    from ai import agentic_ai
+
+    parsed_cmd = command_loader.parse_command(msg.text)[0]
+    is_command = parsed_cmd is not None and command_loader.get(parsed_cmd) is not None
+    if not is_command and await agentic_ai.should_respond(msg, bot):
         try:
             response = await agentic_ai.process(msg, bot)
             if response and response.strip():
@@ -206,36 +245,17 @@ async def message_handler(c: NewAClient, event: MessageEv) -> None:
     if not cmd:
         return
 
-    if not cmd.can_execute(msg.chat_type):
-        if cmd.group_only:
-            await bot.reply(msg, t_error("errors.group_only"))
-        elif cmd.private_only:
-            await bot.reply(msg, t_error("errors.private_only"))
-        log_command_skip(command_name, "chat type mismatch")
+    from core.permissions import check_command_permissions, is_owner_for_bypass
+
+    perm_result = await check_command_permissions(cmd, msg, bot)
+    if not perm_result:
+        if perm_result.error_message:
+            await bot.reply(msg, perm_result.error_message)
+        log_command_skip(command_name, "permission denied")
         return
 
-    if cmd.owner_only:
-        if not runtime_config.is_owner(msg.sender_jid):
-            log_command_skip(command_name, f"owner-only command from {msg.sender_name}")
-            return
-
-    if cmd.admin_only and msg.is_group:
-        if not await check_admin_permission(bot, msg.chat_jid, msg.sender_jid):
-            await bot.reply(msg, t_error("errors.admin_required"))
-            log_command_skip(command_name, f"non-admin user {msg.sender_name}")
-            return
-
-    if cmd.bot_admin_required and msg.is_group:
-        if not await check_bot_admin(bot, msg.chat_jid):
-            await bot.reply(msg, t_error("errors.bot_admin_required"))
-            log_command_skip(command_name, "bot is not admin")
-            return
-
-    if not runtime_config.is_command_enabled(command_name):
-        log_command_skip(command_name, "command is disabled")
-        return
-
-    if rate_limiter.is_limited(msg.sender_jid, command_name):
+    is_owner = await is_owner_for_bypass(msg, bot)
+    if not is_owner and rate_limiter.is_limited(msg.sender_jid, command_name):
         remaining = rate_limiter.get_remaining_cooldown(msg.sender_jid, command_name)
         log_command_skip(command_name, f"rate limited ({remaining:.1f}s remaining)")
         await bot.reply(msg, f"{sym.CLOCK} {t('errors.cooldown', remaining=f'{remaining:.1f}')}")
@@ -261,7 +281,6 @@ async def message_handler(c: NewAClient, event: MessageEv) -> None:
             command_name, msg.sender_name, log_chat_type, msg.chat_jid, success=True
         )
     except Exception as e:
-        log_error(f"Error executing command '{command_name}': {e}")
         log_command_execution(
             command_name,
             msg.sender_name,
@@ -270,7 +289,10 @@ async def message_handler(c: NewAClient, event: MessageEv) -> None:
             success=False,
             error=str(e),
         )
-        await bot.reply(msg, t_error("errors.generic", error=str(e)))
+
+        from core.errors import report_error
+
+        await report_error(ctx.client, ctx.message, command_name, e)
 
 
 async def start_bot() -> None:
@@ -339,6 +361,7 @@ async def start_bot() -> None:
             project_dir / "commands",
             project_dir / "core",
             project_dir / "config",
+            project_dir / "ai",
         ]
         watch_files = [
             project_dir / "dashboard_api.py",

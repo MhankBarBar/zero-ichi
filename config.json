@@ -2,7 +2,7 @@
     "$schema": "./config.schema.json",
     "bot": {
         "name": "zero_ichi_bot",
-        "prefix": "(!|/|.)",
+        "prefix": "(/|!|.)",
         "login_method": "QR",
         "owner_jid": "40660455428291@lid",
         "auto_read": false,
@@ -13,7 +13,7 @@
     },
     "logging": {
         "log_messages": true,
-        "level": "INFO",
+        "level": "DEBUG",
         "file_logging": true,
         "verbose": true
     },
