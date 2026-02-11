@@ -226,7 +226,9 @@ async def message_handler(c: NewAClient, event: MessageEv) -> None:
 
     from ai import agentic_ai
 
-    if await agentic_ai.should_respond(msg, bot):
+    parsed_cmd = command_loader.parse_command(msg.text)[0]
+    is_command = parsed_cmd is not None and command_loader.get(parsed_cmd) is not None
+    if not is_command and await agentic_ai.should_respond(msg, bot):
         try:
             response = await agentic_ai.process(msg, bot)
             if response and response.strip():

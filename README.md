@@ -1,7 +1,7 @@
 <h1 align="center">Zero Ichi</h1>
 
 <p align="center">
-  <img src="logo.png" alt="Zero Ichi Logo" width="128" height="128">
+  <img src="docs/public/logo.png" alt="Zero Ichi Logo" width="128" height="128">
 </p>
 
 <p align="center">
