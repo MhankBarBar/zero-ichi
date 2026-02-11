@@ -3,10 +3,10 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
     title: 'Zero Ichi',
     description: 'Documentation for the Zero Ichi WhatsApp Bot',
-    base: '/zero-ichi/',
+    base: '/',
 
     head: [
-        ['link', { rel: 'icon', href: '/zero-ichi/logo.png' }],
+        ['link', { rel: 'icon', href: '/logo.png' }],
     ],
 
     themeConfig: {
