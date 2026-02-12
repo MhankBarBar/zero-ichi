@@ -20,6 +20,7 @@ from neonize.proto.waE2E.WAWebProtobufsE2E_pb2 import (
     Message,
     MessageContextInfo,
 )
+from neonize.utils.enum import VoteType
 from neonize.utils.jid import build_jid
 
 from core.message import MessageHelper
@@ -867,6 +868,26 @@ class BotClient:
         if forwarded:
             self._apply_forwarded(msg)
         return await self._client.send_message(self.to_jid(to), msg)
+
+    async def send_poll(
+        self,
+        to: str | JID,
+        question: str,
+        options: list[str],
+        multi_select: bool = False,
+    ) -> SendResponse:
+        """
+        Send a poll to a chat.
+
+        Args:
+            to: Recipient JID
+            question: The poll question
+            options: List of answer options (2-12)
+            multi_select: Allow multiple selections (default: single select)
+        """
+        vote_type = VoteType.MULTIPLE if multi_select else VoteType.SINGLE
+        poll_msg = await self._client.build_poll_vote_creation(question, options, vote_type)
+        return await self._client.send_message(self.to_jid(to), poll_msg)
 
     async def send_document(
         self,

@@ -2,7 +2,7 @@
     "$schema": "./config.schema.json",
     "bot": {
         "name": "zero_ichi_bot",
-        "prefix": "(/|!|.)",
+        "prefix": "(/|!|\\.)",
         "login_method": "QR",
         "owner_jid": "40660455428291@lid",
         "auto_read": false,
@@ -51,6 +51,9 @@
     "warnings": {
         "limit": 3,
         "action": "kick"
+    },
+    "downloader": {
+        "max_file_size_mb": 50
     },
     "disabled_commands": []
 }

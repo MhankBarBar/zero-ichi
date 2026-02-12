@@ -56,6 +56,8 @@ AUDIO = "♫"
 DOC = "▤"
 STICKER = "✧"
 CALENDAR = "▦"
+LOADING = "⏳"
+MUSIC = "♪"
 
 
 def header(text: str) -> str:

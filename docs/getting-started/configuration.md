@@ -223,6 +223,28 @@ Configure the user warning system.
 
 ---
 
+## `downloader` — Download Settings {#downloader}
+
+Configure the media downloader used by `/dl`, `/audio`, and `/video` commands.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `max_file_size_mb` | `number` | `180` | Maximum file size in MB for downloaded media |
+
+::: tip
+WhatsApp supports up to **180 MB** for media (images, videos, audio) and up to **2 GB** for documents. The default of 180 MB matches WhatsApp's media limit.
+:::
+
+```json
+{
+  "downloader": {
+    "max_file_size_mb": 180
+  }
+}
+```
+
+---
+
 ## `disabled_commands` — Disable Commands {#disabled-commands}
 
 Globally disable specific commands by name.
@@ -306,6 +328,9 @@ A complete `config.json` with all sections:
   "warnings": {
     "limit": 3,
     "action": "kick"
+  },
+  "downloader": {
+    "max_file_size_mb": 180
   },
   "disabled_commands": []
 }

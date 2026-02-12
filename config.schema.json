@@ -21,7 +21,7 @@
                 "prefix": {
                     "type": "string",
                     "description": "Command prefix. Supports regex patterns, e.g., '(!|/|.)' for multiple prefixes",
-                    "default": "(!|/|.)"
+                    "default": "(!|/|\\.)"
                 },
                 "login_method": {
                     "type": "string",
@@ -275,6 +275,18 @@
                     ],
                     "description": "Action to take when warning limit is reached",
                     "default": "kick"
+                }
+            }
+        },
+        "downloader": {
+            "type": "object",
+            "description": "Downloader settings for /dl, /audio, and /video commands",
+            "properties": {
+                "max_file_size_mb": {
+                    "type": "number",
+                    "minimum": 1,
+                    "description": "Maximum file size in MB for media downloads. WhatsApp allows up to 2GB for documents, 180MB for other media",
+                    "default": 50
                 }
             }
         },

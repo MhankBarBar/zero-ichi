@@ -118,10 +118,11 @@ def log_command_execution(
     success: bool,
     duration_ms: float = 0,
     error: str = "",
+    prefix: str = "/",
 ) -> None:
     """Log command execution details."""
     status = "SUCCESS" if success else "FAILED"
-    msg = f"CMD [{status}] /{command} | sender={sender} | chat={chat_type}:{chat_id} | time={duration_ms:.1f}ms"
+    msg = f"CMD [{status}] {prefix}{command} | sender={sender} | chat={chat_type}:{chat_id} | time={duration_ms:.1f}ms"
     if error:
         msg += f" | error={error}"
     log_to_file(msg, "INFO" if success else "ERROR")
@@ -170,10 +171,8 @@ def log_bullet(message: str) -> None:
     console.print(f"  [dim cyan]{sym.BULLET}[/dim cyan] [white]{message}[/white]")
 
 
-def log_command(command: str, sender: str, chat_type: str) -> None:
+def log_command(command: str, sender: str, chat_type: str, prefix: str = "/") -> None:
     """Log command execution to console with clear formatting."""
-    prefix = runtime_config.display_prefix
-
     chat_color = "magenta" if chat_type == "Group" else "blue"
     console.print(
         f"[green]→[/green] [bold yellow]{prefix}{command}[/bold yellow] "
@@ -182,9 +181,8 @@ def log_command(command: str, sender: str, chat_type: str) -> None:
     )
 
 
-def log_command_skip(command: str, reason: str) -> None:
+def log_command_skip(command: str, reason: str, prefix: str = "/") -> None:
     """Log when a command is skipped."""
-    prefix = runtime_config.display_prefix
     console.print(f"[dim]  ⊘ [yellow]{prefix}{command}[/yellow] [red]{reason}[/red][/dim]")
 
 

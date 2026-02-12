@@ -2,6 +2,7 @@
 
 ## Requirements
 
+- **FFmpeg**
 - **Python 3.11+**
 - **[uv](https://github.com/astral-sh/uv)** — fast Python package manager
 - **Node.js 20+** — for the web dashboard (optional)

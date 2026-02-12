@@ -10,12 +10,13 @@ from core.i18n import t
 class PollCommand(Command):
     name = "poll"
     description = "Create a poll in the group"
-    usage = '/poll "Question" "Option 1" "Option 2" ...'
+    usage = '/poll "Question" "Option 1" "Option 2" [--multi]'
     category = "group"
+    aliases = ["vote"]
     group_only = True
     examples = [
         '/poll "Favorite color?" "Red" "Blue" "Green"',
-        '/poll "Meeting time?" "10 AM" "2 PM" "5 PM"',
+        '/poll "What to eat?" "Pizza" "Burger" "Sushi" --multi',
     ]
 
     async def execute(self, ctx: CommandContext) -> None:
@@ -29,6 +30,9 @@ class PollCommand(Command):
                 f"{sym.INFO} *{t('poll.title')}*\n\n{t('poll.usage', prefix=ctx.prefix)}",
             )
             return
+
+        multi_select = "--multi" in text
+        text = text.replace("--multi", "").strip()
 
         parts = re.findall(r'"([^"]+)"', text)
 
@@ -46,11 +50,8 @@ class PollCommand(Command):
         options = parts[1:]
 
         try:
-            await ctx.client._client.send_poll(
-                ctx.client.to_jid(ctx.message.chat_jid),
-                question,
-                options,
-                False,
+            await ctx.client.send_poll(
+                ctx.message.chat_jid, question, options, multi_select=multi_select
             )
         except Exception as e:
             await ctx.client.reply(ctx.message, f"{sym.ERROR} {t('poll.failed', error=e)}")

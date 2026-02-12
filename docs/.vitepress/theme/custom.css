@@ -1,0 +1,250 @@
+/**
+ * Custom theme overrides for Zero Ichi docs.
+ * WhatsApp-inspired green palette.
+ */
+
+/* ── Brand colors (WhatsApp green) ───────────────────────── */
+:root {
+    --vp-c-brand-1: #25d366;
+    --vp-c-brand-2: #128c7e;
+    --vp-c-brand-3: #075e54;
+    --vp-c-brand-soft: rgba(37, 211, 102, 0.14);
+
+    --vp-home-hero-name-color: transparent;
+    --vp-home-hero-name-background: linear-gradient(135deg,
+            #075e54 0%,
+            #25d366 100%);
+
+    --vp-home-hero-image-background-image: linear-gradient(135deg,
+            rgba(7, 94, 84, 0.3) 0%,
+            rgba(37, 211, 102, 0.3) 100%);
+    --vp-home-hero-image-filter: blur(56px);
+}
+
+.dark {
+    --vp-c-brand-1: #25d366;
+    --vp-c-brand-2: #34eb7a;
+    --vp-c-brand-3: #128c7e;
+    --vp-c-brand-soft: rgba(37, 211, 102, 0.14);
+
+    --vp-home-hero-image-background-image: linear-gradient(135deg,
+            rgba(7, 94, 84, 0.25) 0%,
+            rgba(37, 211, 102, 0.2) 100%);
+}
+
+/* ── Hero section ────────────────────────────────────────── */
+.VPHero .name {
+    font-size: 3rem !important;
+    letter-spacing: -0.02em;
+}
+
+.VPHero .text {
+    font-size: 2.5rem !important;
+    background: linear-gradient(135deg, #128c7e 0%, #25d366 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.VPHero .tagline {
+    font-size: 1.15rem !important;
+    max-width: 520px;
+    line-height: 1.6;
+    color: var(--vp-c-text-2);
+}
+
+.VPHero .image-container {
+    transform: scale(1.05);
+    transition: transform 0.5s ease;
+}
+
+.VPHero .image-container:hover {
+    transform: scale(1.1) rotate(2deg);
+}
+
+/* ── Feature cards ───────────────────────────────────────── */
+.VPFeature {
+    border: 1px solid var(--vp-c-bg-soft) !important;
+    background: var(--vp-c-bg-soft) !important;
+    border-radius: 12px !important;
+    transition: all 0.3s ease !important;
+}
+
+.VPFeature:hover {
+    border-color: var(--vp-c-brand-1) !important;
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px -8px rgba(37, 211, 102, 0.15);
+}
+
+.dark .VPFeature:hover {
+    box-shadow: 0 12px 24px -8px rgba(37, 211, 102, 0.25);
+}
+
+.VPFeature .icon {
+    background: linear-gradient(135deg, var(--vp-c-brand-soft), transparent);
+    border-radius: 8px;
+    padding: 8px;
+}
+
+.VPFeature .title {
+    font-weight: 700 !important;
+}
+
+.VPFeature .details {
+    color: var(--vp-c-text-2);
+    line-height: 1.6;
+}
+
+/* ── Stats section ───────────────────────────────────────── */
+.stats-section {
+    display: flex;
+    justify-content: center;
+    gap: 3rem;
+    padding: 3rem 1.5rem;
+    flex-wrap: wrap;
+}
+
+.stat-item {
+    text-align: center;
+}
+
+.stat-number {
+    font-size: 2.5rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, #075e54, #25d366);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    line-height: 1.2;
+}
+
+.stat-label {
+    font-size: 0.9rem;
+    color: var(--vp-c-text-2);
+    margin-top: 0.25rem;
+    font-weight: 500;
+}
+
+/* ── Custom homepage sections ────────────────────────────── */
+.home-section {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 4rem;
+}
+
+.home-section h2 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    text-align: center;
+    margin-bottom: 0.5rem;
+}
+
+.home-section .subtitle {
+    text-align: center;
+    color: var(--vp-c-text-2);
+    margin-bottom: 2rem;
+    font-size: 1rem;
+}
+
+/* ── Quick start steps ───────────────────────────────────── */
+.quick-steps {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1.5rem;
+}
+
+.step-card {
+    background: var(--vp-c-bg-soft);
+    border-radius: 12px;
+    padding: 1.5rem;
+    border: 1px solid var(--vp-c-divider);
+    transition: border-color 0.3s ease;
+}
+
+.step-card:hover {
+    border-color: var(--vp-c-brand-1);
+}
+
+.step-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #075e54, #25d366);
+    color: white;
+    font-weight: 700;
+    font-size: 0.85rem;
+    margin-bottom: 0.75rem;
+}
+
+.step-card h3 {
+    margin: 0 0 0.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.step-card p {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--vp-c-text-2);
+    line-height: 1.5;
+}
+
+.step-card code {
+    background: var(--vp-c-bg-mute);
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+    font-size: 0.8rem;
+}
+
+/* ── Command categories ──────────────────────────────────── */
+.categories-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 0.75rem;
+}
+
+.category-chip {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1rem;
+    background: var(--vp-c-bg-soft);
+    border-radius: 8px;
+    border: 1px solid var(--vp-c-divider);
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    text-decoration: none !important;
+    color: var(--vp-c-text-1) !important;
+}
+
+.category-chip:hover {
+    border-color: var(--vp-c-brand-1);
+    background: var(--vp-c-brand-soft);
+}
+
+/* ── Responsive ──────────────────────────────────────────── */
+@media (max-width: 640px) {
+    .VPHero .name {
+        font-size: 2.2rem !important;
+    }
+
+    .VPHero .text {
+        font-size: 1.6rem !important;
+    }
+
+    .stats-section {
+        gap: 1.5rem;
+    }
+
+    .stat-number {
+        font-size: 2rem;
+    }
+
+    .quick-steps {
+        grid-template-columns: 1fr;
+    }
+}

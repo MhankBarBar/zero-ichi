@@ -12,6 +12,7 @@ from neonize.aioze.client import ClientFactory, NewAClient
 from neonize.events import ConnectedEv, GroupInfoEv, MessageEv
 from neonize.proto.waCompanionReg.WAWebProtobufsCompanionReg_pb2 import DeviceProps
 
+from ai import agentic_ai
 from config.settings import (
     AUTO_RELOAD,
     BOT_NAME,
@@ -24,13 +25,14 @@ from core import symbols as sym
 from core.cache import message_cache
 from core.client import BotClient
 from core.command import CommandContext, command_loader
+from core.errors import report_error
 from core.handlers import afk as afk_handler
 from core.handlers import antidelete
 from core.handlers import antilink as antilink_handler
 from core.handlers import blacklist as blacklist_handler
 from core.handlers import features as features_handler
 from core.handlers import mute as mute_handler
-from core.i18n import init_i18n, set_context, t
+from core.i18n import init_i18n, set_context, t, t_error
 from core.logger import (
     console,
     log_bullet,
@@ -50,6 +52,9 @@ from core.logger import (
     show_qr_prompt,
 )
 from core.message import MessageHelper
+from core.middleware import MessageContext, MiddlewarePipeline
+from core.pending_store import pending_downloads
+from core.permissions import check_command_permissions, is_owner_for_bypass
 from core.rate_limiter import rate_limiter
 from core.runtime_config import runtime_config
 from core.scheduler import init_scheduler
@@ -149,9 +154,262 @@ async def group_info_handler(c: NewAClient, event: GroupInfoEv) -> None:
         log_warning(f"Error handling group info event: {e}")
 
 
+async def self_mode_middleware(ctx, next):
+    """Skip messages not from self when in self mode."""
+    if runtime_config.self_mode:
+        if not ctx.msg.is_from_me:
+            return
+    elif IGNORE_SELF_MESSAGES and ctx.msg.is_from_me:
+        return
+    await next()
+
+
+async def stats_middleware(ctx, next):
+    """Track message stats and resolve chat type."""
+    stats_storage = Storage()
+    stats_storage.increment_stat("messages_total")
+
+    if ctx.msg.is_group:
+        group_name = await ctx.bot.get_group_name(ctx.msg.chat_jid)
+        ctx.chat_type = f"Group ({group_name})"
+
+    if LOG_MESSAGES:
+        show_message(ctx.chat_type, ctx.msg.sender_name, ctx.msg.text)
+
+    ctx.extras["stats_storage"] = stats_storage
+    await next()
+
+
+async def auto_actions_middleware(ctx, next):
+    """Handle auto-read and auto-react."""
+    if runtime_config.get_nested("bot", "auto_read", default=False):
+        await ctx.bot.mark_read(ctx.msg)
+
+    emoji = runtime_config.get_nested("bot", "auto_react_emoji", default="")
+    if emoji and runtime_config.get_nested("bot", "auto_react", default=False):
+        try:
+            await ctx.bot.send_reaction(ctx.msg, emoji)
+        except Exception:
+            pass
+
+    await next()
+
+
+async def antidelete_middleware(ctx, next):
+    """Cache messages and handle anti-delete revocations."""
+    await antidelete.handle_anti_delete_cache(ctx.bot, ctx.event, ctx.msg)
+    await antidelete.handle_anti_revoke(ctx.bot, ctx.event, ctx.msg)
+    await next()
+
+
+async def blacklist_middleware(ctx, next):
+    """Block messages containing blacklisted words."""
+    if await blacklist_handler.handle_blacklist(ctx.bot, ctx.msg):
+        return
+    await next()
+
+
+async def antilink_middleware(ctx, next):
+    """Block messages containing links if anti-link is enabled."""
+    if await antilink_handler.handle_anti_link(ctx.bot, ctx.msg):
+        return
+    await next()
+
+
+async def mute_middleware(ctx, next):
+    """Skip messages from muted users."""
+    if await mute_handler.handle_muted_users(ctx.bot, ctx.msg):
+        return
+    await next()
+
+
+async def features_middleware(ctx, next):
+    """Handle notes, filters, and other group features."""
+    set_context(ctx.msg.chat_jid)
+    await features_handler.handle_features(ctx.bot, ctx.msg)
+    await afk_handler.handle_afk_mentions(ctx.bot, ctx.msg)
+    await next()
+
+
+async def download_reply_middleware(ctx, next):
+    """Handle replies to download option messages."""
+    quoted = ctx.msg.quoted_message
+    if not quoted:
+        await next()
+        return
+
+    text = ctx.msg.text.strip()
+    if not text.isdigit():
+        await next()
+        return
+
+    stanza_id = quoted.get("id", "")
+    if not stanza_id:
+        await next()
+        return
+
+    pending = pending_downloads.get(stanza_id)
+    if not pending:
+        await next()
+        return
+
+    if ctx.msg.sender_jid != pending.sender_jid:
+        await next()
+        return
+
+    from core.downloader import DownloadError, FileTooLargeError, downloader
+    from core.errors import report_error
+
+    choice_num = int(text)
+    if choice_num < 1 or choice_num > len(pending.info.formats):
+        await ctx.bot.reply(ctx.msg, t_error("downloader.invalid_choice"))
+        return
+
+    selected = pending.info.formats[choice_num - 1]
+    pending_downloads.remove(stanza_id)
+
+    await ctx.bot.reply(
+        ctx.msg,
+        f"{sym.LOADING} {t('downloader.downloading')} *{selected.label}*...",
+    )
+
+    try:
+        filepath = await downloader.download_format(
+            pending.url, selected.format_id, merge_audio=not selected.has_audio
+        )
+
+        media_type = "audio" if selected.type == "audio" else "video"
+        caption = f"{sym.SPARKLE} {pending.info.title}"
+
+        await ctx.bot.send_media(
+            ctx.msg.chat_jid,
+            media_type,
+            str(filepath),
+            caption=caption,
+            quoted=ctx.msg.event,
+        )
+
+        downloader.cleanup(filepath)
+
+    except FileTooLargeError as e:
+        await ctx.bot.reply(
+            ctx.msg,
+            t_error("downloader.too_large", size=f"{e.size_mb:.1f}", max=f"{e.max_mb:.0f}"),
+        )
+    except DownloadError as e:
+        await ctx.bot.reply(ctx.msg, t_error("downloader.failed", error=str(e)))
+    except Exception as e:
+        await report_error(ctx.bot, ctx.msg, "dl", e)
+
+
+async def ai_middleware(ctx, next):
+    """Process message with AI agent if applicable."""
+    parsed_cmd = command_loader.parse_command(ctx.msg.text)[0]
+    is_command = parsed_cmd is not None and command_loader.get(parsed_cmd) is not None
+
+    if not is_command and await agentic_ai.should_respond(ctx.msg, ctx.bot):
+        try:
+            response = await agentic_ai.process(ctx.msg, ctx.bot)
+            if response and response.strip():
+                await ctx.bot.reply(ctx.msg, response)
+            return
+        except Exception as e:
+            log_error(f"AI agent error: {e}")
+
+    await next()
+
+
+async def command_middleware(ctx, next):
+    """Parse and execute bot commands."""
+    command_name, raw_args, args = command_loader.parse_command(ctx.msg.text)
+    if not command_name:
+        return
+
+    cmd = command_loader.get(command_name)
+    if not cmd:
+        return
+
+    text = ctx.msg.text.strip()
+    cmd_start = text.lower().find(command_name.lower())
+    used_prefix = text[:cmd_start] if cmd_start > 0 else "/"
+
+    perm_result = await check_command_permissions(cmd, ctx.msg, ctx.bot)
+    if not perm_result:
+        if perm_result.error_message:
+            await ctx.bot.reply(ctx.msg, perm_result.error_message)
+        log_command_skip(command_name, "permission denied", prefix=used_prefix)
+        return
+
+    is_owner = await is_owner_for_bypass(ctx.msg, ctx.bot)
+    if not is_owner and rate_limiter.is_limited(ctx.msg.sender_jid, command_name):
+        remaining = rate_limiter.get_remaining_cooldown(ctx.msg.sender_jid, command_name)
+        log_command_skip(
+            command_name, f"rate limited ({remaining:.1f}s remaining)", prefix=used_prefix
+        )
+        await ctx.bot.reply(
+            ctx.msg, f"{sym.CLOCK} {t('errors.cooldown', remaining=f'{remaining:.1f}')}"
+        )
+        return
+
+    rate_limiter.record(ctx.msg.sender_jid, command_name)
+
+    stats_storage = ctx.extras.get("stats_storage")
+    if stats_storage:
+        stats_storage.increment_stat("commands_used")
+
+    log_command(command_name, ctx.msg.sender_name, ctx.chat_type, prefix=used_prefix)
+
+    try:
+        cmd_ctx = CommandContext(
+            client=ctx.bot,
+            message=ctx.msg,
+            args=args,
+            raw_args=raw_args,
+            command_name=command_name,
+        )
+        await cmd.execute(cmd_ctx)
+
+        log_command_execution(
+            command_name,
+            ctx.msg.sender_name,
+            ctx.chat_type,
+            ctx.msg.chat_jid,
+            success=True,
+            prefix=used_prefix,
+        )
+    except Exception as e:
+        log_command_execution(
+            command_name,
+            ctx.msg.sender_name,
+            ctx.chat_type,
+            ctx.msg.chat_jid,
+            success=False,
+            error=str(e),
+            prefix=used_prefix,
+        )
+
+        await report_error(cmd_ctx.client, cmd_ctx.message, command_name, e)
+
+    await next()
+
+
+pipeline = MiddlewarePipeline()
+pipeline.use("self_mode", self_mode_middleware)
+pipeline.use("stats", stats_middleware)
+pipeline.use("auto_actions", auto_actions_middleware)
+pipeline.use("antidelete", antidelete_middleware)
+pipeline.use("blacklist", blacklist_middleware)
+pipeline.use("antilink", antilink_middleware)
+pipeline.use("mute", mute_middleware)
+pipeline.use("features", features_middleware)
+pipeline.use("download_reply", download_reply_middleware)
+pipeline.use("ai", ai_middleware)
+pipeline.use("command", command_middleware)
+
+
 @client.event(MessageEv)
 async def message_handler(c: NewAClient, event: MessageEv) -> None:
-    """Handle incoming messages."""
+    """Handle incoming messages through the middleware pipeline."""
 
     global bot
 
@@ -179,120 +437,14 @@ async def message_handler(c: NewAClient, event: MessageEv) -> None:
     except Exception as e:
         log_error(f"Failed to log raw message: {e}")
 
-    if runtime_config.self_mode:
-        if not msg.is_from_me:
-            return
-    elif IGNORE_SELF_MESSAGES and msg.is_from_me:
-        return
-
-    stats_storage = Storage()
-    stats_storage.increment_stat("messages_total")
-
-    log_chat_type = "Private"
-    if msg.is_group:
-        group_name = await bot.get_group_name(msg.chat_jid)
-        log_chat_type = f"Group ({group_name})"
-
-    if LOG_MESSAGES:
-        show_message(log_chat_type, msg.sender_name, msg.text)
-
-    if runtime_config.get_nested("bot", "auto_read", default=False):
-        await bot.mark_read(msg)
-
-    auto_react_emoji = runtime_config.get_nested("bot", "auto_react_emoji", default="")
-    if auto_react_emoji and runtime_config.get_nested("bot", "auto_react", default=False):
-        try:
-            await bot.send_reaction(msg, auto_react_emoji)
-        except Exception:
-            pass
-
-    await antidelete.handle_anti_delete_cache(bot, event, msg)
-    await antidelete.handle_anti_revoke(bot, event, msg)
-
-    if await blacklist_handler.handle_blacklist(bot, msg):
-        return
-
-    if await antilink_handler.handle_anti_link(bot, msg):
-        return
-
-    if await mute_handler.handle_muted_users(bot, msg):
-        return
-
-    set_context(msg.chat_jid)
-
-    await features_handler.handle_features(bot, msg)
-
-    await afk_handler.handle_afk_mentions(bot, msg)
-
-    from ai import agentic_ai
-
-    parsed_cmd = command_loader.parse_command(msg.text)[0]
-    is_command = parsed_cmd is not None and command_loader.get(parsed_cmd) is not None
-    if not is_command and await agentic_ai.should_respond(msg, bot):
-        try:
-            response = await agentic_ai.process(msg, bot)
-            if response and response.strip():
-                await bot.reply(msg, response)
-            return
-        except Exception as e:
-            log_error(f"AI agent error: {e}")
-
-    command_name, raw_args, args = command_loader.parse_command(msg.text)
-    if not command_name:
-        return
-
-    cmd = command_loader.get(command_name)
-    if not cmd:
-        return
-
-    from core.permissions import check_command_permissions, is_owner_for_bypass
-
-    perm_result = await check_command_permissions(cmd, msg, bot)
-    if not perm_result:
-        if perm_result.error_message:
-            await bot.reply(msg, perm_result.error_message)
-        log_command_skip(command_name, "permission denied")
-        return
-
-    is_owner = await is_owner_for_bypass(msg, bot)
-    if not is_owner and rate_limiter.is_limited(msg.sender_jid, command_name):
-        remaining = rate_limiter.get_remaining_cooldown(msg.sender_jid, command_name)
-        log_command_skip(command_name, f"rate limited ({remaining:.1f}s remaining)")
-        await bot.reply(msg, f"{sym.CLOCK} {t('errors.cooldown', remaining=f'{remaining:.1f}')}")
-        return
-
-    rate_limiter.record(msg.sender_jid, command_name)
-
-    stats_storage.increment_stat("commands_used")
-
-    log_command(command_name, msg.sender_name, log_chat_type)
-
     try:
-        ctx = CommandContext(
-            client=bot,
-            message=msg,
-            args=args,
-            raw_args=raw_args,
-            command_name=command_name,
-        )
-        await cmd.execute(ctx)
-
-        log_command_execution(
-            command_name, msg.sender_name, log_chat_type, msg.chat_jid, success=True
-        )
+        ctx = MessageContext(bot=bot, msg=msg, event=event)
+        await pipeline.execute(ctx)
     except Exception as e:
-        log_command_execution(
-            command_name,
-            msg.sender_name,
-            log_chat_type,
-            msg.chat_jid,
-            success=False,
-            error=str(e),
-        )
+        log_error(f"Unhandled error in message handler: {e}")
+        import traceback
 
-        from core.errors import report_error
-
-        await report_error(ctx.client, ctx.message, command_name, e)
+        log_error(traceback.format_exc())
 
 
 async def start_bot() -> None:
