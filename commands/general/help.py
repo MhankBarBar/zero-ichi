@@ -54,6 +54,7 @@ class HelpCommand(Command):
             cmd = command_loader.get(command_name)
 
             if cmd and cmd.enabled:
+                icon = CATEGORY_ICONS.get(getattr(cmd, "category", "").lower(), sym.DIAMOND)
                 help_text = (
                     f"{sym.HEADER_L} {fmt_cmd(cmd.name)} {sym.HEADER_R}\n\n"
                     f"{sym.QUOTE} {cmd.description}\n\n"
@@ -63,6 +64,22 @@ class HelpCommand(Command):
                 if cmd.aliases:
                     aliases_str = ", ".join(f"`{fmt_cmd(a)}`" for a in cmd.aliases)
                     help_text += f"{sym.BULLET} *{t('help.aliases')}:* {aliases_str}\n"
+
+                category_name = getattr(cmd, "category", None)
+                if category_name:
+                    help_text += (
+                        f"{sym.BULLET} *{t('help.category')}:* {icon} {category_name.title()}\n"
+                    )
+
+                cooldown = getattr(cmd, "cooldown", 0)
+                if cooldown:
+                    help_text += f"{sym.BULLET} *{t('help.cooldown')}:* {cooldown}s\n"
+
+                examples = getattr(cmd, "examples", [])
+                if examples:
+                    help_text += f"\n{sym.SPARKLE} *{t('help.examples')}:*\n"
+                    for ex in examples:
+                        help_text += f"  {sym.ARROW} `{ex}`\n"
 
                 restrictions = []
                 if cmd.private_only:

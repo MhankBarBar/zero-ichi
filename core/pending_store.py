@@ -1,7 +1,7 @@
 """
-Pending store for download selections.
+Pending store for download, search, and playlist selections.
 
-Stores pending download info keyed by the bot's reply message ID.
+Stores pending download/search/playlist info keyed by the bot's reply message ID.
 Auto-expires entries after a configurable TTL.
 """
 
@@ -12,7 +12,28 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from core.downloader import MediaInfo
+    from core.downloader import MediaInfo, PlaylistEntry
+
+
+@dataclass
+class SearchResult:
+    """A single search result entry."""
+
+    title: str
+    url: str
+    duration: str
+    uploader: str
+
+
+@dataclass
+class PendingSearch:
+    """A pending search awaiting user's result selection."""
+
+    query: str
+    results: list[SearchResult]
+    sender_jid: str
+    chat_jid: str
+    created_at: float = field(default_factory=time.time)
 
 
 @dataclass
@@ -26,26 +47,40 @@ class PendingDownload:
     created_at: float = field(default_factory=time.time)
 
 
+@dataclass
+class PendingPlaylist:
+    """A pending playlist awaiting user's track selection."""
+
+    title: str
+    entries: list[PlaylistEntry]
+    sender_jid: str
+    chat_jid: str
+    created_at: float = field(default_factory=time.time)
+
+
+PendingItem = PendingDownload | PendingSearch | PendingPlaylist
+
+
 class PendingStore:
-    """In-memory store for pending download selections."""
+    """In-memory store for pending selections with TTL."""
 
     TTL = 300
 
     def __init__(self) -> None:
-        self._store: dict[str, PendingDownload] = {}
+        self._store: dict[str, PendingItem] = {}
 
-    def add(self, message_id: str, pending: PendingDownload) -> None:
-        """Store a pending download keyed by message ID."""
+    def add(self, message_id: str, pending: PendingItem) -> None:
+        """Store a pending item keyed by message ID."""
         self._cleanup()
         self._store[message_id] = pending
 
-    def get(self, message_id: str) -> PendingDownload | None:
-        """Retrieve and validate a pending download by message ID."""
+    def get(self, message_id: str) -> PendingItem | None:
+        """Retrieve and validate a pending item by message ID."""
         self._cleanup()
         return self._store.get(message_id)
 
     def remove(self, message_id: str) -> None:
-        """Remove a pending download."""
+        """Remove a pending item."""
         self._store.pop(message_id, None)
 
     def _cleanup(self) -> None:

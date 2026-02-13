@@ -9,6 +9,9 @@ import json
 import time
 from pathlib import Path
 
+from core import symbols as sym
+from core.i18n import t
+
 _AFK_FILE = Path(__file__).parent.parent.parent / "data" / "afk.json"
 _AFK_FILE.parent.mkdir(exist_ok=True)
 
@@ -80,9 +83,6 @@ async def handle_afk_mentions(bot, msg) -> None:
     Check if message mentions any AFK users and notify.
     Also check if sender is AFK and remove them.
     """
-    from core import symbols as sym
-    from core.i18n import t
-
     afk_data = remove_afk(msg.sender_jid)
     if afk_data:
         duration = _format_duration(time.time() - afk_data["time"])

@@ -6,12 +6,15 @@ Run alongside the bot or separately.
 """
 
 import base64
+import json
 import os
+import re
 import secrets
 import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,9 +24,18 @@ from pydantic import BaseModel
 sys.path.insert(0, str(Path(__file__).parent))
 
 from core.command import command_loader
+from core.handlers.welcome import (
+    get_goodbye_config,
+    get_welcome_config,
+    set_goodbye_config,
+    set_welcome_config,
+)
+from core.rate_limiter import rate_limiter
 from core.runtime_config import runtime_config
+from core.scheduler import get_scheduler
 from core.session import session_state
-from core.storage import Storage
+from core.shared import get_bot
+from core.storage import GroupData, Storage
 
 BOT_START_TIME = datetime.now()
 
@@ -186,7 +198,6 @@ class GoodbyeSettings(BaseModel):
 @app.post("/api/send-message")
 async def send_message(req: MessageRequest):
     """Send a message via the bot."""
-    from core.shared import get_bot
 
     bot = get_bot()
     if not await check_bot_logged_in(bot) or bot is None:
@@ -384,9 +395,6 @@ async def toggle_command(name: str, toggle: CommandToggle):
 @app.get("/api/groups")
 async def get_groups():
     """Get all groups with settings."""
-    from core.shared import get_bot
-    from core.storage import GroupData
-
     bot = get_bot()
     groups = []
 
@@ -499,8 +507,6 @@ async def get_stats():
 @app.get("/api/logs")
 async def get_logs(limit: int = 100, level: str | None = Query(None)):
     """Get recent bot logs."""
-    import json
-
     logs_file = Path(__file__).parent / "logs" / "messages.log"
 
     if not logs_file.exists():
@@ -512,8 +518,6 @@ async def get_logs(limit: int = 100, level: str | None = Query(None)):
     try:
 
         def get_last_lines(filename, count):
-            import os
-
             try:
                 with open(filename, "rb") as f:
                     try:
@@ -569,8 +573,6 @@ async def get_logs(limit: int = 100, level: str | None = Query(None)):
                     }
                 )
             except json.JSONDecodeError:
-                import re
-
                 match = re.match(r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[(\w+)\] (.*)", line)
                 if match:
                     ts, lvl, msg = match.groups()
@@ -600,8 +602,6 @@ async def get_logs(limit: int = 100, level: str | None = Query(None)):
 @app.get("/api/ratelimit")
 async def get_rate_limit():
     """Get rate limit configuration."""
-    from core.rate_limiter import rate_limiter
-
     config = rate_limiter.config
     return {
         "enabled": config.enabled,
@@ -615,8 +615,6 @@ async def get_rate_limit():
 @app.put("/api/ratelimit")
 async def update_rate_limit(settings: RateLimitSettings):
     """Update rate limit configuration."""
-    from core.rate_limiter import rate_limiter
-
     rate_limiter.config.enabled = settings.enabled
     rate_limiter.config.user_cooldown = settings.user_cooldown
     rate_limiter.config.command_cooldown = settings.command_cooldown
@@ -629,8 +627,6 @@ async def update_rate_limit(settings: RateLimitSettings):
 @app.get("/api/groups/{group_id}/welcome")
 async def get_welcome(group_id: str):
     """Get welcome settings for a group."""
-    from core.handlers.welcome import get_welcome_config
-
     config = get_welcome_config(group_id)
     return config
 
@@ -638,8 +634,6 @@ async def get_welcome(group_id: str):
 @app.put("/api/groups/{group_id}/welcome")
 async def update_welcome(group_id: str, settings: WelcomeSettings):
     """Update welcome settings for a group."""
-    from core.handlers.welcome import set_welcome_config
-
     set_welcome_config(group_id, enabled=settings.enabled, message=settings.message)
     return {"success": True}
 
@@ -647,8 +641,6 @@ async def update_welcome(group_id: str, settings: WelcomeSettings):
 @app.get("/api/groups/{group_id}/goodbye")
 async def get_goodbye(group_id: str):
     """Get goodbye settings for a group."""
-    from core.handlers.welcome import get_goodbye_config
-
     config = get_goodbye_config(group_id)
     return config
 
@@ -656,8 +648,6 @@ async def get_goodbye(group_id: str):
 @app.put("/api/groups/{group_id}/goodbye")
 async def update_goodbye(group_id: str, settings: GoodbyeSettings):
     """Update goodbye settings for a group."""
-    from core.handlers.welcome import set_goodbye_config
-
     set_goodbye_config(group_id, enabled=settings.enabled, message=settings.message)
     return {"success": True}
 
@@ -665,7 +655,6 @@ async def update_goodbye(group_id: str, settings: GoodbyeSettings):
 @app.get("/api/tasks")
 async def get_scheduled_tasks():
     """Get all scheduled tasks."""
-    from core.scheduler import get_scheduler
 
     scheduler = get_scheduler()
     if not scheduler:
@@ -693,7 +682,6 @@ async def get_scheduled_tasks():
 @app.delete("/api/tasks/{task_id}")
 async def delete_task(task_id: str):
     """Delete a scheduled task."""
-    from core.scheduler import get_scheduler
 
     scheduler = get_scheduler()
     if not scheduler:
@@ -708,7 +696,6 @@ async def delete_task(task_id: str):
 @app.put("/api/tasks/{task_id}/toggle")
 async def toggle_task(task_id: str, enabled: bool = True):
     """Enable or disable a scheduled task."""
-    from core.scheduler import get_scheduler
 
     scheduler = get_scheduler()
     if not scheduler:
@@ -718,9 +705,6 @@ async def toggle_task(task_id: str, enabled: bool = True):
         return {"success": True, "enabled": enabled}
     else:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
-
-
-# Notes API
 
 
 class NoteCreate(BaseModel):
@@ -741,8 +725,6 @@ class NoteUpdate(BaseModel):
 @app.get("/api/groups/{group_id}/notes")
 async def get_notes(group_id: str):
     """Get all notes for a group."""
-    from core.storage import GroupData
-
     group_storage = GroupData(group_id)
     notes = group_storage.notes
 
@@ -771,8 +753,6 @@ async def get_notes(group_id: str):
 @app.post("/api/groups/{group_id}/notes")
 async def create_note(group_id: str, note: NoteCreate):
     """Create a new note for a group."""
-    from core.storage import GroupData
-
     group_storage = GroupData(group_id)
     notes = group_storage.notes
 
@@ -791,8 +771,6 @@ async def create_note(group_id: str, note: NoteCreate):
 @app.put("/api/groups/{group_id}/notes/{note_name}")
 async def update_note(group_id: str, note_name: str, note: NoteUpdate):
     """Update an existing note."""
-    from core.storage import GroupData
-
     group_storage = GroupData(group_id)
     notes = group_storage.notes
 
@@ -811,8 +789,6 @@ async def update_note(group_id: str, note_name: str, note: NoteUpdate):
 @app.delete("/api/groups/{group_id}/notes/{note_name}")
 async def delete_note(group_id: str, note_name: str):
     """Delete a note."""
-    from core.storage import GroupData
-
     group_storage = GroupData(group_id)
     notes = group_storage.notes
 
@@ -835,8 +811,6 @@ class FilterCreate(BaseModel):
 @app.get("/api/groups/{group_id}/filters")
 async def get_filters(group_id: str):
     """Get all filters for a group."""
-    from core.storage import GroupData
-
     group_storage = GroupData(group_id)
     filters = group_storage.filters
 
@@ -855,8 +829,6 @@ async def get_filters(group_id: str):
 @app.post("/api/groups/{group_id}/filters")
 async def create_filter(group_id: str, filter_data: FilterCreate):
     """Create a new filter for a group."""
-    from core.storage import GroupData
-
     group_storage = GroupData(group_id)
     filters = group_storage.filters
 
@@ -874,10 +846,6 @@ async def create_filter(group_id: str, filter_data: FilterCreate):
 @app.delete("/api/groups/{group_id}/filters/{trigger}")
 async def delete_filter(group_id: str, trigger: str):
     """Delete a filter."""
-    from urllib.parse import unquote
-
-    from core.storage import GroupData
-
     trigger = unquote(trigger)
     group_storage = GroupData(group_id)
     filters = group_storage.filters
@@ -900,8 +868,6 @@ class BlacklistWord(BaseModel):
 @app.get("/api/groups/{group_id}/blacklist")
 async def get_blacklist(group_id: str):
     """Get blacklisted words for a group."""
-    from core.storage import GroupData
-
     group_storage = GroupData(group_id)
     words = group_storage.blacklist
 
@@ -911,8 +877,6 @@ async def get_blacklist(group_id: str):
 @app.post("/api/groups/{group_id}/blacklist")
 async def add_blacklist_word(group_id: str, data: BlacklistWord):
     """Add a word to the blacklist."""
-    from core.storage import GroupData
-
     group_storage = GroupData(group_id)
     words = group_storage.blacklist
 
@@ -929,10 +893,6 @@ async def add_blacklist_word(group_id: str, data: BlacklistWord):
 @app.delete("/api/groups/{group_id}/blacklist/{word}")
 async def remove_blacklist_word(group_id: str, word: str):
     """Remove a word from the blacklist."""
-    from urllib.parse import unquote
-
-    from core.storage import GroupData
-
     word = unquote(word).lower().strip()
     group_storage = GroupData(group_id)
     words = group_storage.blacklist

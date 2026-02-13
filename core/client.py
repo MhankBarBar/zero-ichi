@@ -306,6 +306,30 @@ class BotClient:
             reaction_msg,
         )
 
+    async def edit_message(
+        self,
+        chat_jid: str | JID,
+        message_id: str,
+        new_text: str,
+    ) -> SendResponse:
+        """
+        Edit a previously sent text message.
+
+        Args:
+            chat_jid: The chat where the message was sent
+            message_id: The ID of the message to edit
+            new_text: The new text content
+
+        Returns:
+            SendResponse from the server
+        """
+        new_message = Message(conversation=new_text)
+        return await self._client.edit_message(
+            self.to_jid(chat_jid),
+            message_id,
+            new_message,
+        )
+
     async def send_quoted(
         self,
         to: str | JID,

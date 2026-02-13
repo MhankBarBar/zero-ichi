@@ -204,10 +204,12 @@
     "failed": "Gagal dapetin invite link: {error}"
   },
   "sticker": {
-    "reply_to_image": "Reply ke gambar pake /sticker",
-    "image_only": "Cuma support image buat sekarang.",
+    "reply_to_image": "Reply ke gambar, video, atau stiker untuk convert.",
+    "image_only": "Cuma gambar, video pendek, dan stiker yang bisa diconvert.",
     "download_failed": "Gagal download media.",
-    "convert_failed": "Gagal convert image."
+    "convert_failed": "Gagal convert ke stiker.",
+    "video_too_long": "Video kelamaan. Maks 6 detik buat stiker animasi.",
+    "processing_video": "Lagi proses video stiker..."
   },
   "ping": {
     "pong": "Pong!"
@@ -357,17 +359,20 @@
     "language": "Language"
   },
   "help": {
-    "usage": "Usage",
-    "aliases": "Aliases",
-    "restrictions": "Restrictions",
-    "private_only": "Private only",
-    "group_only": "Group only",
-    "owner_only": "Owner only",
-    "admin_only": "Admin only",
-    "not_found": "Command '{command}' gak ketemu.",
+    "usage": "Pemakaian",
+    "aliases": "Alias",
+    "category": "Kategori",
+    "cooldown": "Cooldown",
+    "examples": "Contoh",
+    "restrictions": "Batasan",
+    "private_only": "Chat pribadi saja",
+    "group_only": "Grup saja",
+    "owner_only": "Owner saja",
+    "admin_only": "Admin saja",
+    "not_found": "Command `{command}` gak ketemu.",
     "did_you_mean": "Mungkin maksud lu",
-    "available_commands": "Available Commands",
-    "type_help": "Ketik `{prefix}help <command>` buat detail"
+    "available_commands": "Daftar Command",
+    "type_help": "Ketik `{prefix}help <command>` buat detail."
   },
   "lang": {
     "title": "Language Settings",
@@ -445,9 +450,11 @@
   },
   "downloader": {
     "fetching_info": "Bentar, lagi ngambil info...",
-    "downloading": "Lagi download",
+    "downloading": "Lagi download *{title}* ({quality})...",
     "downloading_audio": "Lagi download audio...",
     "downloading_video": "Lagi download video...",
+    "sending": "Lagi ngirim file...",
+    "done": "Udah dikirim ✓",
     "too_large": "Filenya kegedean ({size} MB). Maks {max} MB ya.",
     "failed": "Gagal download: {error}",
     "no_url": "Kasih URL dong yang mau didownload.",
@@ -456,6 +463,18 @@
     "audio_options": "Audio",
     "choose_hint": "Balas pesan ini dengan nomor untuk download.",
     "no_formats": "Gak ada pilihan format buat URL ini.",
-    "use_audio_video_hint": "Pake `/audio <url>` atau `/video <url>` aja."
+    "use_audio_video_hint": "Pake `/audio <url>` atau `/video <url>` aja.",
+    "playlist_detected": "Playlist terdeteksi! Lagi ngambil daftar track...",
+    "playlist_tracks": "Nampilin {showing} dari {total} track",
+    "searching": "Nyari di YouTube...",
+    "search_results": "Hasil untuk: {query}",
+    "no_results": "Gak ketemu hasil buat *{query}*.",
+    "choose_result_hint": "Balas dengan nomor untuk milih video."
+  },
+  "toimg": {
+    "reply_to_sticker": "Reply ke stiker buat convert jadi gambar.",
+    "sticker_only": "Cuma stiker yang bisa diconvert ke gambar.",
+    "download_failed": "Gagal download stiker.",
+    "convert_failed": "Gagal convert stiker ke gambar."
   }
 }

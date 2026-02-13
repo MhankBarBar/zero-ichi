@@ -71,6 +71,7 @@ class MediaInfo:
     url: str = ""
     thumbnail: str = ""
     filesize_approx: int = 0
+    is_playlist: bool = False
     formats: list[FormatOption] = field(default_factory=list)
 
     @property
@@ -78,7 +79,8 @@ class MediaInfo:
         """Format duration as mm:ss or hh:mm:ss."""
         if self.duration <= 0:
             return "Unknown"
-        hours, remainder = divmod(self.duration, 3600)
+        total = int(self.duration)
+        hours, remainder = divmod(total, 3600)
         minutes, seconds = divmod(remainder, 60)
         if hours:
             return f"{hours}:{minutes:02d}:{seconds:02d}"
@@ -87,6 +89,27 @@ class MediaInfo:
     @property
     def filesize_str(self) -> str:
         return _format_size(self.filesize_approx)
+
+
+@dataclass
+class PlaylistEntry:
+    """A single entry in a playlist."""
+
+    title: str = ""
+    url: str = ""
+    duration: str = ""
+    uploader: str = ""
+    index: int = 0
+
+
+@dataclass
+class PlaylistInfo:
+    """Extracted playlist metadata."""
+
+    title: str = ""
+    url: str = ""
+    count: int = 0
+    entries: list[PlaylistEntry] = field(default_factory=list)
 
 
 class DownloadError(Exception):
@@ -170,7 +193,7 @@ class Downloader:
                     quality=quality,
                     filesize=filesize,
                     type="video",
-                    note="" if has_audio else "no audio",
+                    note="",
                     has_video=True,
                     has_audio=has_audio,
                 )
@@ -217,15 +240,83 @@ class Downloader:
 
         return videos + audios
 
-    async def get_info(self, url: str) -> MediaInfo:
-        """Extract media info without downloading."""
+    async def search_youtube(self, query: str, count: int = 5) -> list[dict]:
+        """
+        Search YouTube and return a list of results.
+
+        Args:
+            query: Search query string
+            count: Number of results to return (default 5)
+
+        Returns:
+            List of dicts with title, url, duration, uploader
+        """
         import yt_dlp
 
         ydl_opts = {
             "quiet": True,
             "no_warnings": True,
-            "extract_flat": False,
+            "extract_flat": True,
             "skip_download": True,
+        }
+
+        search_url = f"ytsearch{count}:{query}"
+
+        def _search():
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                return ydl.extract_info(search_url, download=False)
+
+        try:
+            info = await asyncio.to_thread(_search)
+        except Exception as e:
+            raise DownloadError(f"Search failed: {e}") from e
+
+        if not info or "entries" not in info:
+            return []
+
+        results = []
+        for entry in info.get("entries", []):
+            if not entry:
+                continue
+            duration = entry.get("duration", 0) or 0
+            if duration > 0:
+                total = int(duration)
+                mins, secs = divmod(total, 60)
+                dur_str = f"{mins}:{secs:02d}"
+            else:
+                dur_str = "?"
+
+            results.append(
+                {
+                    "title": entry.get("title", "Unknown"),
+                    "url": entry.get("url", entry.get("webpage_url", "")),
+                    "duration": dur_str,
+                    "uploader": entry.get("uploader", entry.get("channel", "Unknown")) or "Unknown",
+                }
+            )
+
+        return results
+
+    async def get_playlist_info(self, url: str, max_entries: int = 25) -> PlaylistInfo:
+        """
+        Extract playlist metadata using flat extraction.
+
+        Args:
+            url: Playlist URL
+            max_entries: Maximum number of entries to fetch
+
+        Returns:
+            PlaylistInfo with title, count, and entry list
+        """
+        import yt_dlp
+
+        ydl_opts = {
+            "quiet": True,
+            "no_warnings": True,
+            "extract_flat": True,
+            "skip_download": True,
+            "ignoreerrors": True,
+            "playlistend": max_entries,
         }
 
         def _extract():
@@ -235,6 +326,88 @@ class Downloader:
         try:
             info = await asyncio.to_thread(_extract)
         except Exception as e:
+            raise DownloadError(f"Failed to extract playlist: {e}") from e
+
+        if not info:
+            raise DownloadError("No playlist info returned")
+
+        raw_entries = info.get("entries", []) or []
+        entries = []
+        for i, entry in enumerate(raw_entries):
+            if not entry:
+                continue
+            dur = entry.get("duration", 0) or 0
+            if dur > 0:
+                mins, secs = divmod(int(dur), 60)
+                dur_str = f"{mins}:{secs:02d}"
+            else:
+                dur_str = "?"
+            entries.append(
+                PlaylistEntry(
+                    title=entry.get("title", "Unknown"),
+                    url=entry.get("url", entry.get("webpage_url", "")),
+                    duration=dur_str,
+                    uploader=entry.get("uploader", entry.get("channel", "")) or "",
+                    index=i + 1,
+                )
+            )
+
+        total_count = info.get("playlist_count", len(entries)) or len(entries)
+
+        return PlaylistInfo(
+            title=info.get("title", "Playlist"),
+            url=url,
+            count=total_count,
+            entries=entries,
+        )
+
+    async def get_info(self, url: str) -> MediaInfo:
+        """Extract media info without downloading."""
+        import yt_dlp
+
+        flat_opts = {
+            "quiet": True,
+            "no_warnings": True,
+            "extract_flat": True,
+            "skip_download": True,
+            "ignoreerrors": True,
+        }
+
+        def _flat_extract():
+            with yt_dlp.YoutubeDL(flat_opts) as ydl:
+                return ydl.extract_info(url, download=False)
+
+        try:
+            flat_info = await asyncio.to_thread(_flat_extract)
+        except Exception as e:
+            raise DownloadError(f"Failed to extract info: {e}") from e
+
+        if not flat_info:
+            raise DownloadError("No info returned for URL")
+
+        if flat_info.get("_type") == "playlist" or (
+            "entries" in flat_info and flat_info["entries"]
+        ):
+            return MediaInfo(
+                title=flat_info.get("title", "Playlist"),
+                is_playlist=True,
+                url=url,
+            )
+
+        full_opts = {
+            "quiet": True,
+            "no_warnings": True,
+            "extract_flat": False,
+            "skip_download": True,
+        }
+
+        def _full_extract():
+            with yt_dlp.YoutubeDL(full_opts) as ydl:
+                return ydl.extract_info(url, download=False)
+
+        try:
+            info = await asyncio.to_thread(_full_extract)
+        except Exception as e:
             raise DownloadError(f"Failed to extract info: {e}") from e
 
         if not info:
@@ -243,25 +416,35 @@ class Downloader:
         raw_formats = info.get("formats", [])
         format_options = self._parse_formats(raw_formats) if raw_formats else []
 
+        actual_url = info.get("webpage_url", url)
+
         return MediaInfo(
             title=info.get("title", "Unknown"),
             duration=info.get("duration", 0) or 0,
             uploader=info.get("uploader", info.get("channel", "Unknown")),
             platform=info.get("extractor_key", info.get("extractor", "Unknown")),
-            url=url,
+            url=actual_url,
             thumbnail=info.get("thumbnail", ""),
             filesize_approx=info.get("filesize_approx", 0) or info.get("filesize", 0) or 0,
             formats=format_options,
         )
 
     async def download_format(
-        self, url: str, format_id: str, max_size_mb: float | None = None, merge_audio: bool = False
+        self,
+        url: str,
+        format_id: str,
+        max_size_mb: float | None = None,
+        merge_audio: bool = False,
+        is_audio: bool = False,
+        progress_hook: callable | None = None,
     ) -> Path:
         """
         Download a specific format by its format_id.
 
         Args:
             merge_audio: If True, merge best audio into video-only streams.
+            is_audio: If True, embed metadata and thumbnail into audio file.
+            progress_hook: Optional callback(downloaded_bytes, total_bytes, speed, eta).
 
         Returns path to the downloaded file.
         """
@@ -279,11 +462,33 @@ class Downloader:
             "max_filesize": int(limit * 1024 * 1024),
         }
 
-        return await self._download(url, ydl_opts, limit)
+        if is_audio:
+            ydl_opts["writethumbnail"] = True
+            ydl_opts["postprocessors"] = [
+                {
+                    "key": "FFmpegExtractAudio",
+                    "preferredcodec": "mp3",
+                    "preferredquality": "192",
+                },
+                {
+                    "key": "FFmpegMetadata",
+                    "add_metadata": True,
+                },
+                {
+                    "key": "EmbedThumbnail",
+                },
+            ]
 
-    async def download_audio(self, url: str, max_size_mb: float | None = None) -> Path:
+        return await self._download(url, ydl_opts, limit, progress_hook)
+
+    async def download_audio(
+        self,
+        url: str,
+        max_size_mb: float | None = None,
+        progress_hook: callable | None = None,
+    ) -> Path:
         """
-        Download audio from URL (best quality, MP3).
+        Download audio from URL (best quality, MP3) with metadata + thumbnail.
 
         Returns path to the downloaded audio file.
         """
@@ -295,19 +500,32 @@ class Downloader:
             "outtmpl": output_template,
             "quiet": True,
             "no_warnings": True,
+            "writethumbnail": True,
             "postprocessors": [
                 {
                     "key": "FFmpegExtractAudio",
                     "preferredcodec": "mp3",
                     "preferredquality": "192",
-                }
+                },
+                {
+                    "key": "FFmpegMetadata",
+                    "add_metadata": True,
+                },
+                {
+                    "key": "EmbedThumbnail",
+                },
             ],
             "max_filesize": int(limit * 1024 * 1024),
         }
 
-        return await self._download(url, ydl_opts, limit)
+        return await self._download(url, ydl_opts, limit, progress_hook)
 
-    async def download_video(self, url: str, max_size_mb: float | None = None) -> Path:
+    async def download_video(
+        self,
+        url: str,
+        max_size_mb: float | None = None,
+        progress_hook: callable | None = None,
+    ) -> Path:
         """
         Download video from URL (best quality, MP4).
 
@@ -329,13 +547,35 @@ class Downloader:
             "max_filesize": int(limit * 1024 * 1024),
         }
 
-        return await self._download(url, ydl_opts, limit)
+        return await self._download(url, ydl_opts, limit, progress_hook)
 
-    async def _download(self, url: str, ydl_opts: dict, max_size_mb: float) -> Path:
+    async def _download(
+        self,
+        url: str,
+        ydl_opts: dict,
+        max_size_mb: float,
+        progress_hook: callable | None = None,
+    ) -> Path:
         """Internal download method."""
         import yt_dlp
 
         downloaded_file = None
+
+        def _progress(d):
+            """yt-dlp progress hook."""
+            if progress_hook and d.get("status") == "downloading":
+                try:
+                    progress_hook(
+                        downloaded_bytes=d.get("downloaded_bytes", 0),
+                        total_bytes=d.get("total_bytes") or d.get("total_bytes_estimate", 0),
+                        speed=d.get("speed", 0),
+                        eta=d.get("eta", 0),
+                    )
+                except Exception:
+                    pass
+
+        if progress_hook:
+            ydl_opts["progress_hooks"] = [_progress]
 
         def _run():
             nonlocal downloaded_file

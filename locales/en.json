@@ -204,10 +204,12 @@
     "failed": "Failed to get invite link: {error}"
   },
   "sticker": {
-    "reply_to_image": "Reply to an image with /sticker",
-    "image_only": "Only images are supported for now.",
+    "reply_to_image": "Reply to an image, video, or sticker to convert it.",
+    "image_only": "Only images, short videos, and stickers can be converted.",
     "download_failed": "Failed to download media.",
-    "convert_failed": "Failed to convert image."
+    "convert_failed": "Failed to convert media to sticker.",
+    "video_too_long": "Video is too long. Maximum 6 seconds for animated stickers.",
+    "processing_video": "Processing video sticker..."
   },
   "ping": {
     "pong": "Pong!"
@@ -359,15 +361,18 @@
   "help": {
     "usage": "Usage",
     "aliases": "Aliases",
+    "category": "Category",
+    "cooldown": "Cooldown",
+    "examples": "Examples",
     "restrictions": "Restrictions",
     "private_only": "Private only",
     "group_only": "Group only",
     "owner_only": "Owner only",
     "admin_only": "Admin only",
-    "not_found": "Command '{command}' not found.",
+    "not_found": "Command `{command}` not found.",
     "did_you_mean": "Did you mean",
     "available_commands": "Available Commands",
-    "type_help": "Type `{prefix}help <command>` for details"
+    "type_help": "Type `{prefix}help <command>` for details."
   },
   "lang": {
     "title": "Language Settings",
@@ -445,9 +450,11 @@
   },
   "downloader": {
     "fetching_info": "Fetching media info...",
-    "downloading": "Downloading",
+    "downloading": "Downloading *{title}* ({quality})...",
     "downloading_audio": "Downloading audio...",
     "downloading_video": "Downloading video...",
+    "sending": "Sending file...",
+    "done": "Sent ✓",
     "too_large": "File is too large ({size} MB). Maximum allowed: {max} MB.",
     "failed": "Download failed: {error}",
     "no_url": "Please provide a URL to download.",
@@ -456,6 +463,18 @@
     "audio_options": "Audio",
     "choose_hint": "Reply to this message with the number to download.",
     "no_formats": "No format options available for this URL.",
-    "use_audio_video_hint": "Use `/audio <url>` or `/video <url>` instead."
+    "use_audio_video_hint": "Use `/audio <url>` or `/video <url>` instead.",
+    "playlist_detected": "Playlist detected! Fetching tracks...",
+    "playlist_tracks": "Showing {showing} of {total} tracks",
+    "searching": "Searching YouTube...",
+    "search_results": "Results for: {query}",
+    "no_results": "No results found for *{query}*.",
+    "choose_result_hint": "Reply with the number to select a video."
+  },
+  "toimg": {
+    "reply_to_sticker": "Reply to a sticker to convert it to an image.",
+    "sticker_only": "Only stickers can be converted to images.",
+    "download_failed": "Failed to download sticker.",
+    "convert_failed": "Failed to convert sticker to image."
   }
 }

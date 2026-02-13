@@ -1,22 +1,20 @@
 """
-Sticker command - Convert image to sticker.
+Sticker command - Convert image or video to sticker.
 """
-
-from io import BytesIO
-
-from PIL import Image
 
 from core.command import Command, CommandContext
 from core.errors import report_error
 from core.i18n import t_error, t_info, t_warning
-from core.logger import log_error, log_info
+from core.logger import log_info
 
 
 class StickerCommand(Command):
     name = "sticker"
     aliases = ["s", "stiker"]
-    description = "Convert image to sticker"
-    usage = "/sticker (reply to image or with image)"
+    description = "Convert image or video to sticker"
+    usage = "/sticker (reply to image, short video, or sticker)"
+    category = "content"
+    examples = ["/sticker", "/s"]
 
     async def execute(self, ctx: CommandContext) -> None:
         """Convert media to sticker."""
@@ -26,11 +24,18 @@ class StickerCommand(Command):
             await ctx.client.reply(ctx.message, t_info("sticker.reply_to_image"))
             return
 
-        if media_type not in ["image", "sticker"]:
+        if media_type not in ["image", "sticker", "video"]:
             await ctx.client.reply(ctx.message, t_warning("sticker.image_only"))
             return
 
         try:
+            if media_type == "video":
+                duration = msg_obj.videoMessage.seconds if msg_obj.HasField("videoMessage") else 0
+                if duration > 7:
+                    await ctx.client.reply(ctx.message, t_error("sticker.video_too_long"))
+                    return
+                await ctx.client.reply(ctx.message, t_info("sticker.processing_video"))
+
             log_info(f"Downloading {media_type} for sticker...")
             media_bytes = await ctx.client._client.download_any(msg_obj)
 
@@ -38,24 +43,10 @@ class StickerCommand(Command):
                 await ctx.client.reply(ctx.message, t_error("sticker.download_failed"))
                 return
 
-            webp_bytes = media_bytes
-
-            if media_type == "image":
-                try:
-                    img = Image.open(BytesIO(media_bytes))
-
-                    img.thumbnail((512, 512))
-
-                    buff = BytesIO()
-                    img.save(buff, format="WEBP", transparent=True)
-                    webp_bytes = buff.getvalue()
-                except Exception as e:
-                    log_error(f"Image conversion failed: {e}")
-                    await ctx.client.reply(ctx.message, t_error("sticker.convert_failed"))
-                    return
-
             await ctx.client._client.send_sticker(
-                ctx.client.to_jid(ctx.message.chat_jid), webp_bytes
+                ctx.client.to_jid(ctx.message.chat_jid),
+                media_bytes,
+                quoted=ctx.message.event,
             )
 
         except Exception as e:

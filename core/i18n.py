@@ -8,6 +8,8 @@ import json
 from contextvars import ContextVar
 from pathlib import Path
 
+from core import symbols as sym
+
 LOCALES_DIR = Path(__file__).parent.parent / "locales"
 _locales: dict[str, dict] = {}
 _default_lang: str = "en"
@@ -188,27 +190,19 @@ def get_available_languages() -> dict[str, str]:
 
 def t_error(key: str, chat_jid: str = None, **kwargs) -> str:
     """Get translated error message with error symbol."""
-    from core import symbols as sym
-
     return sym.error(t(key, chat_jid, **kwargs))
 
 
 def t_success(key: str, chat_jid: str = None, **kwargs) -> str:
     """Get translated success message with success symbol."""
-    from core import symbols as sym
-
     return sym.success(t(key, chat_jid, **kwargs))
 
 
 def t_warning(key: str, chat_jid: str = None, **kwargs) -> str:
     """Get translated warning message with warning symbol."""
-    from core import symbols as sym
-
     return sym.warning(t(key, chat_jid, **kwargs))
 
 
 def t_info(key: str, chat_jid: str = None, **kwargs) -> str:
     """Get translated info message with info symbol."""
-    from core import symbols as sym
-
     return f"{sym.INFO} {t(key, chat_jid, **kwargs)}"

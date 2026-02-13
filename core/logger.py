@@ -195,11 +195,33 @@ def log_debug(message: str) -> None:
 
 
 def show_banner(title: str, subtitle: str = "") -> None:
-    """Show a styled banner."""
-    text = Text(title, style="bold cyan")
+    """Show a styled ASCII art banner."""
+    logo = (
+        "                   ████████\n"
+        "              ██████████████████\n"
+        "            ████              ████\n"
+        "          ███                    ███\n"
+        "        ███        ██ ███    ███   ███\n"
+        "       ███      █████ ██████████    ███\n"
+        "       ██     ████       ███████     ██\n"
+        "      ██     ████          █ ███      ██\n"
+        "      ██     ███           █ ███      ██\n"
+        "      ██     ███           █ ███      ██\n"
+        "      ██     ████          █ ███      ██\n"
+        "       ██     ████       ███ ███     ██\n"
+        "       ███      █████ ██████ ███    ███\n"
+        "        ███        ██ ██     ███   ███\n"
+        "          ███                    ███\n"
+        "            ████              ████\n"
+        "              ██████████████████\n"
+        "                   ████████"
+    )
+    console.print(logo, style="bold green", highlight=False)
+    console.print()
+    text = Text(title, style="bold green")
     if subtitle:
-        text.append(f"\n{subtitle}", style="dim")
-    console.print(Panel(text, border_style="cyan"))
+        text.append(f"\n{subtitle}", style="dim green")
+    console.print(text, justify="center")
 
 
 def show_qr_prompt() -> None:
