@@ -4,7 +4,43 @@ Welcome/Goodbye message handler.
 Handles automatic messages when users join or leave groups.
 """
 
+from datetime import datetime
+
 from core.storage import GroupData as GroupStorage
+
+
+async def _resolve_placeholders(
+    message: str, bot, group_jid: str, member_jid: str, member_name: str
+) -> str:
+    """Resolve all placeholders in a welcome/goodbye message."""
+    message = message.replace("{name}", member_name)
+    mention = f"@{member_jid.split('@')[0]}"
+    message = message.replace("{mention}", mention)
+
+    if "{group}" in message:
+        try:
+            group_name = await bot.get_group_name(group_jid)
+            message = message.replace("{group}", group_name or "the group")
+        except Exception:
+            message = message.replace("{group}", "the group")
+
+    if "{count}" in message:
+        try:
+            group_info = await bot._client.GetGroupInfo(
+                bot._parse_jid(group_jid)
+            )
+            count = len(group_info.Participants) if group_info and group_info.Participants else "?"
+            message = message.replace("{count}", str(count))
+        except Exception:
+            message = message.replace("{count}", "?")
+
+    now = datetime.now()
+    if "{date}" in message:
+        message = message.replace("{date}", now.strftime("%b %d, %Y"))
+    if "{time}" in message:
+        message = message.replace("{time}", now.strftime("%I:%M %p"))
+
+    return message
 
 
 async def handle_member_join(bot, group_jid: str, member_jid: str, member_name: str) -> None:
@@ -31,11 +67,7 @@ async def handle_member_join(bot, group_jid: str, member_jid: str, member_name: 
         return
 
     message = welcome_config.get("message", "Welcome, {name}! 👋")
-    message = message.replace("{name}", member_name)
-    message = message.replace("{group}", "the group")
-
-    mention = f"@{member_jid.split('@')[0]}"
-    message = message.replace("{mention}", mention)
+    message = await _resolve_placeholders(message, bot, group_jid, member_jid, member_name)
 
     try:
         await bot.send(group_jid, message)
@@ -69,7 +101,7 @@ async def handle_member_leave(bot, group_jid: str, member_jid: str, member_name:
         return
 
     message = goodbye_config.get("message", "Goodbye, {name}!")
-    message = message.replace("{name}", member_name)
+    message = await _resolve_placeholders(message, bot, group_jid, member_jid, member_name)
 
     try:
         await bot.send(group_jid, message)

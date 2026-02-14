@@ -32,22 +32,32 @@ class MessageCache:
         self._db_file = DATA_DIR / "messages.db"
         self._ttl_seconds = ttl_minutes * 60
         self._max_size = max_size
+        self._conn: sqlite3.Connection | None = None
         self._init_db()
+
+    def _get_conn(self) -> sqlite3.Connection:
+        """Get or create the persistent SQLite connection."""
+        if self._conn is None:
+            DATA_DIR.mkdir(parents=True, exist_ok=True)
+            self._conn = sqlite3.connect(self._db_file, check_same_thread=False)
+            self._conn.execute("PRAGMA journal_mode=WAL")
+            self._conn.execute("PRAGMA synchronous=NORMAL")
+        return self._conn
 
     def _init_db(self):
         """Initialize SQLite database."""
         try:
-            with sqlite3.connect(self._db_file) as conn:
-                conn.execute("""
-                    CREATE TABLE IF NOT EXISTS messages (
-                        id TEXT PRIMARY KEY,
-                        timestamp REAL,
-                        data BLOB
-                    )
-                """)
-                conn.execute("CREATE INDEX IF NOT EXISTS idx_timestamp ON messages(timestamp)")
-                conn.commit()
-            log_info("Message cache database initialized")
+            conn = self._get_conn()
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS messages (
+                    id TEXT PRIMARY KEY,
+                    timestamp REAL,
+                    data BLOB
+                )
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_timestamp ON messages(timestamp)")
+            conn.commit()
+            log_info("Message cache database initialized (WAL mode)")
         except Exception as e:
             log_error(f"Failed to init message cache DB: {e}")
 
@@ -67,31 +77,31 @@ class MessageCache:
             compressed = zlib.compress(serialized)
 
             timestamp = time.time()
+            conn = self._get_conn()
 
-            with sqlite3.connect(self._db_file) as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO messages (id, timestamp, data) VALUES (?, ?, ?)",
+                (message_id, timestamp, compressed),
+            )
+
+            cursor = conn.execute("SELECT COUNT(*) FROM messages")
+            count = cursor.fetchone()[0]
+
+            if count > self._max_size:
                 conn.execute(
-                    "INSERT OR REPLACE INTO messages (id, timestamp, data) VALUES (?, ?, ?)",
-                    (message_id, timestamp, compressed),
-                )
-
-                cursor = conn.execute("SELECT COUNT(*) FROM messages")
-                count = cursor.fetchone()[0]
-
-                if count > self._max_size:
-                    conn.execute(
-                        """
-                        DELETE FROM messages WHERE id IN (
-                            SELECT id FROM messages ORDER BY timestamp ASC LIMIT ?
-                        )
-                    """,
-                        (count - self._max_size,),
+                    """
+                    DELETE FROM messages WHERE id IN (
+                        SELECT id FROM messages ORDER BY timestamp ASC LIMIT ?
                     )
-
-                conn.execute(
-                    "DELETE FROM messages WHERE timestamp < ?",
-                    (timestamp - self._ttl_seconds,),
+                """,
+                    (count - self._max_size,),
                 )
-                conn.commit()
+
+            conn.execute(
+                "DELETE FROM messages WHERE timestamp < ?",
+                (timestamp - self._ttl_seconds,),
+            )
+            conn.commit()
 
         except Exception as e:
             log_error(f"Failed to store message {message_id}: {e}")
@@ -99,29 +109,29 @@ class MessageCache:
     def get(self, message_id: str) -> dict[str, Any] | None:
         """Get a message from the cache if it exists and hasn't expired."""
         try:
-            with sqlite3.connect(self._db_file) as conn:
-                cursor = conn.execute(
-                    "SELECT timestamp, data FROM messages WHERE id = ?", (message_id,)
-                )
-                row = cursor.fetchone()
+            conn = self._get_conn()
+            cursor = conn.execute(
+                "SELECT timestamp, data FROM messages WHERE id = ?", (message_id,)
+            )
+            row = cursor.fetchone()
 
-                if not row:
-                    return None
+            if not row:
+                return None
 
-                timestamp, blob = row
+            timestamp, blob = row
 
-                if time.time() - timestamp > self._ttl_seconds:
-                    conn.execute("DELETE FROM messages WHERE id = ?", (message_id,))
-                    conn.commit()
-                    return None
+            if time.time() - timestamp > self._ttl_seconds:
+                conn.execute("DELETE FROM messages WHERE id = ?", (message_id,))
+                conn.commit()
+                return None
 
-                try:
-                    decompressed = zlib.decompress(blob)
-                    data = pickle.loads(decompressed)
-                    return data
-                except Exception as e:
-                    log_error(f"Failed to deserialize message {message_id}: {e}")
-                    return None
+            try:
+                decompressed = zlib.decompress(blob)
+                data = pickle.loads(decompressed)
+                return data
+            except Exception as e:
+                log_error(f"Failed to deserialize message {message_id}: {e}")
+                return None
 
         except Exception as e:
             log_error(f"Failed to get message {message_id}: {e}")
@@ -132,17 +142,26 @@ class MessageCache:
         data = self.get(message_id)
         if data:
             try:
-                with sqlite3.connect(self._db_file) as conn:
-                    conn.execute("DELETE FROM messages WHERE id = ?", (message_id,))
-                    conn.commit()
+                conn = self._get_conn()
+                conn.execute("DELETE FROM messages WHERE id = ?", (message_id,))
+                conn.commit()
             except Exception:
                 pass
         return data
 
+    def close(self) -> None:
+        """Close the persistent database connection."""
+        if self._conn is not None:
+            try:
+                self._conn.close()
+            except Exception:
+                pass
+            self._conn = None
+
     def __len__(self) -> int:
         try:
-            with sqlite3.connect(self._db_file) as conn:
-                return conn.execute("SELECT COUNT(*) FROM messages").fetchone()[0]
+            conn = self._get_conn()
+            return conn.execute("SELECT COUNT(*) FROM messages").fetchone()[0]
         except Exception:
             return 0
 

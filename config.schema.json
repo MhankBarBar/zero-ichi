@@ -172,6 +172,18 @@
                     "type": "boolean",
                     "description": "Restrict AI commands to bot owner only",
                     "default": true
+                },
+                "daily_token_limit_user": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Daily token limit per user (0 = unlimited)",
+                    "default": 50000
+                },
+                "daily_token_limit_chat": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Daily token limit per chat (0 = unlimited)",
+                    "default": 200000
                 }
             }
         },
