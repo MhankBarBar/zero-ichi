@@ -113,7 +113,6 @@ export default function CommandsPage() {
 
     return (
         <div className="space-y-8">
-            {/* Header */}
             <div>
                 <h1 className="text-3xl font-bold text-white">Commands</h1>
                 <p className="text-neutral-400 mt-1">
@@ -121,7 +120,6 @@ export default function CommandsPage() {
                 </p>
             </div>
 
-            {/* Search and Filters */}
             <div className="flex flex-col md:flex-row gap-4">
                 <div className="relative flex-1">
                     <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-500" />
@@ -157,7 +155,6 @@ export default function CommandsPage() {
                 </div>
             </div>
 
-            {/* Commands Grid */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {filteredCommands.map((cmd) => (
                     <GlowCard

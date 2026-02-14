@@ -130,7 +130,6 @@ export default function BlacklistPage() {
 
     return (
         <div className="space-y-8">
-            {/* Header */}
             <div>
                 <h1 className="text-3xl font-bold text-white">Blacklist Manager</h1>
                 <p className="text-neutral-400 mt-1">
@@ -186,7 +185,6 @@ export default function BlacklistPage() {
                         </div>
                     </div>
 
-                    {/* Add Word Form */}
                     <Card className="bg-neutral-800/50 border-neutral-700">
                         <CardContent className="p-4">
                             <div className="flex gap-3">
@@ -257,7 +255,6 @@ export default function BlacklistPage() {
                         </div>
                     )}
 
-                    {/* Stats */}
                     {!wordsLoading && words.length > 0 && (
                         <p className="text-neutral-500 text-sm">
                             {words.length} word{words.length !== 1 ? "s" : ""} blacklisted

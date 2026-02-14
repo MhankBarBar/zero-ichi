@@ -240,7 +240,6 @@ export default function SendPage() {
             </motion.div>
 
             <div className="space-y-6">
-                {/* Recipient Card */}
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -295,7 +294,6 @@ export default function SendPage() {
                     </GlowCard>
                 </motion.div>
 
-                {/* Message Type & Content Card */}
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -303,7 +301,6 @@ export default function SendPage() {
                 >
                     <GlowCard className="bg-neutral-900/50 backdrop-blur-sm border-neutral-800">
                         <CardContent className="p-6">
-                            {/* Type Selector - Horizontal Tabs */}
                             <div className="flex gap-1 p-1 bg-neutral-800/50 rounded-xl mb-6 overflow-x-auto">
                                 {mediaTypes.map((item) => {
                                     const Icon = item.icon;
@@ -327,7 +324,6 @@ export default function SendPage() {
                                 })}
                             </div>
 
-                            {/* Content */}
                             <AnimatePresence mode="wait">
                                 <motion.div
                                     key={activeType}
@@ -365,7 +361,6 @@ export default function SendPage() {
                                 </motion.div>
                             </AnimatePresence>
 
-                            {/* Actions */}
                             <div className="flex flex-col sm:flex-row gap-3 mt-6 pt-6 border-t border-neutral-800">
                                 <HoverBorderGradient
                                     containerClassName="flex-1 rounded-xl"
@@ -399,7 +394,6 @@ export default function SendPage() {
                 </motion.div>
             </div>
 
-            {/* Help & Tips */}
             <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}

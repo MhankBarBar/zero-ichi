@@ -116,7 +116,6 @@ export default function GroupsPage() {
 
     return (
         <div className="space-y-8">
-            {/* Header */}
             <div>
                 <h1 className="text-3xl font-bold text-white">Groups</h1>
                 <p className="text-neutral-400 mt-1">
@@ -134,9 +133,7 @@ export default function GroupsPage() {
                 </Card>
             ) : (
                 <div className="grid gap-6 lg:grid-cols-3">
-                    {/* Groups List */}
                     <div className="lg:col-span-2 space-y-4">
-                        {/* Search */}
                         <div className="relative">
                             <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-500" />
                             <Input
@@ -147,7 +144,6 @@ export default function GroupsPage() {
                             />
                         </div>
 
-                        {/* Group Cards */}
                         <div className="grid gap-4 md:grid-cols-2">
                             {filteredGroups.map((group) => (
                                 <Card
@@ -177,7 +173,6 @@ export default function GroupsPage() {
                                             )}
                                         </div>
 
-                                        {/* Quick settings indicators */}
                                         <div className="flex gap-2">
                                             {group.settings.antilink && (
                                                 <span className="px-2 py-0.5 text-xs rounded bg-neutral-700 text-neutral-300 flex items-center gap-1">
@@ -196,7 +191,6 @@ export default function GroupsPage() {
                         </div>
                     </div>
 
-                    {/* Group Details Panel */}
                     <div className="lg:col-span-1">
                         {selectedGroup ? (
                             <Card className="bg-neutral-800/50 border-neutral-700 sticky top-6">

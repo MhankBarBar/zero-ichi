@@ -116,7 +116,6 @@ export default function WelcomeGoodbyePage() {
 
     return (
         <div className="space-y-8">
-            {/* Header */}
             <div>
                 <motion.h1
                     initial={{ opacity: 0, y: -10 }}
@@ -131,7 +130,6 @@ export default function WelcomeGoodbyePage() {
             </div>
 
             <div className="grid md:grid-cols-3 gap-6">
-                {/* Group Selection Sidebar */}
                 <div className="md:col-span-1 space-y-4">
                     <GlowCard className="bg-neutral-900/50 backdrop-blur-sm border-neutral-800">
                         <CardHeader className="pb-4">
@@ -141,7 +139,6 @@ export default function WelcomeGoodbyePage() {
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            {/* Search */}
                             <div className="relative">
                                 <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-500" />
                                 <Input
@@ -152,7 +149,6 @@ export default function WelcomeGoodbyePage() {
                                 />
                             </div>
 
-                            {/* Group List */}
                             <div className="space-y-2 max-h-96 overflow-y-auto">
                                 {loading ? (
                                     [...Array(5)].map((_, i) => (
@@ -191,7 +187,6 @@ export default function WelcomeGoodbyePage() {
                     </GlowCard>
                 </div>
 
-                {/* Editor Area */}
                 <div className="md:col-span-2 space-y-6">
                     <AnimatePresence mode="wait">
                         {!selectedGroup ? (
@@ -213,7 +208,6 @@ export default function WelcomeGoodbyePage() {
                                 exit={{ opacity: 0, x: -20 }}
                                 className="space-y-6"
                             >
-                                {/* Welcome Message Editor */}
                                 <GlowCard className="bg-neutral-900/50 backdrop-blur-sm border-neutral-800">
                                     <CardHeader className="pb-4">
                                         <div className="flex items-center justify-between">
@@ -252,7 +246,6 @@ export default function WelcomeGoodbyePage() {
                                     </CardContent>
                                 </GlowCard>
 
-                                {/* Goodbye Message Editor */}
                                 <GlowCard className="bg-neutral-900/50 backdrop-blur-sm border-neutral-800">
                                     <CardHeader className="pb-4">
                                         <div className="flex items-center justify-between">
@@ -291,7 +284,6 @@ export default function WelcomeGoodbyePage() {
                                     </CardContent>
                                 </GlowCard>
 
-                                {/* Placeholder Help */}
                                 <Card className="bg-neutral-900/30 border-neutral-800">
                                     <CardContent className="p-4">
                                         <p className="text-sm font-medium text-neutral-400 mb-3">
