@@ -11,10 +11,13 @@ import os
 import re
 from typing import TYPE_CHECKING
 
-from pydantic_ai import Agent, RunContext
+import base64
+
+from pydantic_ai import Agent, BinaryContent, RunContext
 
 from ai.context import BotDependencies
-from core.logger import log_debug, log_error, log_info
+from ai.token_tracker import token_tracker
+from core.logger import log_debug, log_error, log_info, log_warning
 from core.runtime_config import runtime_config
 
 if TYPE_CHECKING:
@@ -337,6 +340,12 @@ class AgenticAI:
         if not self.api_key:
             return None
 
+        user_id = msg.sender_jid.split("@")[0] if msg.sender_jid else "unknown"
+        chat_id = msg.chat_jid
+        if not token_tracker.can_use(user_id, chat_id):
+            log_info(f"AI token limit reached for user={user_id} chat={chat_id}")
+            return "⏳ AI daily limit reached. Try again tomorrow!"
+
         os.environ["OPENAI_API_KEY"] = self.api_key
 
         model_str = f"{self.provider}:{self.model}"
@@ -359,6 +368,17 @@ class AgenticAI:
             pass
 
         message_type = msg._detect_media_type(msg.raw_message) or "text"
+
+        image_data: bytes | None = None
+        if message_type == "image":
+            try:
+                msg_obj, _ = msg.get_media_message(bot)
+                if msg_obj:
+                    image_data = await bot._client.download_any(msg_obj)
+                    log_debug(f"AI vision: downloaded {len(image_data)} bytes")
+            except Exception as e:
+                log_warning(f"AI vision: failed to download image: {e}")
+                image_data = None
 
         quoted = msg.quoted_message
         is_reply = quoted is not None
@@ -396,11 +416,20 @@ Note: When user mentions @{bot_jid} or @{bot_lid}, they are talking TO you, not 
                 for name, skill in self._skills.items():
                     skills_context += f"\n## {name}\n{skill['content']}"
 
-            user_message = (
-                f"{context_info}{history_text}{skills_context}\n\nUser message: {msg.text}"
+            user_prompt_parts: list = []
+
+            text_content = (
+                f"{context_info}{history_text}{skills_context}\n\nUser message: {msg.text or '(image)'}"
             )
+            user_prompt_parts.append(text_content)
+
+            if image_data:
+                user_prompt_parts.append(
+                    BinaryContent(data=image_data, media_type="image/jpeg")
+                )
+
             result = await bot_agent.run(
-                user_message,
+                user_prompt_parts,
                 deps=deps,
                 model=model_str,
             )
@@ -416,6 +445,15 @@ Note: When user mentions @{bot_jid} or @{bot_lid}, they are talking TO you, not 
                 )
             if result.output:
                 memory.add(role="assistant", content=result.output)
+
+            # Track token usage
+            try:
+                usage = result.usage()
+                total_tokens = (usage.total_tokens or 0) if usage else 0
+                if total_tokens > 0:
+                    token_tracker.record(user_id, chat_id, total_tokens)
+            except Exception:
+                token_tracker.record(user_id, chat_id, 1000)  # estimate
 
             log_debug(f"AI response: {result.output}")
             return result.output

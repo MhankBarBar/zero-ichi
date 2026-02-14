@@ -5,11 +5,32 @@ Stores group-specific data (notes, filters, settings, etc.) in JSON files.
 """
 
 import json
+import os
+import tempfile
 from pathlib import Path
 from typing import Any
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 DATA_DIR.mkdir(exist_ok=True)
+
+
+def _atomic_write(file: Path, data: Any) -> None:
+    """Write JSON data atomically using write-to-temp-then-rename.
+
+    This prevents data corruption if the process crashes mid-write.
+    """
+    file.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(dir=file.parent, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        os.replace(tmp_path, file)
+    except BaseException:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
 
 
 class GroupData:
@@ -38,10 +59,9 @@ class GroupData:
             return default if default is not None else {}
 
     def save(self, name: str, data: Any) -> None:
-        """Save data to a JSON file."""
+        """Save data to a JSON file (atomic write)."""
         file = self._get_file(name)
-        with open(file, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        _atomic_write(file, data)
 
     @property
     def settings(self) -> dict:
@@ -149,9 +169,8 @@ class Storage:
             return default if default is not None else {}
 
     def _save_json(self, file: Path, data: Any) -> None:
-        """Save JSON file."""
-        with open(file, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        """Save JSON file (atomic write)."""
+        _atomic_write(file, data)
 
     def get_all_groups(self) -> dict:
         """Get all groups and their settings."""

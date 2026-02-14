@@ -44,13 +44,44 @@ class HelpCommand(Command):
 
     @property
     def usage(self) -> str:
-        return f"{fmt_cmd('help')} [command]"
+        return f"{fmt_cmd('help')} [command|category]"
 
     async def execute(self, ctx: CommandContext) -> None:
         """Show help message with all available commands."""
 
         if ctx.args:
-            command_name = ctx.args[0].lower()
+            query = ctx.args[0].lower()
+            grouped = command_loader.get_grouped_commands()
+
+            matched_category = None
+            for group_name in grouped:
+                if group_name.lower() == query:
+                    matched_category = group_name
+                    break
+
+            if matched_category:
+                commands = grouped[matched_category]
+                icon = CATEGORY_ICONS.get(matched_category.lower(), sym.DIAMOND)
+                lines = [f"{icon} *{matched_category} Commands*\n"]
+                for cmd in commands:
+                    aliases_str = ""
+                    if cmd.aliases:
+                        aliases_str = f" ({', '.join(f'`{fmt_cmd(a)}`' for a in cmd.aliases)})"
+                    lines.append(
+                        f"  {sym.BULLET} `{fmt_cmd(cmd.name)}`{aliases_str} {sym.ARROW} {cmd.description}"
+                    )
+
+                    cooldown = getattr(cmd, "cooldown", 0)
+                    if cooldown:
+                        lines[-1] += f" ⏱{cooldown}s"
+
+                lines.append(
+                    f"\n{sym.INFO} {t('help.type_help', prefix=get_prefix())} `<command>` for details"
+                )
+                await ctx.client.reply(ctx.message, "\n".join(lines))
+                return
+
+            command_name = query
             cmd = command_loader.get(command_name)
 
             if cmd and cmd.enabled:
@@ -118,7 +149,7 @@ class HelpCommand(Command):
             for cmd in commands:
                 lines.append(f"  {sym.BULLET} `{fmt_cmd(cmd.name)}` {sym.ARROW} {cmd.description}")
 
-        lines.append(f"\n{sym.SEP * 15}")
-        lines.append(f"{sym.INFO} {t('help.type_help', prefix=get_prefix())}")
+        lines.append(f"\n{sym.INFO} {t('help.type_help', prefix=get_prefix())}")
+        lines.append(f"{sym.INFO} Use `{fmt_cmd('help')} <category>` for category details")
 
         await ctx.client.reply(ctx.message, "\n".join(lines))
