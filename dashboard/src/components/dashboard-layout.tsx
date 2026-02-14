@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
@@ -10,7 +11,7 @@ import {
   IconCommand,
   IconUsers,
   IconFileText,
-  IconBrandWhatsapp,
+
   IconMenu2,
   IconX,
   IconSend,
@@ -55,12 +56,9 @@ export default function DashboardLayout({
 
   return (
     <div className="min-h-screen bg-neutral-900">
-      {/* Mobile Header */}
       <div className="md:hidden flex items-center justify-between p-4 bg-neutral-800 border-b border-neutral-700">
         <Link href="/" className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center">
-            <IconBrandWhatsapp className="h-5 w-5 text-white" />
-          </div>
+          <Image src="/logo.png" alt="Zero Ichi" width={32} height={32} className="h-8 w-8 rounded-lg object-cover" />
           <span className="font-bold text-lg text-white">Zero Ichi</span>
         </Link>
         <button
@@ -71,7 +69,6 @@ export default function DashboardLayout({
         </button>
       </div>
 
-      {/* Mobile Menu Overlay */}
       <AnimatePresence>
         {mobileMenuOpen && (
           <motion.div
@@ -114,18 +111,14 @@ export default function DashboardLayout({
       </AnimatePresence>
 
       <div className="flex">
-        {/* Desktop Sidebar */}
         <motion.aside
           className="hidden md:flex flex-col h-screen bg-neutral-800 border-r border-neutral-700 sticky top-0 left-0 z-40"
           animate={{ width: sidebarOpen ? 240 : 72 }}
           onMouseEnter={() => setSidebarOpen(true)}
           onMouseLeave={() => setSidebarOpen(false)}
         >
-          {/* Logo */}
           <Link href="/" className="flex items-center gap-2 p-4 border-b border-neutral-700">
-            <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center shrink-0">
-              <IconBrandWhatsapp className="h-6 w-6 text-white" />
-            </div>
+            <Image src="/logo.png" alt="Zero Ichi" width={40} height={40} className="h-10 w-10 rounded-lg object-cover shrink-0" />
             <motion.span
               animate={{ opacity: sidebarOpen ? 1 : 0, display: sidebarOpen ? "block" : "none" }}
               className="font-bold text-lg text-white whitespace-nowrap"
@@ -134,7 +127,6 @@ export default function DashboardLayout({
             </motion.span>
           </Link>
 
-          {/* Navigation */}
           <nav className="flex-1 p-3 flex flex-col gap-1 overflow-y-auto">
             {navLinks.map((link) => (
               <Link
@@ -158,7 +150,6 @@ export default function DashboardLayout({
             ))}
           </nav>
 
-          {/* Status */}
           <div className="p-4 border-t border-neutral-700 space-y-2">
             <button
               onClick={() => {
@@ -179,7 +170,6 @@ export default function DashboardLayout({
 
         </motion.aside>
 
-        {/* Main Content - offset by sidebar width */}
         <main className="flex-1 min-h-screen overflow-x-hidden">
           <div className="p-4 md:p-8 max-w-full overflow-hidden">{children}</div>
         </main>
