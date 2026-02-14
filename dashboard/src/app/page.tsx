@@ -20,6 +20,9 @@ import {
   IconSend,
   IconCopy,
   IconCheck,
+  IconBolt,
+  IconWifi,
+  IconWifiOff,
 } from "@tabler/icons-react";
 import { api, type Stats, type BotStatus } from "@/lib/api";
 import { Input } from "@/components/ui/input";
@@ -27,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { SparklesCore } from "@/components/ui/sparkles";
 import { TextGenerateEffect } from "@/components/ui/text-generate-effect";
+import { useWebSocket, type WsEvent } from "@/hooks/use-websocket";
 
 function StatCard({
   title,
@@ -134,6 +138,7 @@ export default function DashboardPage() {
   const [messageText, setMessageText] = useState("");
   const [sending, setSending] = useState(false);
   const [copied, setCopied] = useState(false);
+  const { events, connected } = useWebSocket(8);
 
   const copyToClipboard = async (text: string) => {
     try {
@@ -191,7 +196,6 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8">
-      {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -212,7 +216,6 @@ export default function DashboardPage() {
         </button>
       </motion.div>
 
-      {/* Error Banner */}
       {error && (
         <motion.div
           initial={{ opacity: 0, height: 0 }}
@@ -232,7 +235,6 @@ export default function DashboardPage() {
         </motion.div>
       )}
 
-      {/* Bot Status Banner */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -243,7 +245,6 @@ export default function DashboardPage() {
           : "bg-gradient-to-br from-red-950/80 via-red-900/50 to-neutral-950"
           }`}
         >
-          {/* Sparkles Background for Online Status */}
           {status?.status === "online" && authStatus?.is_logged_in && (
             <div className="absolute inset-0 w-full h-full">
               <SparklesCore
@@ -261,7 +262,6 @@ export default function DashboardPage() {
 
           <CardContent className="relative z-10 p-6">
             <div className="flex flex-col md:flex-row md:items-center gap-6">
-              {/* Status indicator */}
               <div className="relative">
                 <div className={`h-16 w-16 rounded-2xl ${status?.status === "online" && authStatus?.is_logged_in
                   ? "bg-gradient-to-br from-green-500 to-emerald-600"
@@ -271,7 +271,6 @@ export default function DashboardPage() {
                 >
                   <IconBrandWhatsapp className="h-8 w-8 text-white" />
                 </div>
-                {/* Pulse animation */}
                 {status?.status === "online" && authStatus?.is_logged_in && (
                   <span className="absolute -top-1 -right-1 flex h-4 w-4">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
@@ -280,7 +279,6 @@ export default function DashboardPage() {
                 )}
               </div>
 
-              {/* Status text */}
               <div className="flex-1">
                 <h2 className="text-2xl font-bold text-white">
                   {loading ? "Connecting..." : (status?.status === "online" && authStatus?.is_logged_in ? "Bot Online" : "Bot Offline")}
@@ -293,7 +291,6 @@ export default function DashboardPage() {
                 </p>
               </div>
 
-              {/* Uptime badge */}
               {authStatus?.is_logged_in && (
                 <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-black/30">
                   <IconClock className="h-5 w-5 text-neutral-400" />
@@ -308,9 +305,7 @@ export default function DashboardPage() {
         </Card>
       </motion.div>
 
-      {/* Live Authentication */}
       <div className="grid gap-6">
-        {/* Auth Card */}
         <AnimatePresence mode="wait">
           {(!authStatus?.is_logged_in || authStatus?.has_qr) && (
             <motion.div
@@ -369,7 +364,6 @@ export default function DashboardPage() {
         </AnimatePresence>
       </div>
 
-      {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Messages"
@@ -409,7 +403,111 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Quick Actions Grid */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.38 }}
+      >
+        <GlowCard className="bg-neutral-900/50 backdrop-blur-sm border-neutral-800">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <IconActivity className="h-5 w-5 text-green-400" />
+                Live Activity
+              </span>
+              <span className="flex items-center gap-2">
+                <span className="flex items-center gap-1 text-xs font-normal">
+                  {connected ? (
+                    <>
+                      <IconWifi className="h-3.5 w-3.5 text-green-400" />
+                      <span className="text-green-400">Live</span>
+                    </>
+                  ) : (
+                    <>
+                      <IconWifiOff className="h-3.5 w-3.5 text-red-400" />
+                      <span className="text-red-400">Offline</span>
+                    </>
+                  )}
+                </span>
+                <Link href="/analytics" className="text-xs text-neutral-500 hover:text-purple-400 transition-colors">
+                  View all →
+                </Link>
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-2">
+            <div className="space-y-0.5 max-h-48 overflow-y-auto pr-1">
+              <AnimatePresence initial={false}>
+                {events.length === 0 ? (
+                  <div className="py-8 text-center text-neutral-500 text-sm">
+                    Waiting for events…
+                  </div>
+                ) : (
+                  events.map((ev, i) => (
+                    <motion.div
+                      key={`${ev.timestamp}-${i}`}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className={`flex items-center gap-2 py-1.5 px-3 rounded-md border-l-2 ${ev.type === "command_executed"
+                          ? "border-l-purple-500"
+                          : ev.type === "new_message"
+                            ? "border-l-blue-500"
+                            : "border-l-amber-500"
+                        } bg-neutral-800/30`}
+                    >
+                      <div>
+                        {ev.type === "command_executed" ? (
+                          <IconCommand className="h-3.5 w-3.5 text-purple-400" />
+                        ) : ev.type === "new_message" ? (
+                          <IconMessage className="h-3.5 w-3.5 text-blue-400" />
+                        ) : (
+                          <IconBolt className="h-3.5 w-3.5 text-amber-400" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0 text-sm leading-snug truncate text-neutral-300">
+                        {ev.type === "command_executed" ? (
+                          <>
+                            <span className="text-purple-400 font-medium">/{String(ev.data.command)}</span>
+                            {" by "}
+                            <span className="text-white">{String(ev.data.user || "unknown")}</span>
+                          </>
+                        ) : ev.type === "new_message" ? (
+                          <>
+                            <span className="text-white">{String(ev.data.sender || "unknown")}</span>
+                            {ev.data.text ? (
+                              <>: <span className="text-neutral-400">{String(ev.data.text).slice(0, 50)}</span></>
+                            ) : (
+                              <span className="text-neutral-500"> (media)</span>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-neutral-400">{ev.type}</span>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-neutral-600 whitespace-nowrap">
+                        {(() => {
+                          try {
+                            return new Date(ev.timestamp).toLocaleTimeString("en", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              second: "2-digit",
+                            });
+                          } catch {
+                            return "";
+                          }
+                        })()}
+                      </span>
+                    </motion.div>
+                  ))
+                )}
+              </AnimatePresence>
+            </div>
+          </CardContent>
+        </GlowCard>
+      </motion.div>
+
       <div>
         <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
@@ -448,7 +546,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Footer info */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}

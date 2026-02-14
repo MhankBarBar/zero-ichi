@@ -182,13 +182,11 @@ export default function ConfigPage() {
 
     return (
         <div className="space-y-8">
-            {/* Header */}
             <div>
                 <h1 className="text-3xl font-bold text-white">Configuration</h1>
                 <p className="text-neutral-400 mt-1">Manage your bot settings</p>
             </div>
 
-            {/* Rate Limiting Section */}
             {rateLimit && (
                 <GlowCard className="bg-gradient-to-br from-green-900/30 to-emerald-900/30 border-green-700/50">
                     <CardHeader>
@@ -256,7 +254,6 @@ export default function ConfigPage() {
                 </GlowCard>
             )}
 
-            {/* Config Sections */}
             <div className="grid gap-6">
                 {sections.map((section) => (
                     <GlowCard key={section.title} className="bg-neutral-900/50 backdrop-blur-sm border-neutral-800">

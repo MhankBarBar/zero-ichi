@@ -54,7 +54,6 @@ export function NumberInput({
                 <label className="text-sm font-medium text-neutral-300">{label}</label>
             )}
             <div className="flex items-center">
-                {/* Decrement button */}
                 <button
                     type="button"
                     onClick={handleDecrement}
@@ -70,7 +69,6 @@ export function NumberInput({
                     <IconMinus className="h-4 w-4" />
                 </button>
 
-                {/* Input field */}
                 <input
                     type="number"
                     value={value}
@@ -88,7 +86,6 @@ export function NumberInput({
                     )}
                 />
 
-                {/* Increment button */}
                 <button
                     type="button"
                     onClick={handleIncrement}

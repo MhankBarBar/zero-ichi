@@ -109,7 +109,6 @@ export function TableRowSkeleton({ columns = 4 }: { columns?: number }) {
 export function PageSkeleton() {
     return (
         <div className="space-y-6 animate-pulse">
-            {/* Header skeleton */}
             <div className="flex justify-between items-center">
                 <div className="space-y-2">
                     <div className="h-8 bg-neutral-700 rounded w-48" />
@@ -118,14 +117,12 @@ export function PageSkeleton() {
                 <div className="h-10 bg-neutral-700 rounded w-24" />
             </div>
 
-            {/* Stats row skeleton */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {[...Array(4)].map((_, i) => (
                     <CardSkeleton key={i} />
                 ))}
             </div>
 
-            {/* Content skeleton */}
             <div className="h-64 bg-neutral-800/50 rounded-xl border border-neutral-800" />
         </div>
     );

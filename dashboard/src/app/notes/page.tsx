@@ -239,7 +239,6 @@ export default function NotesPage() {
 
     return (
         <div className="space-y-8">
-            {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold text-white">Notes Manager</h1>

@@ -94,12 +94,10 @@ function ToastItem({
                 config.borderClass
             )}
         >
-            {/* Icon */}
             <div className={cn("p-1.5 rounded-lg", config.bgClass)}>
                 <Icon className={cn("h-4 w-4", config.iconClass)} />
             </div>
 
-            {/* Content */}
             <div className="flex-1 min-w-0">
                 <p className="font-medium text-white text-sm">{toast.title}</p>
                 {toast.message && (
@@ -109,7 +107,6 @@ function ToastItem({
                 )}
             </div>
 
-            {/* Close button */}
             <button
                 onClick={() => onRemove(toast.id)}
                 className="shrink-0 p-1 rounded-lg hover:bg-white/10 text-neutral-500 hover:text-white transition-colors"
@@ -117,7 +114,6 @@ function ToastItem({
                 <IconX className="h-4 w-4" />
             </button>
 
-            {/* Progress bar */}
             <motion.div
                 initial={{ scaleX: 1 }}
                 animate={{ scaleX: 0 }}
