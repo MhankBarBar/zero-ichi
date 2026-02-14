@@ -16,14 +16,28 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import unquote
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi import (
+    APIRouter,
+    Depends,
+    FastAPI,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security.utils import get_authorization_scheme_param
 from pydantic import BaseModel
 
 sys.path.insert(0, str(Path(__file__).parent))
 
+from core.analytics import command_analytics
 from core.command import command_loader
+from core.event_bus import event_bus
 from core.handlers.welcome import (
     get_goodbye_config,
     get_welcome_config,
@@ -93,7 +107,6 @@ app = FastAPI(
     title="Zero Ichi Dashboard API",
     description="API for managing the Zero Ichi WhatsApp bot",
     version="1.0.0",
-    dependencies=[Depends(get_current_username)],
 )
 
 app.add_middleware(
@@ -103,6 +116,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+_api = APIRouter(dependencies=[Depends(get_current_username)])
 
 storage = Storage()
 
@@ -195,7 +210,7 @@ class GoodbyeSettings(BaseModel):
     message: str = "Goodbye, {name}! 👋"
 
 
-@app.post("/api/send-message")
+@_api.post("/api/send-message")
 async def send_message(req: MessageRequest):
     """Send a message via the bot."""
 
@@ -210,7 +225,7 @@ async def send_message(req: MessageRequest):
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
-@app.post("/api/send-media", dependencies=[Depends(get_current_username)])
+@_api.post("/api/send-media", dependencies=[Depends(get_current_username)])
 async def send_media(
     to: str = Form(...),
     type: str = Form(...),
@@ -235,7 +250,7 @@ async def send_media(
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
-@app.get("/api/status")
+@_api.get("/api/status")
 async def get_status():
     """Get bot status."""
     from core.shared import get_bot
@@ -256,7 +271,7 @@ async def get_status():
     }
 
 
-@app.get("/api/auth/status")
+@_api.get("/api/auth/status")
 async def get_auth_status():
     """Get current authentication status."""
     from core.shared import get_bot
@@ -283,7 +298,7 @@ async def get_auth_status():
     }
 
 
-@app.get("/api/auth/qr")
+@_api.get("/api/auth/qr")
 async def get_qr():
     """Get current QR code."""
     if not session_state.qr_code:
@@ -291,7 +306,7 @@ async def get_qr():
     return {"qr": session_state.qr_code}
 
 
-@app.post("/api/auth/pair")
+@_api.post("/api/auth/pair")
 async def start_pairing(req: PairRequest):
     """Start pairing with phone number."""
     runtime_config.set_nested("bot", "login_method", "pair_code")
@@ -304,7 +319,7 @@ async def start_pairing(req: PairRequest):
     }
 
 
-@app.get("/api/config")
+@_api.get("/api/config")
 async def get_config():
     """Get all configuration."""
     return {
@@ -341,7 +356,7 @@ async def get_config():
     }
 
 
-@app.put("/api/config")
+@_api.put("/api/config")
 async def update_config(update: ConfigUpdate):
     """Update a configuration value."""
     try:
@@ -352,7 +367,7 @@ async def update_config(update: ConfigUpdate):
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
-@app.get("/api/commands")
+@_api.get("/api/commands")
 async def get_commands():
     """Get all commands with their status."""
     disabled = runtime_config.get("disabled_commands", [])
@@ -376,7 +391,7 @@ async def get_commands():
     return {"commands": commands}
 
 
-@app.patch("/api/commands/{name}")
+@_api.patch("/api/commands/{name}")
 async def toggle_command(name: str, toggle: CommandToggle):
     """Enable or disable a command."""
     disabled = runtime_config.get("disabled_commands", [])
@@ -392,7 +407,7 @@ async def toggle_command(name: str, toggle: CommandToggle):
     return {"success": True, "name": name, "enabled": toggle.enabled}
 
 
-@app.get("/api/groups")
+@_api.get("/api/groups")
 async def get_groups():
     """Get all groups with settings."""
     bot = get_bot()
@@ -443,7 +458,7 @@ async def get_groups():
     return {"groups": groups}
 
 
-@app.get("/api/groups/{group_id}")
+@_api.get("/api/groups/{group_id}")
 async def get_group(group_id: str):
     """Get a specific group's settings."""
     settings = storage.get_group_settings(group_id)
@@ -452,7 +467,7 @@ async def get_group(group_id: str):
     return settings
 
 
-@app.put("/api/groups/{group_id}")
+@_api.put("/api/groups/{group_id}")
 async def update_group(group_id: str, settings: GroupSettings):
     """Update a group's settings."""
     storage.set_group_settings(
@@ -466,7 +481,7 @@ async def update_group(group_id: str, settings: GroupSettings):
     return {"success": True}
 
 
-@app.get("/api/stats")
+@_api.get("/api/stats")
 async def get_stats():
     """Get bot statistics."""
     from core.shared import get_bot
@@ -504,16 +519,30 @@ async def get_stats():
     }
 
 
-@app.get("/api/logs")
-async def get_logs(limit: int = 100, level: str | None = Query(None)):
-    """Get recent bot logs."""
-    logs_file = Path(__file__).parent / "logs" / "messages.log"
+@_api.get("/api/logs")
+async def get_logs(
+    limit: int = 100,
+    level: str | None = Query(None),
+    source: str = Query("bot"),
+):
+    """Get recent bot logs.
+
+    Args:
+        limit: Max number of log entries to return.
+        level: Filter by log level (info, warning, error, debug, command).
+        source: Log source — 'bot' for structured bot.log, 'messages' for raw WA messages.
+    """
+    logs_dir = Path(__file__).parent / "logs"
+
+    if source == "messages":
+        logs_file = logs_dir / "messages.log"
+    else:
+        logs_file = logs_dir / "bot.log"
+        if not logs_file.exists():
+            logs_file = logs_dir / "messages.log"
 
     if not logs_file.exists():
-        logs_file = Path(__file__).parent / "logs" / "bot.log"
-
-    if not logs_file.exists():
-        return {"logs": []}
+        return {"logs": [], "source": source}
 
     try:
 
@@ -526,7 +555,7 @@ async def get_logs(limit: int = 100, level: str | None = Query(None)):
                         buffer = bytearray()
                         lines_found = 0
 
-                        chunk_size = 4096
+                        chunk_size = 8192
                         pos = end_pos
 
                         while pos > 0 and lines_found <= count:
@@ -546,7 +575,7 @@ async def get_logs(limit: int = 100, level: str | None = Query(None)):
             except Exception:
                 return []
 
-        lines = get_last_lines(logs_file, limit + 10)
+        lines = get_last_lines(logs_file, limit + 20)
 
         parsed_lines = []
         for line in reversed(lines):
@@ -554,52 +583,64 @@ async def get_logs(limit: int = 100, level: str | None = Query(None)):
             if not line:
                 continue
 
-            try:
-                entry = json.loads(line)
-                timestamp = entry.get("timestamp", "")
-                data = entry.get("data", {})
+            match = re.match(r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[(\w+)\] (.*)", line)
+            if match:
+                ts, lvl, msg = match.groups()
+                log_level = lvl.lower()
 
-                log_level = "info"
+                if msg.startswith("CMD ["):
+                    log_level = "command"
 
-                if level and level.lower() != "info":
+                if level and level.lower() != log_level:
                     continue
 
                 parsed_lines.append(
                     {
-                        "id": data.get("id", timestamp),
-                        "timestamp": timestamp,
+                        "id": f"{ts}-{hash(msg) % 100000}",
+                        "timestamp": ts,
                         "level": log_level,
-                        "message": line,
+                        "message": msg,
                     }
                 )
-            except json.JSONDecodeError:
-                match = re.match(r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[(\w+)\] (.*)", line)
-                if match:
-                    ts, lvl, msg = match.groups()
+            else:
+                try:
+                    entry = json.loads(line)
+                    timestamp = entry.get("timestamp", "")
+                    data = entry.get("data", {})
 
-                    if level and level.upper() != lvl.upper():
+                    if level and level.lower() != "info":
                         continue
 
                     parsed_lines.append(
-                        {"id": f"{ts}-{lvl}", "timestamp": ts, "level": lvl.lower(), "message": msg}
+                        {
+                            "id": data.get("id", timestamp),
+                            "timestamp": timestamp,
+                            "level": "info",
+                            "message": line,
+                        }
                     )
-                else:
+                except json.JSONDecodeError:
                     if level and level.lower() != "info":
                         continue
                     parsed_lines.append(
-                        {"id": str(hash(line)), "timestamp": "", "level": "info", "message": line}
+                        {
+                            "id": str(hash(line) % 10000000),
+                            "timestamp": "",
+                            "level": "info",
+                            "message": line,
+                        }
                     )
 
             if len(parsed_lines) >= limit:
                 break
 
-        return {"logs": parsed_lines}
+        return {"logs": parsed_lines, "source": source}
 
     except Exception as e:
-        return {"logs": [], "error": str(e)}
+        return {"logs": [], "source": source, "error": str(e)}
 
 
-@app.get("/api/ratelimit")
+@_api.get("/api/ratelimit")
 async def get_rate_limit():
     """Get rate limit configuration."""
     config = rate_limiter.config
@@ -612,7 +653,7 @@ async def get_rate_limit():
     }
 
 
-@app.put("/api/ratelimit")
+@_api.put("/api/ratelimit")
 async def update_rate_limit(settings: RateLimitSettings):
     """Update rate limit configuration."""
     rate_limiter.config.enabled = settings.enabled
@@ -624,35 +665,35 @@ async def update_rate_limit(settings: RateLimitSettings):
     return {"success": True}
 
 
-@app.get("/api/groups/{group_id}/welcome")
+@_api.get("/api/groups/{group_id}/welcome")
 async def get_welcome(group_id: str):
     """Get welcome settings for a group."""
     config = get_welcome_config(group_id)
     return config
 
 
-@app.put("/api/groups/{group_id}/welcome")
+@_api.put("/api/groups/{group_id}/welcome")
 async def update_welcome(group_id: str, settings: WelcomeSettings):
     """Update welcome settings for a group."""
     set_welcome_config(group_id, enabled=settings.enabled, message=settings.message)
     return {"success": True}
 
 
-@app.get("/api/groups/{group_id}/goodbye")
+@_api.get("/api/groups/{group_id}/goodbye")
 async def get_goodbye(group_id: str):
     """Get goodbye settings for a group."""
     config = get_goodbye_config(group_id)
     return config
 
 
-@app.put("/api/groups/{group_id}/goodbye")
+@_api.put("/api/groups/{group_id}/goodbye")
 async def update_goodbye(group_id: str, settings: GoodbyeSettings):
     """Update goodbye settings for a group."""
     set_goodbye_config(group_id, enabled=settings.enabled, message=settings.message)
     return {"success": True}
 
 
-@app.get("/api/tasks")
+@_api.get("/api/tasks")
 async def get_scheduled_tasks():
     """Get all scheduled tasks."""
 
@@ -679,7 +720,7 @@ async def get_scheduled_tasks():
     return {"tasks": tasks, "count": len(tasks)}
 
 
-@app.delete("/api/tasks/{task_id}")
+@_api.delete("/api/tasks/{task_id}")
 async def delete_task(task_id: str):
     """Delete a scheduled task."""
 
@@ -693,7 +734,7 @@ async def delete_task(task_id: str):
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
 
 
-@app.put("/api/tasks/{task_id}/toggle")
+@_api.put("/api/tasks/{task_id}/toggle")
 async def toggle_task(task_id: str, enabled: bool = True):
     """Enable or disable a scheduled task."""
 
@@ -722,7 +763,7 @@ class NoteUpdate(BaseModel):
     media_type: str | None = None
 
 
-@app.get("/api/groups/{group_id}/notes")
+@_api.get("/api/groups/{group_id}/notes")
 async def get_notes(group_id: str):
     """Get all notes for a group."""
     group_storage = GroupData(group_id)
@@ -750,7 +791,7 @@ async def get_notes(group_id: str):
     return {"notes": notes_list, "count": len(notes_list)}
 
 
-@app.post("/api/groups/{group_id}/notes")
+@_api.post("/api/groups/{group_id}/notes")
 async def create_note(group_id: str, note: NoteCreate):
     """Create a new note for a group."""
     group_storage = GroupData(group_id)
@@ -768,7 +809,7 @@ async def create_note(group_id: str, note: NoteCreate):
     return {"success": True, "message": f"Note '{note.name}' created"}
 
 
-@app.put("/api/groups/{group_id}/notes/{note_name}")
+@_api.put("/api/groups/{group_id}/notes/{note_name}")
 async def update_note(group_id: str, note_name: str, note: NoteUpdate):
     """Update an existing note."""
     group_storage = GroupData(group_id)
@@ -786,7 +827,7 @@ async def update_note(group_id: str, note_name: str, note: NoteUpdate):
     return {"success": True, "message": f"Note '{note_name}' updated"}
 
 
-@app.delete("/api/groups/{group_id}/notes/{note_name}")
+@_api.delete("/api/groups/{group_id}/notes/{note_name}")
 async def delete_note(group_id: str, note_name: str):
     """Delete a note."""
     group_storage = GroupData(group_id)
@@ -808,7 +849,7 @@ class FilterCreate(BaseModel):
     response: str
 
 
-@app.get("/api/groups/{group_id}/filters")
+@_api.get("/api/groups/{group_id}/filters")
 async def get_filters(group_id: str):
     """Get all filters for a group."""
     group_storage = GroupData(group_id)
@@ -826,7 +867,7 @@ async def get_filters(group_id: str):
     return {"filters": filters_list, "count": len(filters_list)}
 
 
-@app.post("/api/groups/{group_id}/filters")
+@_api.post("/api/groups/{group_id}/filters")
 async def create_filter(group_id: str, filter_data: FilterCreate):
     """Create a new filter for a group."""
     group_storage = GroupData(group_id)
@@ -843,7 +884,7 @@ async def create_filter(group_id: str, filter_data: FilterCreate):
     return {"success": True, "message": f"Filter '{filter_data.trigger}' created"}
 
 
-@app.delete("/api/groups/{group_id}/filters/{trigger}")
+@_api.delete("/api/groups/{group_id}/filters/{trigger}")
 async def delete_filter(group_id: str, trigger: str):
     """Delete a filter."""
     trigger = unquote(trigger)
@@ -865,7 +906,7 @@ class BlacklistWord(BaseModel):
     word: str
 
 
-@app.get("/api/groups/{group_id}/blacklist")
+@_api.get("/api/groups/{group_id}/blacklist")
 async def get_blacklist(group_id: str):
     """Get blacklisted words for a group."""
     group_storage = GroupData(group_id)
@@ -874,7 +915,7 @@ async def get_blacklist(group_id: str):
     return {"words": words, "count": len(words)}
 
 
-@app.post("/api/groups/{group_id}/blacklist")
+@_api.post("/api/groups/{group_id}/blacklist")
 async def add_blacklist_word(group_id: str, data: BlacklistWord):
     """Add a word to the blacklist."""
     group_storage = GroupData(group_id)
@@ -890,7 +931,7 @@ async def add_blacklist_word(group_id: str, data: BlacklistWord):
     return {"success": True, "message": f"Word '{word}' added to blacklist"}
 
 
-@app.delete("/api/groups/{group_id}/blacklist/{word}")
+@_api.delete("/api/groups/{group_id}/blacklist/{word}")
 async def remove_blacklist_word(group_id: str, word: str):
     """Remove a word from the blacklist."""
     word = unquote(word).lower().strip()
@@ -904,6 +945,50 @@ async def remove_blacklist_word(group_id: str, word: str):
     group_storage.save_blacklist(words)
 
     return {"success": True, "message": f"Word '{word}' removed from blacklist"}
+
+
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(ws: WebSocket):
+    """WebSocket for real-time dashboard updates."""
+    await ws.accept()
+    queue = event_bus.subscribe()
+    try:
+        while True:
+            event = await queue.get()
+            await ws.send_json(event)
+    except WebSocketDisconnect:
+        pass
+    finally:
+        event_bus.unsubscribe(queue)
+
+
+
+
+@_api.get("/api/analytics/commands")
+async def get_analytics_commands(days: int = Query(7, ge=1, le=90)):
+    """Get top commands by usage."""
+    return {
+        "top_commands": command_analytics.get_top_commands(days),
+        "total": command_analytics.get_total_commands(days),
+        "days": days,
+    }
+
+
+@_api.get("/api/analytics/timeline")
+async def get_analytics_timeline(
+    command: str = Query(""), days: int = Query(7, ge=1, le=90)
+):
+    """Get daily usage timeline."""
+    return {
+        "timeline": command_analytics.get_usage_timeline(command, days),
+        "command": command or "all",
+        "days": days,
+    }
+
+
+app.include_router(_api)
 
 
 if __name__ == "__main__":
