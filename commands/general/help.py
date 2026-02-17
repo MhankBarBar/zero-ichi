@@ -6,22 +6,6 @@ from core import symbols as sym
 from core.command import Command, CommandContext, command_loader
 from core.i18n import t
 
-
-def get_prefix() -> str:
-    """Get the display-friendly prefix from runtime config."""
-    from core.runtime_config import runtime_config
-
-    return runtime_config.display_prefix
-
-
-def fmt_cmd(cmd_name: str) -> str:
-    """Format a command name with prefix (handles empty prefix)."""
-    prefix = get_prefix()
-    if prefix:
-        return f"{prefix}{cmd_name}"
-    return cmd_name
-
-
 CATEGORY_ICONS = {
     "general": sym.INFO,
     "admin": sym.USER,
@@ -44,10 +28,14 @@ class HelpCommand(Command):
 
     @property
     def usage(self) -> str:
-        return f"{fmt_cmd('help')} [command|category]"
+        return "help [command|category]"
 
     async def execute(self, ctx: CommandContext) -> None:
         """Show help message with all available commands."""
+        p = ctx.prefix
+
+        def fmt(name):
+            return f"{p}{name}"
 
         if ctx.args:
             query = ctx.args[0].lower()
@@ -66,9 +54,9 @@ class HelpCommand(Command):
                 for cmd in commands:
                     aliases_str = ""
                     if cmd.aliases:
-                        aliases_str = f" ({', '.join(f'`{fmt_cmd(a)}`' for a in cmd.aliases)})"
+                        aliases_str = f" ({', '.join(f'`{fmt(a)}`' for a in cmd.aliases)})"
                     lines.append(
-                        f"  {sym.BULLET} `{fmt_cmd(cmd.name)}`{aliases_str} {sym.ARROW} {cmd.description}"
+                        f"  {sym.BULLET} `{fmt(cmd.name)}`{aliases_str} {sym.ARROW} {cmd.description}"
                     )
 
                     cooldown = getattr(cmd, "cooldown", 0)
@@ -76,7 +64,7 @@ class HelpCommand(Command):
                         lines[-1] += f" ⏱{cooldown}s"
 
                 lines.append(
-                    f"\n{sym.INFO} {t('help.type_help', prefix=get_prefix())} `<command>` for details"
+                    f"\n{sym.INFO} {t('help.type_help', prefix=p)} `<command>` for details"
                 )
                 await ctx.client.reply(ctx.message, "\n".join(lines))
                 return
@@ -87,13 +75,13 @@ class HelpCommand(Command):
             if cmd and cmd.enabled:
                 icon = CATEGORY_ICONS.get(getattr(cmd, "category", "").lower(), sym.DIAMOND)
                 help_text = (
-                    f"{sym.HEADER_L} {fmt_cmd(cmd.name)} {sym.HEADER_R}\n\n"
+                    f"{sym.HEADER_L} {fmt(cmd.name)} {sym.HEADER_R}\n\n"
                     f"{sym.QUOTE} {cmd.description}\n\n"
-                    f"{sym.BULLET} *{t('help.usage')}:* `{cmd.usage if cmd.usage else fmt_cmd(cmd.name)}`\n"
+                    f"{sym.BULLET} *{t('help.usage')}:* `{cmd.get_usage(p)}`\n"
                 )
 
                 if cmd.aliases:
-                    aliases_str = ", ".join(f"`{fmt_cmd(a)}`" for a in cmd.aliases)
+                    aliases_str = ", ".join(f"`{fmt(a)}`" for a in cmd.aliases)
                     help_text += f"{sym.BULLET} *{t('help.aliases')}:* {aliases_str}\n"
 
                 category_name = getattr(cmd, "category", None)
@@ -110,7 +98,7 @@ class HelpCommand(Command):
                 if examples:
                     help_text += f"\n{sym.SPARKLE} *{t('help.examples')}:*\n"
                     for ex in examples:
-                        help_text += f"  {sym.ARROW} `{ex}`\n"
+                        help_text += f"  {sym.ARROW} `{p}{ex}`\n"
 
                 restrictions = []
                 if cmd.private_only:
@@ -128,7 +116,7 @@ class HelpCommand(Command):
             else:
                 similar = command_loader.find_similar(command_name)
                 if similar:
-                    suggestions = ", ".join(f"`{fmt_cmd(s)}`" for s in similar)
+                    suggestions = ", ".join(f"`{fmt(s)}`" for s in similar)
                     help_text = (
                         f"{sym.SEARCH} {t('help.not_found', command=command_name)}\n\n"
                         f"{sym.ARROW} *{t('help.did_you_mean')}:* {suggestions}"
@@ -147,9 +135,9 @@ class HelpCommand(Command):
             icon = CATEGORY_ICONS.get(group_name.lower(), sym.DIAMOND)
             lines.append(f"\n{icon} *{group_name}*")
             for cmd in commands:
-                lines.append(f"  {sym.BULLET} `{fmt_cmd(cmd.name)}` {sym.ARROW} {cmd.description}")
+                lines.append(f"  {sym.BULLET} `{fmt(cmd.name)}` {sym.ARROW} {cmd.description}")
 
-        lines.append(f"\n{sym.INFO} {t('help.type_help', prefix=get_prefix())}")
-        lines.append(f"{sym.INFO} Use `{fmt_cmd('help')} <category>` for category details")
+        lines.append(f"\n{sym.INFO} {t('help.type_help', prefix=p)}")
+        lines.append(f"{sym.INFO} Use `{fmt('help')} <category>` for category details")
 
         await ctx.client.reply(ctx.message, "\n".join(lines))

@@ -13,6 +13,59 @@ from core.command import Command, CommandContext
 from core.i18n import t, t_error, t_success
 
 
+def _strip_code_block(code: str) -> str:
+    """Strip markdown code block fences from code."""
+    if code.startswith("```") and code.endswith("```"):
+        code = code[3:-3]
+        if code.startswith("python\n"):
+            code = code[7:]
+        elif code.startswith("py\n"):
+            code = code[3:]
+    return code
+
+
+def _build_env(ctx: CommandContext) -> dict:
+    """Build the execution environment for eval."""
+    env = {
+        "ctx": ctx,
+        "bot": ctx.client,
+        "msg": ctx.message,
+        "message": ctx.message,
+        "client": ctx.client,
+        "raw": ctx.client.raw,
+    }
+    env.update(globals())
+    return env
+
+
+def _format_output(stdout: io.StringIO, stderr: io.StringIO, result) -> str | None:
+    """Format eval output into a reply message."""
+    parts = []
+
+    stdout_val = stdout.getvalue()
+    stderr_val = stderr.getvalue()
+
+    if stdout_val:
+        parts.append(f"*stdout:*\n```\n{stdout_val[:1000]}```")
+    if stderr_val:
+        parts.append(f"*stderr:*\n```\n{stderr_val[:1000]}```")
+    if result is not None:
+        result_str = repr(result)
+        if len(result_str) > 1000:
+            result_str = result_str[:1000] + "..."
+        parts.append(f"*{t('eval.result')}:*\n```\n{result_str}```")
+
+    return "\n\n".join(parts) if parts else None
+
+
+def _format_error(e: Exception) -> str:
+    """Format an exception into an error reply."""
+    error_msg = "".join(traceback.format_exception(type(e), e, e.__traceback__))
+    if len(error_msg) > 1500:
+        error_msg = error_msg[:1500] + "..."
+    return f"❌ *{t('eval.error')}:*\n```\n{error_msg}```"
+
+
 class EvalCommand(Command):
     """Execute Python code (owner only)."""
 
@@ -27,25 +80,8 @@ class EvalCommand(Command):
             await ctx.client.reply(ctx.message, t_error("eval.usage"))
             return
 
-        code = ctx.raw_args
-
-        if code.startswith("```") and code.endswith("```"):
-            code = code[3:-3]
-            if code.startswith("python\n"):
-                code = code[7:]
-            elif code.startswith("py\n"):
-                code = code[3:]
-
-        env = {
-            "ctx": ctx,
-            "bot": ctx.client,
-            "msg": ctx.message,
-            "message": ctx.message,
-            "client": ctx.client,
-            "raw": ctx.client.raw,
-        }
-        env.update(globals())
-
+        code = _strip_code_block(ctx.raw_args)
+        env = _build_env(ctx)
         stdout = io.StringIO()
         stderr = io.StringIO()
 
@@ -57,31 +93,10 @@ class EvalCommand(Command):
                     exec(code, env)
                     result = None
 
-            output_parts = []
-
-            stdout_val = stdout.getvalue()
-            stderr_val = stderr.getvalue()
-
-            if stdout_val:
-                output_parts.append(f"*stdout:*\n```\n{stdout_val[:1000]}```")
-            if stderr_val:
-                output_parts.append(f"*stderr:*\n```\n{stderr_val[:1000]}```")
-            if result is not None:
-                result_str = repr(result)
-                if len(result_str) > 1000:
-                    result_str = result_str[:1000] + "..."
-                output_parts.append(f"*{t('eval.result')}:*\n```\n{result_str}```")
-
-            if output_parts:
-                await ctx.client.reply(ctx.message, "\n\n".join(output_parts))
-            else:
-                await ctx.client.reply(ctx.message, t_success("eval.no_output"))
-
+            output = _format_output(stdout, stderr, result)
+            await ctx.client.reply(ctx.message, output or t_success("eval.no_output"))
         except Exception as e:
-            error_msg = "".join(traceback.format_exception(type(e), e, e.__traceback__))
-            if len(error_msg) > 1500:
-                error_msg = error_msg[:1500] + "..."
-            await ctx.client.reply(ctx.message, f"❌ *{t('eval.error')}:*\n```\n{error_msg}```")
+            await ctx.client.reply(ctx.message, _format_error(e))
 
 
 class AsyncEvalCommand(Command):
@@ -98,60 +113,22 @@ class AsyncEvalCommand(Command):
             await ctx.client.reply(ctx.message, t_error("eval.async_usage"))
             return
 
-        code = ctx.raw_args
-
-        if code.startswith("```") and code.endswith("```"):
-            code = code[3:-3]
-            if code.startswith("python\n"):
-                code = code[7:]
-            elif code.startswith("py\n"):
-                code = code[3:]
-
-        env = {
-            "ctx": ctx,
-            "bot": ctx.client,
-            "msg": ctx.message,
-            "message": ctx.message,
-            "client": ctx.client,
-            "raw": ctx.client.raw,
-        }
-        env.update(globals())
-
+        code = _strip_code_block(ctx.raw_args)
+        env = _build_env(ctx)
         stdout = io.StringIO()
         stderr = io.StringIO()
 
         try:
-            wrapped_code = "async def __aeval_func__():\n"
+            wrapped = "async def __aeval_func__():\n"
             for line in code.split("\n"):
-                wrapped_code += f"    {line}\n"
-            wrapped_code += "    return None"
+                wrapped += f"    {line}\n"
+            wrapped += "    return None"
 
             with redirect_stdout(stdout), redirect_stderr(stderr):
-                exec(wrapped_code, env)
+                exec(wrapped, env)
                 result = await env["__aeval_func__"]()
 
-            output_parts = []
-
-            stdout_val = stdout.getvalue()
-            stderr_val = stderr.getvalue()
-
-            if stdout_val:
-                output_parts.append(f"*stdout:*\n```\n{stdout_val[:1000]}```")
-            if stderr_val:
-                output_parts.append(f"*stderr:*\n```\n{stderr_val[:1000]}```")
-            if result is not None:
-                result_str = repr(result)
-                if len(result_str) > 1000:
-                    result_str = result_str[:1000] + "..."
-                output_parts.append(f"*{t('eval.result')}:*\n```\n{result_str}```")
-
-            if output_parts:
-                await ctx.client.reply(ctx.message, "\n\n".join(output_parts))
-            else:
-                await ctx.client.reply(ctx.message, t_success("eval.no_output"))
-
+            output = _format_output(stdout, stderr, result)
+            await ctx.client.reply(ctx.message, output or t_success("eval.no_output"))
         except Exception as e:
-            error_msg = "".join(traceback.format_exception(type(e), e, e.__traceback__))
-            if len(error_msg) > 1500:
-                error_msg = error_msg[:1500] + "..."
-            await ctx.client.reply(ctx.message, f"❌ *{t('eval.error')}:*\n```\n{error_msg}```")
+            await ctx.client.reply(ctx.message, _format_error(e))

@@ -36,9 +36,9 @@ class EightBallCommand(Command):
     name = "8ball"
     aliases = ["magic8ball", "8b"]
     description = "Ask the magic 8-ball a question"
-    usage = "/8ball <question>"
+    usage = "8ball <question>"
     category = "fun"
-    examples = ["/8ball Will I be rich?", "/8ball Should I do it?"]
+    examples = ["8ball Will I be rich?", "8ball Should I do it?"]
 
     async def execute(self, ctx: CommandContext) -> None:
         """Answer with magic 8-ball response."""

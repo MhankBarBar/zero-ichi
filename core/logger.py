@@ -9,7 +9,6 @@ import logging
 import re
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
-from pathlib import Path
 
 from rich.console import Console
 from rich.logging import RichHandler
@@ -19,11 +18,12 @@ from rich.text import Text
 
 from config.settings import FILE_LOGGING, LOG_LEVEL, VERBOSE_LOGGING
 from core import symbols as sym
+from core.constants import LOGS_DIR
 from core.runtime_config import runtime_config
 
 console = Console()
 
-LOGS_DIR = Path(__file__).parent.parent / "logs"
+
 LOGS_DIR.mkdir(exist_ok=True)
 
 LOG_LEVELS = {

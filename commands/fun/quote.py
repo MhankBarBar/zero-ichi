@@ -47,7 +47,7 @@ class QuoteCommand(Command):
     name = "quote"
     aliases = ["inspire", "motivation"]
     description = "Get an inspirational quote"
-    usage = "/quote"
+    usage = "quote"
     category = "fun"
 
     async def execute(self, ctx: CommandContext) -> None:

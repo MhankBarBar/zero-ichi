@@ -7,6 +7,9 @@ export default defineConfig({
 
     head: [
         ['link', { rel: 'icon', href: '/logo.png' }],
+        ['link', { rel: 'preconnect', href: 'https://fonts.googleapis.com' }],
+        ['link', { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' }],
+        ['link', { href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap', rel: 'stylesheet' }],
     ],
 
     themeConfig: {
@@ -19,6 +22,7 @@ export default defineConfig({
             {
                 text: 'Development',
                 items: [
+                    { text: 'Contributing', link: '/development/contributing' },
                     { text: 'Architecture', link: '/development/architecture' },
                     { text: 'Custom Commands', link: '/development/custom-commands' },
                 ],
@@ -62,6 +66,7 @@ export default defineConfig({
                 text: 'Development',
                 collapsed: true,
                 items: [
+                    { text: 'Contributing', link: '/development/contributing' },
                     { text: 'Architecture', link: '/development/architecture' },
                     { text: 'Custom Commands', link: '/development/custom-commands' },
                 ],

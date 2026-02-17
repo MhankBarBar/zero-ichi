@@ -42,7 +42,7 @@ class CommandContext:
         args: List of arguments after the command name
         raw_args: The raw argument string after command name
         command_name: The command that was invoked
-        prefix: The display-friendly command prefix
+        prefix: The actual prefix the user typed
     """
 
     client: BotClient
@@ -50,11 +50,7 @@ class CommandContext:
     args: list[str] = field(default_factory=list)
     raw_args: str = ""
     command_name: str = ""
-
-    @property
-    def prefix(self) -> str:
-        """Get the display-friendly command prefix."""
-        return runtime_config.display_prefix
+    prefix: str = ""
 
 
 class Command(ABC):
@@ -85,6 +81,7 @@ class Command(ABC):
     description: str = ""
     usage: str = ""
     category: str = ""
+    examples: list[str] = []
 
     enabled: bool = True
     private_only: bool = False
@@ -122,6 +119,13 @@ class Command(ABC):
             ctx: CommandContext with client, message, and args
         """
         pass
+
+    def get_usage(self, prefix: str = "") -> str:
+        """Get usage string with the given prefix prepended."""
+        if not self.usage:
+            return f"{prefix}{self.name}"
+        parts = [f"{prefix}{p.strip()}" for p in self.usage.split("|")]
+        return " | ".join(parts)
 
     def __repr__(self) -> str:
         return f"Command(name={self.name!r}, enabled={self.enabled})"

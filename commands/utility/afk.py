@@ -12,7 +12,7 @@ class AfkCommand(Command):
     name = "afk"
     aliases = ["brb"]
     description = "Set yourself as AFK"
-    usage = "/afk [reason]"
+    usage = "afk [reason]"
     category = "utility"
     examples = ["/afk", "/afk Sleeping", "/afk At work, be back later"]
 

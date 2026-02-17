@@ -18,12 +18,11 @@ zero-ichi/
 │   ├── memory.py           # Conversation memory
 │   ├── skills.py           # Skill management
 │   └── tools/              # AI tool definitions
-│       ├── core.py         # Core tools (send, reply, mention)
-│       └── group.py        # Group tools (kick, mute, promote)
 │
 ├── commands/               # Command modules
-│   ├── admin/              # Admin commands (kick, mute, etc.)
+│   ├── admin/              # Admin commands
 │   ├── content/            # Notes, filters, stickers
+│   ├── downloader/         # Media downloaders
 │   ├── fun/                # Entertainment commands
 │   ├── general/            # Help, ping, stats
 │   ├── group/              # Group management
@@ -34,24 +33,23 @@ zero-ichi/
 ├── core/                   # Core modules
 │   ├── client.py           # WhatsApp client wrapper
 │   ├── command.py          # Command base class & loader
+│   ├── constants.py        # Project constants
+│   ├── downloader.py       # Media downloader logic
 │   ├── errors.py           # Error handling utilities
+│   ├── event_bus.py        # Event system
 │   ├── i18n.py             # Internationalization
 │   ├── jid_resolver.py     # JID ↔ LID resolution
+│   ├── logger.py           # Logging utility
 │   ├── message.py          # Message helper class
+│   ├── middleware.py       # Middleware base class
+│   ├── middlewares/        # Middleware implementations
 │   ├── permissions.py      # Permission checks
 │   ├── rate_limiter.py     # Rate limiting
 │   ├── runtime_config.py   # Live configuration manager
-│   ├── scheduler.py        # Task scheduler (reminders)
+│   ├── scheduler.py        # Task scheduler
 │   ├── storage.py          # Per-group data storage
 │   ├── symbols.py          # Unicode symbols
 │   └── handlers/           # Event handlers
-│       ├── afk.py          # AFK mention detection
-│       ├── antidelete.py   # Deleted message recovery
-│       ├── antilink.py     # Link detection
-│       ├── blacklist.py    # Word filtering
-│       ├── features.py     # Notes & filters handler
-│       ├── mute.py         # Mute enforcement
-│       └── welcome.py      # Welcome/goodbye handler
 │
 ├── dashboard/              # Next.js admin dashboard
 ├── locales/                # Translation files (en, id)
@@ -73,6 +71,34 @@ WhatsApp → Neonize → main.py → Handlers → Command Loader → Command.exe
 4. **Command Loader** matches the prefix + command name
 5. **Permissions** are checked (admin, owner, bot-admin, rate limit)
 6. **Command.execute()** runs the command logic
+
+### Middleware Pipeline
+
+Zero Ichi uses a middleware pipeline to process messages before command execution.
+
+```mermaid
+graph LR
+    A[Message] --> B[Stats]
+    B --> C[Group Actions]
+    C --> D[Mute Check]
+    D --> E[Blacklist]
+    E --> F[Anti-Link]
+    F --> G[Anti-Delete]
+    G --> H[Self Mode]
+    H --> I[Command Execution]
+```
+
+Each middleware can modify the message or stop processing (e.g., if a user is muted).
+
+### Event System
+
+The bot uses an event-driven architecture for features like:
+
+-   **`on_message`**: Triggered for every message.
+-   **`on_group_participant_update`**: Welcome/Goodbye messages.
+-   **`on_call`**: Auto-reject calls (optional).
+
+Handlers are registered in `core/handlers/` and loaded by `main.py`.
 
 ### Command System
 

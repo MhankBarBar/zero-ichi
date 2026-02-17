@@ -69,3 +69,26 @@ Show the current time.
 ```
 /time
 ```
+
+## /schedule
+
+Manage scheduled messages and reminders.
+
+```
+/schedule <cron|every <interval>> <message>
+```
+
+**Features:**
+- **Cron**: Standard cron syntax (minute hour day month day-of-week)
+- **Interval**: "Every X time" (e.g. `every 1h`)
+- **Management**: List, cancel, toggle tasks
+
+**Examples:**
+```
+/schedule 0 8 * * * Good morning!    # Daily at 8:00 AM
+/schedule every 1h Drink water!      # Every hour
+/schedule list                       # List active tasks
+/schedule cancel <id>                # Cancel a task
+/schedule toggle <id>                # Pause/Resume a task
+/schedule info <id>                  # View task details
+```

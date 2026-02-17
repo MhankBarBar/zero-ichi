@@ -30,4 +30,3 @@ async def stats_middleware(ctx, next):
 
     ctx.extras["stats_storage"] = stats_storage
     await next()
-

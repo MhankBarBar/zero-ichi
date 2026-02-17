@@ -19,27 +19,7 @@ async def handle_features(bot: BotClient, msg: any):
         note_name = msg.text[1:].split()[0].lower()
         notes = data.notes
         if note_name in notes:
-            note = notes[note_name]
-
-            if isinstance(note, dict):
-                note_type = note.get("type", "text")
-                content = note.get("content", "")
-                media_path = note.get("media_path")
-
-                if note_type == "text" or not media_path:
-                    await bot.reply(msg, content)
-                else:
-                    if Path(media_path).exists():
-                        try:
-                            await bot.send_media(
-                                msg.chat_jid, note_type, media_path, content, quoted=msg.event
-                            )
-                        except Exception as e:
-                            await bot.reply(msg, t_error("notes.send_failed", error=str(e)))
-                    else:
-                        await bot.reply(msg, content or t("notes.media_not_found"))
-            else:
-                await bot.reply(msg, note)
+            await _send_feature_response(bot, msg, notes[note_name], content_key="content")
             return
 
     if features.filters:
@@ -47,22 +27,31 @@ async def handle_features(bot: BotClient, msg: any):
         text_lower = msg.text.lower()
         for trigger, filter_data in filters.items():
             if trigger in text_lower:
-                if isinstance(filter_data, dict):
-                    filter_type = filter_data.get("type", "text")
-                    response = filter_data.get("response", "")
-                    media_path = filter_data.get("media_path")
-
-                    if filter_type == "text" or not media_path:
-                        if response:
-                            await bot.reply(msg, response)
-                    else:
-                        if Path(media_path).exists():
-                            try:
-                                await bot.send_media(
-                                    msg.chat_jid, filter_type, media_path, response
-                                )
-                            except Exception as e:
-                                await bot.reply(msg, t_error("filter.send_failed", error=str(e)))
-                else:
-                    await bot.reply(msg, filter_data)
+                await _send_feature_response(bot, msg, filter_data, content_key="response")
                 return
+
+
+async def _send_feature_response(
+    bot: BotClient, msg: any, data: any, content_key: str = "content"
+) -> None:
+    """Send a response for a feature (note/filter)."""
+    if isinstance(data, dict):
+        msg_type = data.get("type", "text")
+        content = data.get(content_key, "")
+        media_path = data.get("media_path")
+
+        if msg_type == "text" or not media_path:
+            if content:
+                await bot.reply(msg, content)
+        else:
+            if Path(media_path).exists():
+                try:
+                    await bot.send_media(
+                        msg.chat_jid, msg_type, media_path, caption=content, quoted=msg.event
+                    )
+                except Exception as e:
+                    await bot.reply(msg, t_error("notes.send_failed", error=str(e)))
+            else:
+                await bot.reply(msg, content or t("notes.media_not_found"))
+    else:
+        await bot.reply(msg, data)

@@ -10,7 +10,7 @@ from core.permissions import check_bot_admin
 class InviteCommand(Command):
     name = "invite"
     description = "Get group invite link"
-    usage = "/invite"
+    usage = "invite"
     group_only = True
 
     async def execute(self, ctx: CommandContext) -> None:

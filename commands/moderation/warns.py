@@ -12,7 +12,7 @@ from core.targets import parse_single_target
 class WarnsCommand(Command):
     name = "warns"
     description = "Check warnings for a user"
-    usage = "/warns [@user]"
+    usage = "warns [@user]"
     group_only = True
 
     async def execute(self, ctx: CommandContext) -> None:

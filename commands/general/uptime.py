@@ -33,7 +33,7 @@ class UptimeCommand(Command):
     name = "uptime"
     aliases = ["up"]
     description = "Show bot uptime"
-    usage = "/uptime"
+    usage = "uptime"
     category = "general"
 
     async def execute(self, ctx: CommandContext) -> None:

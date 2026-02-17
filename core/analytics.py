@@ -5,13 +5,11 @@ Tracks per-command usage with timestamps for dashboard charts.
 """
 
 import json
-import time
 from datetime import datetime, timedelta
-from pathlib import Path
 
+from core.constants import DATA_DIR
 from core.logger import log_debug
 
-DATA_DIR = Path("data")
 ANALYTICS_FILE = DATA_DIR / "analytics.json"
 
 DEFAULT_RETENTION_DAYS = 30
@@ -98,7 +96,7 @@ class CommandAnalytics:
             else self._data.get("commands", {})
         )
 
-        for cmd_name, entries in cmds.items():
+        for _cmd_name, entries in cmds.items():
             for entry in entries:
                 date = entry.get("ts", "")[:10]
                 if date in daily:

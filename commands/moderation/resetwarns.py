@@ -11,7 +11,7 @@ from core.targets import parse_single_target
 class ResetWarnsCommand(Command):
     name = "resetwarns"
     description = "Clear all warnings for a user"
-    usage = "/resetwarns @user"
+    usage = "resetwarns @user"
     group_only = True
     admin_only = True
 

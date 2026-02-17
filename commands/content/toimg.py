@@ -16,9 +16,9 @@ class ToimgCommand(Command):
     name = "toimg"
     aliases = ["toimage", "stickertoimg"]
     description = "Convert sticker to image"
-    usage = "/toimg (reply to sticker)"
+    usage = "toimg (reply to sticker)"
     category = "content"
-    examples = ["/toimg"]
+    examples = ["toimg"]
 
     async def execute(self, ctx: CommandContext) -> None:
         """Convert a sticker to a PNG image."""

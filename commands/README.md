@@ -25,9 +25,9 @@ class MyCommand(Command):
     name = "mycommand"
     aliases = ["mc", "mycmd"]     # Optional shortcuts
     description = "My custom command"
-    usage = "/mycommand <arg>"
+    usage = "mycommand <arg>"
     category = "utility"          # For help grouping
-    examples = ["/mycommand test"]
+    examples = ["mycommand test"]
 
     # Restrictions
     group_only = False            # Only works in groups

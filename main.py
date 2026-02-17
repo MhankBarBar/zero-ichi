@@ -63,6 +63,7 @@ set_bot(bot)
 
 
 scheduler = init_scheduler(bot)
+pipeline = build_pipeline()
 
 
 @client.qr
@@ -134,11 +135,6 @@ async def group_info_handler(c: NewAClient, event: GroupInfoEv) -> None:
                     await handle_member_leave(bot, group_jid, member_jid, member_name)
     except Exception as e:
         log_warning(f"Error handling group info event: {e}")
-
-
-
-pipeline = build_pipeline()
-
 
 
 @client.event(MessageEv)

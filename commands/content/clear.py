@@ -10,7 +10,7 @@ from core.storage import GroupData
 class ClearCommand(Command):
     name = "clear"
     description = "Delete a saved note"
-    usage = "/clear <name>"
+    usage = "clear <name>"
     group_only = True
     admin_only = True
 

@@ -11,54 +11,12 @@ Usage:
 Reply to a media message with /remind <duration> to set a media reminder.
 """
 
-import re
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from core.command import Command, CommandContext
 from core.i18n import t, t_error, t_info, t_success
-
-
-def parse_duration(duration_str: str) -> timedelta | None:
-    """
-    Parse a duration string like "10m", "2h", "1d30m" into a timedelta.
-
-    Supported units: d (days), h (hours), m (minutes), s (seconds)
-    """
-    pattern = r"(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?"
-    match = re.fullmatch(pattern, duration_str.lower().strip())
-
-    if not match:
-        return None
-
-    days = int(match.group(1) or 0)
-    hours = int(match.group(2) or 0)
-    minutes = int(match.group(3) or 0)
-    seconds = int(match.group(4) or 0)
-
-    if days == 0 and hours == 0 and minutes == 0 and seconds == 0:
-        return None
-
-    return timedelta(days=days, hours=hours, minutes=minutes, seconds=seconds)
-
-
-def format_duration(td: timedelta) -> str:
-    """Format a timedelta into a human-readable string."""
-    total_seconds = int(td.total_seconds())
-    days, remainder = divmod(total_seconds, 86400)
-    hours, remainder = divmod(remainder, 3600)
-    minutes, seconds = divmod(remainder, 60)
-
-    parts = []
-    if days:
-        parts.append(f"{days}d")
-    if hours:
-        parts.append(f"{hours}h")
-    if minutes:
-        parts.append(f"{minutes}m")
-    if seconds and not (days or hours):
-        parts.append(f"{seconds}s")
-
-    return " ".join(parts) if parts else "0m"
+from core.media import get_media_caption
+from core.utils import format_duration, parse_duration
 
 
 def format_datetime(dt: datetime) -> str:
@@ -72,7 +30,7 @@ class RemindCommand(Command):
     name = "remind"
     aliases = ["reminder", "remindme"]
     description = "Set a reminder (text or media)"
-    usage = "/remind <duration> <message> or reply to media with /remind <duration>"
+    usage = "remind <duration> <message> or reply to media with /remind <duration>"
     cooldown = 3
     category = "utility"
 
@@ -86,7 +44,7 @@ class RemindCommand(Command):
             return
 
         if not ctx.args:
-            await ctx.client.reply(ctx.message, t_info("remind.usage"))
+            await ctx.client.reply(ctx.message, t_info("remind.usage", prefix=ctx.prefix))
             return
 
         action = ctx.args[0].lower()
@@ -116,7 +74,7 @@ class RemindCommand(Command):
 
         if action == "cancel":
             if len(ctx.args) < 2:
-                await ctx.client.reply(ctx.message, t_error("remind.provide_id"))
+                await ctx.client.reply(ctx.message, t_error("remind.provide_id", prefix=ctx.prefix))
                 return
 
             task_id = ctx.args[1]
@@ -144,10 +102,7 @@ class RemindCommand(Command):
             if detected_media_type:
                 media_type = detected_media_type
                 if not message:
-                    if media_type == "image" and msg_obj.imageMessage.caption:
-                        message = msg_obj.imageMessage.caption
-                    elif media_type == "video" and msg_obj.videoMessage.caption:
-                        message = msg_obj.videoMessage.caption
+                    message = get_media_caption(msg_obj, media_type)
 
         if not message and not forward_msg:
             await ctx.client.reply(ctx.message, t_error("remind.no_message"))

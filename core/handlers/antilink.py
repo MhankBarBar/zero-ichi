@@ -4,11 +4,10 @@ Anti-link handler - Detects and handles links in group messages.
 
 import re
 
-from core import symbols as sym
 from core.client import BotClient
-from core.i18n import t, t_warning
 from core.logger import log_info
 from core.message import MessageHelper
+from core.moderation import execute_moderation_action, is_admin
 from core.storage import GroupData
 
 URL_PATTERN = re.compile(
@@ -73,61 +72,15 @@ async def handle_anti_link(bot: BotClient, msg: MessageHelper) -> bool:
     if not blocked_domains:
         return False
 
-    try:
-        group_info = await bot.raw.get_group_info(bot.to_jid(msg.chat_jid))
-        sender_user = msg.sender_jid.split("@")[0].split(":")[0]
-
-        for participant in group_info.Participants:
-            p_user = participant.JID.User
-            if p_user == sender_user:
-                if participant.IsAdmin or participant.IsSuperAdmin:
-                    return False
-                break
-    except Exception:
-        pass
+    if await is_admin(bot, msg.chat_jid, msg.sender_jid):
+        return False
 
     action = config.get("action", "warn")
 
     log_info(f"[ANTI-LINK] Link detected from {msg.sender_name}: {blocked_domains}")
 
     try:
-        if action == "warn":
-            await bot.send(
-                msg.chat_jid,
-                t_warning("antilink.warn_message", user=msg.sender_jid.split("@")[0]),
-            )
-
-        elif action == "delete":
-            await bot.raw.revoke_message(
-                bot.to_jid(msg.chat_jid), bot.to_jid(msg.sender_jid), msg.event.Info.ID
-            )
-            log_info(f"[ANTI-LINK] Deleted message from {msg.sender_name}")
-
-        elif action == "kick":
-            await bot.raw.revoke_message(
-                bot.to_jid(msg.chat_jid), bot.to_jid(msg.sender_jid), msg.event.Info.ID
-            )
-            await bot.raw.update_group_participants(
-                bot.to_jid(msg.chat_jid), [bot.to_jid(msg.sender_jid)], "remove"
-            )
-            await bot.send(
-                msg.chat_jid,
-                f"{sym.KICK} {t('antilink.kicked', user=msg.sender_jid.split('@')[0])}",
-            )
-            log_info(f"[ANTI-LINK] Kicked {msg.sender_name} for posting links")
-
-        elif action == "ban":
-            await bot.raw.revoke_message(
-                bot.to_jid(msg.chat_jid), bot.to_jid(msg.sender_jid), msg.event.Info.ID
-            )
-            await bot.raw.update_group_participants(
-                bot.to_jid(msg.chat_jid), [bot.to_jid(msg.sender_jid)], "remove"
-            )
-            await bot.send(
-                msg.chat_jid, f"{sym.BAN} {t('antilink.banned', user=msg.sender_jid.split('@')[0])}"
-            )
-            log_info(f"[ANTI-LINK] Banned {msg.sender_name} for posting links")
-
+        await execute_moderation_action(bot, msg, action, "antilink")
         return True
 
     except Exception as e:

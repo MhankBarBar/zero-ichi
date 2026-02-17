@@ -4,9 +4,9 @@ Blacklist handler - Deletes messages containing blacklisted words.
 
 from config.settings import features
 from core.client import BotClient
-from core.i18n import t_warning
 from core.logger import log_info
 from core.message import MessageHelper
+from core.moderation import execute_moderation_action, is_admin
 from core.storage import GroupData
 
 
@@ -32,26 +32,19 @@ async def handle_blacklist(bot: BotClient, msg: MessageHelper) -> bool:
     if not blacklisted:
         return False
 
+    if await is_admin(bot, msg.chat_jid, msg.sender_jid):
+        return False
+
     text_lower = msg.text.lower()
 
     for word in blacklisted:
         if word.lower() in text_lower:
             try:
-                sender_jid = bot.to_jid(msg.sender_jid)
-                chat_jid = bot.to_jid(msg.chat_jid)
-
-                await bot.raw.revoke_message(chat_jid, sender_jid, msg.event.Info.ID)
-
-                log_info(f"[BLACKLIST] Deleted message from {msg.sender_name} containing '{word}'")
-
-                await bot.send(
-                    msg.chat_jid,
-                    t_warning("blacklist.warn_message", user=msg.sender_jid.split("@")[0]),
-                )
-
+                await execute_moderation_action(bot, msg, "delete", "blacklist")
+                await execute_moderation_action(bot, msg, "warn", "blacklist")
                 return True
             except Exception as e:
-                log_info(f"[BLACKLIST] Failed to delete message: {e}")
+                log_info(f"[BLACKLIST] Failed to handle blacklist: {e}")
                 return False
 
     return False

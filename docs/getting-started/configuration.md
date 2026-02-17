@@ -29,7 +29,7 @@ Core bot identity and behavior.
 | Property | Type | Default | Required | Description |
 |----------|------|---------|:--------:|-------------|
 | `name` | `string` | `zero_ichi_bot` | ✅ | Session identifier — creates `<name>.session` database file |
-| `prefix` | `string` | `(!\|/\|.)` | ✅ | Command prefix. Supports regex for multiple prefixes |
+| `prefix` | `string` | `(!\|/\|.)` | ✅ | Command prefix. Supports regex for multiple prefixes (e.g. `!`, `/`, or `.`) |
 | `login_method` | `string` | `QR` | ✅ | Login method: `QR` or `PAIR_CODE` |
 | `owner_jid` | `string` | — | ✅ | Bot owner's JID (e.g. `628xxx@s.whatsapp.net` or `4089xxx@lid`) |
 | `phone_number` | `string` | — | | Phone number in international format without `+` (for `PAIR_CODE` login) |

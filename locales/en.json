@@ -1,4 +1,7 @@
 {
+  "_meta": {
+    "label": "English"
+  },
   "errors": {
     "group_only": "This command only works in groups.",
     "private_only": "This command only works in private chats.",
@@ -133,10 +136,10 @@
     "reminder": "Reminder",
     "invalid_duration": "Invalid duration format.\n\nExamples: `10m`, `2h`, `1d30m`",
     "your_reminders": "Your Reminders",
-    "provide_id": "Please provide the reminder ID. Use `/remind list` to see IDs.",
+    "provide_id": "Please provide the reminder ID. Use `{prefix}remind list` to see IDs.",
     "no_message": "Please provide a reminder message or reply to a message.",
     "scheduler_error": "Scheduler not initialized.",
-    "usage": "📝 *Reminder Usage:*\n\n`/remind 10m <msg>` - Remind in 10 minutes\n`/remind 2h <msg>` - Remind in 2 hours\n`/remind list` - List your reminders\n`/remind cancel <id>` - Cancel a reminder",
+    "usage": "📝 *Reminder Usage:*\n\n`{prefix}remind 10m <msg>` - Remind in 10 minutes\n`{prefix}remind 2h <msg>` - Remind in 2 hours\n`{prefix}remind list` - List your reminders\n`{prefix}remind cancel <id>` - Cancel a reminder",
     "in_time": "In",
     "at_time": "At",
     "message": "Message",
@@ -218,26 +221,26 @@
     "saved": "Note `{name}` ({type}) saved. Use #{name} to retrieve it.",
     "deleted": "Note `{name}` deleted.",
     "not_found": "Note `{name}` not found.",
-    "usage_save": "Reply to a message or provide content.\nUsage: /save <name> [content]",
+    "usage_save": "Reply to a message or provide content.\nUsage: {prefix}save <name> [content]",
     "no_content": "Please provide content or reply to a message/media.",
     "download_failed": "Failed to download media.",
     "save_failed": "Failed to save media: {error}",
     "send_failed": "Failed to send media: {error}",
     "media_not_found": "[Media file not found]",
-    "no_notes": "No notes saved. Use /save <name> <content> to create one.",
+    "no_notes": "No notes saved. Use {prefix}save <name> <content> to create one.",
     "list_title": "Saved notes"
   },
   "filter": {
     "added": "Filter `{trigger}` added.",
     "removed": "Filter `{trigger}` removed.",
     "not_found": "Filter `{trigger}` not found.",
-    "usage": "Reply to a message or provide response.\nUsage: /filter <trigger> [response]",
+    "usage": "Reply to a message or provide response.\nUsage: {prefix}filter <trigger> [response]",
     "no_response": "Please provide a response or reply to a message/media.",
     "set": "Filter set ({type}): Messages containing `{trigger}` will trigger a response.",
     "download_failed": "Failed to download media.",
     "save_failed": "Failed to save media: {error}",
     "send_failed": "Failed to send filter media: {error}",
-    "no_filters": "No filters set. Use /filter <trigger> <response> to create one.",
+    "no_filters": "No filters set. Use {prefix}filter <trigger> <response> to create one.",
     "list_title": "Active filters"
   },
   "tagall": {
@@ -338,7 +341,7 @@
   "members": {
     "add_usage": "Provide phone number(s) to add.\nUsage: {prefix}add <number>",
     "invalid_numbers": "Please provide valid phone number(s).",
-    "added": "Added {count} user(s) to the group.",
+    "add_success": "Added {count} user(s) to the group.",
     "add_failed": "Failed to add: {error}",
     "no_targets": "Reply to a message or mention users.\nUsage: {prefix}{command} @user1 @user2",
     "kick_success": "Removed {count} user(s).",
@@ -349,7 +352,7 @@
     "demote_failed": "Failed to demote: {error}"
   },
   "echo": {
-    "usage": "Please provide a message to echo.\n\nUsage: /echo <message>"
+    "usage": "Please provide a message to echo.\n\nUsage: {prefix}echo <message>"
   },
   "info": {
     "title": "Zero Ichi Bot",
@@ -463,7 +466,7 @@
     "audio_options": "Audio",
     "choose_hint": "Reply to this message with the number to download.",
     "no_formats": "No format options available for this URL.",
-    "use_audio_video_hint": "Use `/audio <url>` or `/video <url>` instead.",
+    "use_audio_video_hint": "Use `{prefix}audio <url>` or `{prefix}video <url>` instead.",
     "playlist_detected": "Playlist detected! Fetching tracks...",
     "playlist_tracks": "Showing {showing} of {total} tracks",
     "searching": "Searching YouTube...",
@@ -476,5 +479,30 @@
     "sticker_only": "Only stickers can be converted to images.",
     "download_failed": "Failed to download sticker.",
     "convert_failed": "Failed to convert sticker to image."
+  },
+  "schedule": {
+    "scheduler_error": "Scheduler not initialized.",
+    "usage": "Usage: `{prefix}schedule <cron|every <interval>> <message>`\n\nExamples:\n`{prefix}schedule 0 8 * * * Good morning!` (Daily at 8am)\n`{prefix}schedule every 1h Drink water!` (Every hour)\n`{prefix}schedule list` - List tasks\n`{prefix}schedule info <id>` - Task details\n`{prefix}schedule cancel <id>` - Cancel task\n`{prefix}schedule toggle <id>` - Enable/Disable task",
+    "usage_every": "Usage: `{prefix}schedule every <interval> <message>`",
+    "no_tasks": "No recurring tasks found for this chat.",
+    "list_title": "Scheduled Tasks",
+    "no_recurring_tasks": "No recurring tasks found.",
+    "provide_id": "Please provide a task ID.",
+    "not_found": "Task `{id}` not found or not in this chat.",
+    "cancelled": "Task `{id}` cancelled.",
+    "toggled": "Task `{id}` is now *{state}*.",
+    "invalid_interval": "Invalid interval format. Use `10m`, `1h`, etc.",
+    "min_interval": "Interval must be at least 1 minute.",
+    "set_interval": "Auto-message `{id}` set! Will send every {interval}.",
+    "set_cron": "Recurring task `{id}` set with cron: `{cron}`.",
+    "no_message": "Please provide a message or reply to a message/media.",
+    "invalid_cron": "Invalid cron expression: {error}"
+  },
+  "broadcast": {
+    "usage": "Usage: `{prefix}broadcast <message>` or `{prefix}broadcast list`",
+    "list_title": "Target Groups",
+    "no_groups": "No groups found.",
+    "starting": "Broadcasting to {count} groups... this might take a moment.",
+    "finished": "Broadcast complete!\n\n✅ Success: {success}\n❌ Failed: {fail}"
   }
 }

@@ -10,7 +10,7 @@ class AddSkillCommand(Command):
     name = "addskill"
     aliases = ["skill"]
     description = "Add an AI skill from URL or attached file"
-    usage = "/addskill <url> or attach .md file"
+    usage = "addskill <url> or attach .md file"
     category = "owner"
     owner_only = True
 

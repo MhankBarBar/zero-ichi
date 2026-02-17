@@ -5,407 +5,84 @@
 </p>
 
 <p align="center">
-  A WhatsApp bot built with <a href="https://github.com/krypton-byte/neonize">Neonize</a>
+  The WhatsApp bot that does it all (so you don't have to).<br>
+  Built with <a href="https://github.com/krypton-byte/neonize">Neonize</a>.<br><br>
+  <strong><a href="https://zeroichi.mhankbarbar.dev">📚 Read the Docs</a></strong>
 </p>
 
 ---
 
-## Table of Contents
+## Why Zero Ichi?
 
-- [Requirements](#requirements)
-- [Installation](#installation)
-- [Running the Bot](#running-the-bot)
-- [Configuration](#configuration)
-- [Commands](#commands)
-- [Features](#features)
-- [Agentic AI](#agentic-ai)
-- [Adding Custom Commands](#adding-custom-commands)
-- [Dashboard](#dashboard)
-- [Development](#development)
+Because life is too short for boring bots.
 
----
+- **Agentic AI**: A smart assistant that remembers context, executes commands, and might just be your new best friend.
+- **Universal Downloader**: Grab videos from YouTube, TikTok, Instagram, and 1000+ other sites. Yes, even that one.
+- **The Ban Hammer**: Keep your groups clean with anti-link, anti-delete, warnings, and blacklists.
+- **Time Travel**: Okay, not really, but our **Scheduler** lets you send messages in the future (cron supported!).
+- **Polyglot**: Speaks English and Indonesian fluently. Add your own language if you're feeling adventurous.
+- **Shiny Dashboard**: A web interface to manage everything because terminals are scary sometimes.
 
-## Requirements
-
-- Python 3.11+
-- [uv](https://github.com/astral-sh/uv)
-- Node.js 20+ (for dashboard)
+[See everything it can do →](https://zeroichi.mhankbarbar.dev)
 
 ---
 
-## Installation
+## Get Started
+
+### 1. Install via pip & git
 
 ```bash
 pip install uv
-
 git clone https://github.com/MhankBarBar/zero-ichi
 cd zero-ichi
-uv sync
+uv sync  # magic happens here
 ```
 
-<p align="right"><a href="#zero-ichi">back to top</a></p>
+### 2. Configure
 
----
-
-## Running the Bot
-
-```bash
-uv run main.py
-```
-
-**First-time setup:**
-
-1. A QR code will appear in the terminal
-2. Open WhatsApp on your phone
-3. Go to **Settings > Linked Devices > Link a Device**
-4. Scan the QR code
-<p align="right"><a href="#zero-ichi">back to top</a></p>
-
----
-
-## Configuration
-
-The bot uses `config.json` with [JSON Schema](https://json-schema.org/) validation for autocomplete and validation.
-
-<details>
-<summary><strong>Quick Setup</strong></summary>
+Copy the example config and make it yours:
 
 ```json
 {
   "$schema": "./config.schema.json",
   "bot": {
-    "name": "my_bot",
+    "name": "my_super_bot",
     "prefix": "/",
     "login_method": "qr"
   }
 }
 ```
 
-</details>
+(Check the [Config Guide](https://zeroichi.mhankbarbar.dev/getting-started/configuration) for the nerdy details)
 
-<details>
-<summary><strong>Key Options</strong></summary>
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `bot.name` | `zero_ichi_bot` | Session identifier (database filename) |
-| `bot.prefix` | `/` | Command prefix (supports regex) |
-| `bot.login_method` | `qr` | Login method: `qr` or `pair_code |
-| `bot.owner_jid` | — | Bot owner's JID |
-
-</details>
-
-<details>
-<summary><strong>Environment Variables</strong></summary>
-
-Store sensitive config in `.env`:
+### 3. Launch
 
 ```bash
-AI_API_KEY=your_api_key_here
-```
-
-Copy `.env.example` to `.env` and fill in your values.
-
-</details>
-
-**Set yourself as owner:** `/config owner me`
-
-<p align="right"><a href="#zero-ichi">back to top</a></p>
-
----
-
-## Commands
-
-<details>
-<summary><strong>General</strong></summary>
-
-| Command | Description |
-|---------|-------------|
-| `/help` | Show all commands |
-| `/ping` | Check bot latency |
-| `/menu` | Show command menu |
-
-</details>
-
-<details>
-<summary><strong>Admin (Group Only)</strong></summary>
-
-| Command | Description |
-|---------|-------------|
-| `/kick @user` | Kick a user |
-| `/add <number>` | Add user to group |
-| `/mute @user` | Mute a user |
-| `/unmute @user` | Unmute a user |
-| `/promote @user` | Promote to admin |
-| `/demote @user` | Demote from admin |
-| `/admins` | List group admins |
-
-</details>
-
-<details>
-<summary><strong>Group Management</strong></summary>
-
-| Command | Description |
-|---------|-------------|
-| `/invite` | Get group invite link |
-| `/revoke` | Revoke invite link |
-| `/groupinfo` | Show group information |
-| `/setname <name>` | Change group name |
-| `/setdesc <desc>` | Change group description |
-| `/tagall [msg]` | Mention all members |
-
-</details>
-
-<details>
-<summary><strong>Content</strong></summary>
-
-| Command | Description |
-|---------|-------------|
-| `/save <name> <text>` | Save a note |
-| `/notes` | List saved notes |
-| `/clear <name>` | Delete a note |
-| `/filter <trigger> <response>` | Create auto-reply |
-| `/filters` | List all filters |
-| `/stop <trigger>` | Remove a filter |
-| `/sticker` | Convert image to sticker |
-
-</details>
-
-<details>
-<summary><strong>Moderation</strong></summary>
-
-| Command | Description |
-|---------|-------------|
-| `/warn @user [reason]` | Warn a user |
-| `/warns @user` | Check user warnings |
-| `/resetwarns @user` | Clear warnings |
-| `/blacklist <word>` | Add word to blacklist |
-| `/antilink` | Configure anti-link |
-
-</details>
-
-<details>
-<summary><strong>Owner Only</strong></summary>
-
-| Command | Description |
-|---------|-------------|
-| `/config` | Manage bot configuration |
-| `/config ai` | Configure agentic AI |
-| `/antidelete` | Toggle/configure anti-delete |
-| `/eval <code>` | Execute Python code |
-| `/aeval <code>` | Execute async Python code |
-| `/addcommand` | Add command via code |
-| `/delcommand <name>` | Delete dynamic command |
-| `/listdynamic` | List dynamic commands |
-
-</details>
-
-<p align="right"><a href="#zero-ichi">back to top</a></p>
-
----
-
-## Features
-
-<details>
-<summary><strong>Anti-Delete</strong></summary>
-
-Reveals deleted messages by re-sending them.
-
-```
-/antidelete on
-/antidelete forward me
-```
-
-</details>
-
-<details>
-<summary><strong>Notes System</strong></summary>
-
-Save and retrieve text/media notes using `#notename`:
-
-```
-/save greeting Hello, welcome!
-#greeting  ->  "Hello, welcome!"
-```
-
-</details>
-
-<details>
-<summary><strong>Filters</strong></summary>
-
-Auto-reply when specific words are detected:
-
-```
-/filter hello Hi there!
-```
-
-</details>
-
-<details>
-<summary><strong>Blacklist</strong></summary>
-
-Auto-delete messages containing blacklisted words:
-
-```
-/blacklist badword
-```
-
-</details>
-
-<details>
-<summary><strong>Anti-Link</strong></summary>
-
-Detect and handle links in group chats:
-
-```
-/antilink on
-/antilink action delete
-/antilink whitelist add youtube.com
-```
-
-</details>
-
-<details>
-<summary><strong>Warnings</strong></summary>
-
-Warn users with configurable limits and actions:
-
-```
-/warn @user Spamming
-/warnconfig limit 5
-/warnconfig action kick
-```
-
-</details>
-
-<p align="right"><a href="#zero-ichi">back to top</a></p>
-
----
-
-## Agentic AI
-
-The bot includes an AI assistant powered by OpenAI (or other providers). The AI can process messages and execute bot commands on your behalf.
-
-### Configuration
-
-Set your API key in `.env`:
-
-```bash
-AI_API_KEY=sk-your-openai-key
-```
-
-Configure via WhatsApp:
-
-```
-/config ai              # Show AI status
-/config ai on           # Enable AI
-/config ai off          # Disable AI
-/config ai mode reply   # Trigger modes: always, mention, reply
-```
-
-| Mode | Description |
-|------|-------------|
-| `always` | AI responds to every message |
-| `mention` | AI responds when mentioned |
-| `reply` | AI responds when replying to bot |
-
-<p align="right"><a href="#zero-ichi">back to top</a></p>
-
----
-
-## Adding Custom Commands
-
-<details>
-<summary><strong>Method 1: Create a File</strong></summary>
-
-Create `commands/<category>/<name>.py`:
-
-```python
-from core.command import Command, CommandContext
-
-class HelloCommand(Command):
-    name = "hello"
-    description = "Say hello"
-    usage = "/hello"
-    
-    async def execute(self, ctx: CommandContext) -> None:
-        await ctx.client.reply(ctx.message, "Hello!")
-```
-
-</details>
-
-<details>
-<summary><strong>Method 2: Dynamic Command (Owner Only)</strong></summary>
-
-Send via WhatsApp:
-
-```
-/addcommand
-from core.command import Command, CommandContext
-
-class GreetCommand(Command):
-    name = "greet"
-    description = "Greet someone"
-    usage = "/greet"
-    
-    async def execute(self, ctx):
-        await ctx.client.reply(ctx.message, "Greetings!")
-```
-
-</details>
-
-<p align="right"><a href="#zero-ichi">back to top</a></p>
-
----
-
-## Dashboard
-
-Web dashboard for administration. See the [dashboard README](dashboard/README.md) for details.
-
-![Dashboard](dashboard/public/dashboard.png)
-
-```bash
-# Terminal 1: Start the bot
 uv run main.py
-
-# Terminal 2: Start the dashboard
-cd dashboard && bun dev
 ```
 
-Open `http://localhost:3000`
-
-<p align="right"><a href="#zero-ichi">back to top</a></p>
+Scan the QR code and you're in business.
 
 ---
 
-## Development
+## Documentation
 
-<details>
-<summary><strong>Commands</strong></summary>
+Everything you need to know, neatly organized:
 
-```bash
-uv run ruff format .    # Format code
-uv run ruff check .     # Lint check
-```
+👉 **[zeroichi.mhankbarbar.dev](https://zeroichi.mhankbarbar.dev)**
 
-</details>
+- [Commands List](https://zeroichi.mhankbarbar.dev/commands/general)
+- [How to Configure](https://zeroichi.mhankbarbar.dev/getting-started/configuration)
+- [The AI Stuff](https://zeroichi.mhankbarbar.dev/features/ai)
+- [Downloading Media](https://zeroichi.mhankbarbar.dev/commands/downloader)
 
-<details>
-<summary><strong>Project Structure</strong></summary>
+---
 
-```
-zero-ichi/
-├── main.py             # Main entry point
-├── dashboard_api.py    # FastAPI backend
-├── config.json         # Bot configuration
-├── commands/           # Command modules
-├── core/               # Core modules
-├── dashboard/          # Next.js admin dashboard
-├── data/               # Per-group data storage
-└── logs/               # Log files
-```
+## Project Structure
 
-</details>
+- `commands/`: Where the magic happens
+- `core/`: The brain
+- `dashboard/`: The pretty face
+- `locales/`: The dictionary
 
-<p align="right"><a href="#zero-ichi">back to top</a></p>
-
+[Contributing Guide →](https://zeroichi.mhankbarbar.dev/development/architecture)

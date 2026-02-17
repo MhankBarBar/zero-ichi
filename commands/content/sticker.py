@@ -12,9 +12,9 @@ class StickerCommand(Command):
     name = "sticker"
     aliases = ["s", "stiker"]
     description = "Convert image or video to sticker"
-    usage = "/sticker (reply to image, short video, or sticker)"
+    usage = "sticker (reply to image, short video, or sticker)"
     category = "content"
-    examples = ["/sticker", "/s"]
+    examples = ["sticker", "s"]
 
     async def execute(self, ctx: CommandContext) -> None:
         """Convert media to sticker."""
