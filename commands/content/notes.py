@@ -11,7 +11,7 @@ from core.storage import GroupData
 class NotesCommand(Command):
     name = "notes"
     description = "List all saved notes"
-    usage = "/notes"
+    usage = "notes"
     group_only = True
 
     async def execute(self, ctx: CommandContext) -> None:
@@ -25,7 +25,7 @@ class NotesCommand(Command):
         notes = data.notes
 
         if not notes:
-            await ctx.client.reply(ctx.message, t("notes.no_notes"))
+            await ctx.client.reply(ctx.message, t("notes.no_notes", prefix=ctx.prefix))
             return
 
         lines = [f"{t('notes.list_title')}:"]

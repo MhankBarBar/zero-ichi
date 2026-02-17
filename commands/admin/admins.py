@@ -10,7 +10,7 @@ from core.i18n import t
 class AdminsCommand(Command):
     name = "admins"
     description = "List all group admins"
-    usage = "/admins"
+    usage = "admins"
     group_only = True
 
     async def execute(self, ctx: CommandContext) -> None:

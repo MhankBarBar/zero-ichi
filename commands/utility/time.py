@@ -15,7 +15,7 @@ class TimeCommand(Command):
 
     name = "time"
     description = "Show current date and time"
-    usage = "/time"
+    usage = "time"
 
     async def execute(self, ctx: CommandContext) -> None:
         """Show current time."""

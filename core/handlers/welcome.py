@@ -4,9 +4,15 @@ Welcome/Goodbye message handler.
 Handles automatic messages when users join or leave groups.
 """
 
+from collections.abc import Callable
 from datetime import datetime
+from typing import TYPE_CHECKING
 
+from core.i18n import t
 from core.storage import GroupData as GroupStorage
+
+if TYPE_CHECKING:
+    from core.command import CommandContext
 
 
 async def _resolve_placeholders(
@@ -26,9 +32,7 @@ async def _resolve_placeholders(
 
     if "{count}" in message:
         try:
-            group_info = await bot._client.GetGroupInfo(
-                bot._parse_jid(group_jid)
-            )
+            group_info = await bot._client.GetGroupInfo(bot._parse_jid(group_jid))
             count = len(group_info.Participants) if group_info and group_info.Participants else "?"
             message = message.replace("{count}", str(count))
         except Exception:
@@ -159,3 +163,55 @@ def set_goodbye_config(group_jid: str, enabled: bool = None, message: str = None
         config["message"] = message
 
     storage.save("goodbye", config)
+
+
+async def handle_welcome_goodbye_config(
+    ctx: "CommandContext",
+    config_type: str,
+    get_config_func: Callable[[str], dict],
+    set_config_func: Callable[[str, bool, str], None],
+    placeholders_help: str,
+) -> None:
+    """
+    Handle configuration for welcome/goodbye commands.
+    """
+    if not ctx.args:
+        config = get_config_func(ctx.message.chat_jid)
+        status = t("common.on") if config.get("enabled", False) else t("common.off")
+        msg = config.get("message", "-")
+
+        reply = (
+            f"*{config_type.capitalize()} Message Configuration*\n\n"
+            f"Status: *{status}*\n"
+            f"Message: {msg}\n\n"
+            f"Usage:\n"
+            f"• `{config_type} on` - Turn on\n"
+            f"• `{config_type} off` - Turn off\n"
+            f"• `{config_type} set <message>` - Set message\n\n"
+            f"Placeholders: {placeholders_help}"
+        )
+        await ctx.client.reply(ctx.message, reply)
+        return
+
+    action = ctx.args[0].lower()
+    chat_jid = ctx.message.chat_jid
+
+    if action == "on":
+        set_config_func(chat_jid, enabled=True)
+        await ctx.client.reply(ctx.message, t(f"{config_type}.enabled", prefix=ctx.prefix))
+
+    elif action == "off":
+        set_config_func(chat_jid, enabled=False)
+        await ctx.client.reply(ctx.message, t(f"{config_type}.disabled", prefix=ctx.prefix))
+
+    elif action == "set":
+        if len(ctx.args) < 2:
+            await ctx.client.reply(ctx.message, t(f"{config_type}.provide_text", prefix=ctx.prefix))
+            return
+
+        message = " ".join(ctx.args[1:])
+        set_config_func(chat_jid, message=message)
+        await ctx.client.reply(ctx.message, t(f"{config_type}.updated", prefix=ctx.prefix))
+
+    else:
+        await ctx.client.reply(ctx.message, t(f"{config_type}.unknown_action", prefix=ctx.prefix))

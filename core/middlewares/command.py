@@ -58,6 +58,7 @@ async def command_middleware(ctx, next):
             args=args,
             raw_args=raw_args,
             command_name=command_name,
+            prefix=used_prefix,
         )
         await cmd.execute(cmd_ctx)
 
@@ -70,9 +71,7 @@ async def command_middleware(ctx, next):
             prefix=used_prefix,
         )
 
-        command_analytics.record_command(
-            command_name, ctx.msg.sender_jid, ctx.msg.chat_jid
-        )
+        command_analytics.record_command(command_name, ctx.msg.sender_jid, ctx.msg.chat_jid)
         await event_bus.emit(
             "command_executed",
             {

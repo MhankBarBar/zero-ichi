@@ -14,7 +14,7 @@ class PingCommand(Command):
 
     name = "ping"
     description = "Check if bot is online"
-    usage = "/ping"
+    usage = "ping"
 
     async def execute(self, ctx: CommandContext) -> None:
         """Reply with Pong to confirm bot is working."""

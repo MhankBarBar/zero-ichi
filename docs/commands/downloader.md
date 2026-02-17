@@ -4,42 +4,39 @@ Zero Ichi includes a powerful media downloader powered by **yt-dlp**, supporting
 
 ## Commands
 
-### `/dl <url>`
+### `/dl <url>` or `/dl <query>`
 
-**Download with quality selection.**
+**Download media or search YouTube.**
 
-Send the command with a URL:
+**1. Direct Download:**
+Send with a URL to get quality options:
 ```
 /dl https://youtube.com/watch?v=dQw4w9WgXcQ
 ```
 
-The bot responds with media details and numbered quality options:
-
+**2. YouTube Search:**
+Search for a video:
 ```
-✦ Never Gonna Give You Up
-→ Rick Astley • YouTube
-⏱ 3:33
+/dl Never Gonna Give You Up
+```
+*Returns a list of top 5 results.*
 
-▷ Video
-  • 1 → 1080p MP4 ~25.3MB
-  • 2 → 720p MP4 ~12.1MB
-  • 3 → 480p MP4 ~6.8MB
-
-♫ Audio
-  • 4 → 256kbps WEBM ~5.6MB
-  • 5 → 128kbps M4A ~3.1MB
-
-ⓘ Reply to this message with the number to download.
+**3. Custom Search Count:**
+Get more results (up to 20):
+```
+/dl -n 10 rick roll
 ```
 
-**Reply** to that message with the number to start downloading:
+**4. Playlists:**
+Paste a playlist URL to list tracks:
 ```
-2
+/dl https://youtube.com/playlist?list=...
 ```
 
 ::: tip
-Only the person who sent the `/dl` command can reply to select a format. Other users' replies are ignored.
+Reply to the search results or playlist listing with a **number** to select a video.
 :::
+
 
 ---
 

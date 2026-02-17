@@ -12,12 +12,12 @@ class RulesCommand(Command):
     name = "rules"
     aliases = ["rule"]
     description = "Set or show group rules"
-    usage = "/rules [set <rules>]"
+    usage = "rules [set <rules>]"
     category = "group"
     group_only = True
     examples = [
-        "/rules",
-        "/rules set 1. Be respectful\n2. No spam\n3. English only",
+        "rules",
+        "rules set 1. Be respectful\n2. No spam\n3. English only",
     ]
 
     async def execute(self, ctx: CommandContext) -> None:

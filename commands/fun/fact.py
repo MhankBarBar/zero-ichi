@@ -41,7 +41,7 @@ class FactCommand(Command):
     name = "fact"
     aliases = ["funfact", "didyouknow"]
     description = "Get a random fun fact"
-    usage = "/fact"
+    usage = "fact"
     category = "fun"
 
     async def execute(self, ctx: CommandContext) -> None:

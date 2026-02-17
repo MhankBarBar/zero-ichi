@@ -1,4 +1,7 @@
 {
+  "_meta": {
+    "label": "Indonesian (Bahasa Indonesia)"
+  },
   "errors": {
     "group_only": "Command ini cuma bisa dipake di grup.",
     "private_only": "Command ini cuma bisa dipake di chat pribadi.",
@@ -133,10 +136,10 @@
     "reminder": "Reminder",
     "invalid_duration": "Format durasi salah.\n\nContoh: `10m`, `2h`, `1d30m`",
     "your_reminders": "Reminder Lu",
-    "provide_id": "Masukin ID reminder. Pake `/remind list` buat liat.",
+    "provide_id": "Masukin ID reminder. Pake `{prefix}remind list` buat liat.",
     "no_message": "Kasih pesan reminder atau reply ke pesan.",
     "scheduler_error": "Scheduler belum di-init.",
-    "usage": "📝 *Cara Pake Reminder:*\n\n`/remind 10m <pesan>` - Ingetin dalam 10 menit\n`/remind 2h <pesan>` - Ingetin dalam 2 jam\n`/remind list` - List reminder\n`/remind cancel <id>` - Cancel reminder",
+    "usage": "📝 *Cara Pake Reminder:*\n\n`{prefix}remind 10m <pesan>` - Ingetin dalam 10 menit\n`{prefix}remind 2h <pesan>` - Ingetin dalam 2 jam\n`{prefix}remind list` - List reminder\n`{prefix}remind cancel <id>` - Cancel reminder",
     "in_time": "Dalam",
     "at_time": "Jam",
     "message": "Pesan",
@@ -218,26 +221,26 @@
     "saved": "Note `{name}` ({type}) tersimpan. Pake #{name} buat manggil.",
     "deleted": "Note `{name}` dihapus.",
     "not_found": "Note `{name}` gak ketemu.",
-    "usage_save": "Reply pesan atau kasih content.\nCara pake: /save <name> [content]",
+    "usage_save": "Reply pesan atau kasih content.\nCara pake: {prefix}save <name> [content]",
     "no_content": "Kasih content atau reply ke pesan/media.",
     "download_failed": "Gagal download media.",
     "save_failed": "Gagal save media: {error}",
     "send_failed": "Gagal send media: {error}",
     "media_not_found": "[Media file not found]",
-    "no_notes": "Gak ada notes. Pake /save <name> <content> buat bikin.",
+    "no_notes": "Gak ada notes. Pake {prefix}save <name> <content> buat bikin.",
     "list_title": "Saved Notes"
   },
   "filter": {
     "added": "Filter `{trigger}` ditambahin.",
     "removed": "Filter `{trigger}` dihapus.",
     "not_found": "Filter `{trigger}` gak ketemu.",
-    "usage": "Reply pesan atau kasih response.\nCara pake: /filter <trigger> [response]",
+    "usage": "Reply pesan atau kasih response.\nCara pake: {prefix}filter <trigger> [response]",
     "no_response": "Kasih response atau reply ke pesan/media.",
     "set": "Filter di-set ({type}): Pesan yang ada `{trigger}` bakal trigger response.",
     "download_failed": "Gagal download media.",
     "save_failed": "Gagal save media: {error}",
     "send_failed": "Gagal send filter media: {error}",
-    "no_filters": "Gak ada filter. Pake /filter <trigger> <response> buat bikin.",
+    "no_filters": "Gak ada filter. Pake {prefix}filter <trigger> <response> buat bikin.",
     "list_title": "Active Filters"
   },
   "tagall": {
@@ -338,7 +341,7 @@
   "members": {
     "add_usage": "Kasih nomor telepon yang mau ditambahin.\nCara pake: {prefix}add <nomor>",
     "invalid_numbers": "Kasih nomor telepon yang valid.",
-    "added": "Berhasil tambahin {count} user ke grup.",
+    "add_success": "Berhasil tambahin {count} user ke grup.",
     "add_failed": "Gagal tambahin: {error}",
     "no_targets": "Reply pesan atau mention user.\nCara pake: {prefix}{command} @user1 @user2",
     "kick_success": "Berhasil kick {count} user.",
@@ -349,7 +352,7 @@
     "demote_failed": "Gagal demote: {error}"
   },
   "echo": {
-    "usage": "Kasih pesan yang mau di-echo.\n\nCara pake: /echo <message>"
+    "usage": "Kasih pesan yang mau di-echo.\n\nCara pake: {prefix}echo <message>"
   },
   "info": {
     "title": "Zero Ichi Bot",
@@ -463,7 +466,7 @@
     "audio_options": "Audio",
     "choose_hint": "Balas pesan ini dengan nomor untuk download.",
     "no_formats": "Gak ada pilihan format buat URL ini.",
-    "use_audio_video_hint": "Pake `/audio <url>` atau `/video <url>` aja.",
+    "use_audio_video_hint": "Pake `{prefix}audio <url>` atau `{prefix}video <url>` aja.",
     "playlist_detected": "Playlist terdeteksi! Lagi ngambil daftar track...",
     "playlist_tracks": "Nampilin {showing} dari {total} track",
     "searching": "Nyari di YouTube...",
@@ -476,5 +479,31 @@
     "sticker_only": "Cuma stiker yang bisa diconvert ke gambar.",
     "download_failed": "Gagal download stiker.",
     "convert_failed": "Gagal convert stiker ke gambar."
+  },
+  "schedule": {
+    "scheduler_error": "Scheduler belum di-init.",
+    "usage": "Cara pake: `{prefix}schedule <cron|every <interval>> <message>`\n\nContoh:\n`{prefix}schedule 0 8 * * * Pagi!` (Tiap jam 8 pagi)\n`{prefix}schedule every 1h Minum air!` (Tiap jam)\n`{prefix}schedule list` - List task\n`{prefix}schedule info <id>` - Detail task\n`{prefix}schedule cancel <id>` - Cancel task\n`{prefix}schedule toggle <id>` - Enable/Disable task",
+    "usage_every": "Cara pake: `{prefix}schedule every <interval> <message>`",
+    "no_tasks": "Gak ada recurring tasks buat chat ini.",
+    "list_title": "Scheduled Tasks",
+    "no_recurring_tasks": "Gak ada recurring tasks.",
+    "provide_id": "Masukin task ID.",
+    "not_found": "Task `{id}` gak ketemu atau bukan di chat ini.",
+    "cancelled": "Task `{id}` dibatalin.",
+    "toggled": "Task `{id}` sekarang *{state}*.",
+    "invalid_interval": "Format interval salah. Pake `10m`, `1h`, dll.",
+    "min_interval": "Interval minimal 1 menit.",
+    "set_interval": "Auto-message `{id}` di-set! Bakal dikirim tiap {interval}.",
+    "set_cron": "Recurring task `{id}` di-set dengan cron: `{cron}`.",
+    "no_message": "Kasih pesan atau reply pesan/media.",
+    "invalid_cron": "Cron expression tidak valid: {error}"
+  },
+  "broadcast": {
+    "usage": "Cara pake: `{prefix}broadcast <message>` atau `{prefix}broadcast list`",
+    "list_title": "Target Groups",
+    "no_groups": "Gak nemu grup.",
+    "and_more": "...dan {count} lagi.",
+    "starting": "Lagi broadcast ke {count} grup... tunggu bentar ya.",
+    "finished": "Broadcast selesai!\n\n✅ Sukses: {success}\n❌ Gagal: {fail}"
   }
 }

@@ -21,7 +21,7 @@
         "enabled": true,
         "provider": "openai",
         "model": "gpt-5-mini",
-        "trigger_mode": "reply",
+        "trigger_mode": "mention",
         "allowed_actions": [],
         "blocked_actions": [
             "aeval",

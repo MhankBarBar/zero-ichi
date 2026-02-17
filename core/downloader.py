@@ -14,10 +14,10 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from core.constants import DOWNLOADS_DIR
 from core.logger import log_error, log_info
 from core.runtime_config import runtime_config
 
-DOWNLOADS_DIR = Path("data/downloads")
 MAX_FILE_SIZE_MB = runtime_config.get_nested("downloader", "max_file_size_mb", default=50)
 
 

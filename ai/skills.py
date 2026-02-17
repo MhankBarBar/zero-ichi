@@ -13,9 +13,8 @@ from typing import TypedDict
 
 import yaml
 
+from core.constants import SKILLS_DIR
 from core.logger import log_error, log_info, log_warning
-
-SKILLS_DIR = Path("data/ai_skills")
 
 
 class SkillData(TypedDict):

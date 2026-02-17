@@ -11,7 +11,7 @@ from core.storage import GroupData
 class FiltersCommand(Command):
     name = "filters"
     description = "List all auto-reply filters"
-    usage = "/filters"
+    usage = "filters"
     group_only = True
 
     async def execute(self, ctx: CommandContext) -> None:
@@ -25,7 +25,7 @@ class FiltersCommand(Command):
         filters = data.filters
 
         if not filters:
-            await ctx.client.reply(ctx.message, t("filter.no_filters"))
+            await ctx.client.reply(ctx.message, t("filter.no_filters", prefix=ctx.prefix))
             return
 
         lines = [f"{t('filter.list_title')}:"]

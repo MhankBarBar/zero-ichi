@@ -14,9 +14,9 @@ class RollCommand(Command):
     name = "roll"
     aliases = ["dice", "d"]
     description = "Roll dice (e.g., 2d6, d20)"
-    usage = "/roll [dice notation]"
+    usage = "roll [dice notation]"
     category = "fun"
-    examples = ["/roll", "/roll d20", "/roll 2d6", "/roll 3d8+5"]
+    examples = ["roll", "roll d20", "roll 2d6", "roll 3d8+5"]
 
     async def execute(self, ctx: CommandContext) -> None:
         """Roll dice."""

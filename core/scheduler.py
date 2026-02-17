@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import base64
 import json
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -19,13 +20,11 @@ from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from neonize.proto.waE2E.WAWebProtobufsE2E_pb2 import Message
 
+from core.constants import DATA_DIR, TASKS_FILE
 from core.logger import log_error, log_info, log_success, log_warning
 
 if TYPE_CHECKING:
     from core.client import BotClient
-
-DATA_DIR = Path(__file__).parent.parent / "data"
-TASKS_FILE = DATA_DIR / "scheduled_tasks.json"
 
 
 class TaskType:
@@ -160,9 +159,8 @@ class Scheduler:
             log_error(f"Failed to save scheduled tasks: {e}")
 
     def _generate_task_id(self) -> str:
-        """Generate a unique task ID."""
-        self._task_counter += 1
-        return f"task_{self._task_counter}"
+        """Generate a unique short hex task ID."""
+        return uuid.uuid4().hex[:6]
 
     async def _execute_task(self, task_id: str) -> None:
         """Execute a scheduled task."""
@@ -183,17 +181,20 @@ class Scheduler:
                 log_info(f"Forward response ID: {getattr(response, 'ID', None)}")
 
                 if response and response.ID:
-                    await self.bot.send_reply_to_message(
-                        task.chat_jid, task.message, response.ID, forward_msg
-                    )
+                    if task.message and task.message.strip():
+                        await self.bot.send_reply_to_message(
+                            task.chat_jid, task.message, response.ID, forward_msg
+                        )
                 else:
                     log_warning("No response ID from forward, sending without quote")
-                    await self.bot.send(task.chat_jid, task.message)
+                    if task.message and task.message.strip():
+                        await self.bot.send(task.chat_jid, task.message)
             elif task.media_type and task.media_path and Path(task.media_path).exists():
                 media_path = Path(task.media_path)
 
                 if task.media_type == "sticker":
-                    await self.bot.send(task.chat_jid, task.message)
+                    if task.message and task.message.strip():
+                        await self.bot.send(task.chat_jid, task.message)
                     await self.bot.send_media(
                         task.chat_jid,
                         task.media_type,
@@ -356,8 +357,11 @@ class Scheduler:
         message: str,
         cron_expression: str,
         creator_jid: str | None = None,
+        media_type: str | None = None,
+        media_path: str | None = None,
+        forward_message=None,
     ) -> ScheduledTask:
-        """Add a recurring task with cron expression."""
+        """Add a recurring task with cron expression and optional media/forward."""
         task_id = self._generate_task_id()
         task = ScheduledTask(
             task_id=task_id,
@@ -366,7 +370,13 @@ class Scheduler:
             message=message,
             cron_expression=cron_expression,
             creator_jid=creator_jid,
+            media_type=media_type,
+            media_path=media_path,
         )
+
+        if forward_message is not None:
+            msg_bytes = forward_message.SerializeToString()
+            task.forward_message_data = base64.b64encode(msg_bytes).decode("utf-8")
         self._tasks[task_id] = task
         if self._started:
             self._schedule_task(task)
@@ -379,8 +389,11 @@ class Scheduler:
         message: str,
         interval_minutes: int,
         creator_jid: str | None = None,
+        media_type: str | None = None,
+        media_path: str | None = None,
+        forward_message=None,
     ) -> ScheduledTask:
-        """Add an auto-message that repeats at fixed intervals."""
+        """Add an auto-message that repeats at fixed intervals with optional media/forward."""
         task_id = self._generate_task_id()
         task = ScheduledTask(
             task_id=task_id,
@@ -389,7 +402,13 @@ class Scheduler:
             message=message,
             interval_minutes=interval_minutes,
             creator_jid=creator_jid,
+            media_type=media_type,
+            media_path=media_path,
         )
+
+        if forward_message is not None:
+            msg_bytes = forward_message.SerializeToString()
+            task.forward_message_data = base64.b64encode(msg_bytes).decode("utf-8")
         self._tasks[task_id] = task
         if self._started:
             self._schedule_task(task)

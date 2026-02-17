@@ -10,7 +10,7 @@ class DelSkillCommand(Command):
     name = "delskill"
     aliases = ["rmskill", "removeskill"]
     description = "Remove an AI skill"
-    usage = "/delskill <name>"
+    usage = "delskill <name>"
     category = "owner"
     owner_only = True
 

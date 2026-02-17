@@ -13,12 +13,12 @@ class EchoCommand(Command):
 
     name = "echo"
     description = "Repeat your message back"
-    usage = "/echo <message>"
+    usage = "echo <message>"
 
     async def execute(self, ctx: CommandContext) -> None:
         """Echo the user's message."""
         if not ctx.raw_args:
-            await ctx.client.reply(ctx.message, t_info("echo.usage"))
+            await ctx.client.reply(ctx.message, t_info("echo.usage", prefix=ctx.prefix))
             return
 
         await ctx.client.reply(ctx.message, f"» {ctx.raw_args}")

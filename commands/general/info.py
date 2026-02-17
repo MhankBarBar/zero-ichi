@@ -14,7 +14,7 @@ class InfoCommand(Command):
 
     name = "info"
     description = "Show bot information"
-    usage = "/info"
+    usage = "info"
 
     async def execute(self, ctx: CommandContext) -> None:
         """Show bot info."""

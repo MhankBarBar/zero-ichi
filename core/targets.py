@@ -37,8 +37,8 @@ def parse_targets(ctx: CommandContext) -> list[str]:
         return list(mentions)
 
     for arg in ctx.args:
-        cleaned = arg.replace("@", "").strip()
-        if cleaned.isdigit():
+        cleaned = arg.replace("@", "").replace("+", "").strip()
+        if cleaned.isdigit() and len(cleaned) < 20:
             targets.append(f"{cleaned}@lid")
 
     return targets

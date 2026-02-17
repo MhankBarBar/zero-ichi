@@ -13,7 +13,7 @@ class FlipCommand(Command):
     name = "flip"
     aliases = ["coin", "coinflip", "toss"]
     description = "Flip a coin"
-    usage = "/flip"
+    usage = "flip"
     category = "fun"
 
     async def execute(self, ctx: CommandContext) -> None:

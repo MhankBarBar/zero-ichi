@@ -9,7 +9,7 @@ from core.command import Command, CommandContext
 class SkillsCommand(Command):
     name = "skills"
     description = "List all loaded AI skills"
-    usage = "/skills"
+    usage = "skills"
     category = "owner"
     owner_only = True
 

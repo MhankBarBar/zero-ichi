@@ -10,13 +10,13 @@ from core.i18n import t
 class PollCommand(Command):
     name = "poll"
     description = "Create a poll in the group"
-    usage = '/poll "Question" "Option 1" "Option 2" [--multi]'
+    usage = 'poll "Question" "Option 1" "Option 2" [--multi]'
     category = "group"
     aliases = ["vote"]
     group_only = True
     examples = [
-        '/poll "Favorite color?" "Red" "Blue" "Green"',
-        '/poll "What to eat?" "Pizza" "Burger" "Sushi" --multi',
+        'poll "Favorite color?" "Red" "Blue" "Green"',
+        'poll "What to eat?" "Pizza" "Burger" "Sushi" --multi',
     ]
 
     async def execute(self, ctx: CommandContext) -> None:

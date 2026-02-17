@@ -34,7 +34,7 @@ JOKES = [
 class JokeCommand(Command):
     name = "joke"
     description = "Get a random joke"
-    usage = "/joke"
+    usage = "joke"
     category = "fun"
 
     async def execute(self, ctx: CommandContext) -> None:

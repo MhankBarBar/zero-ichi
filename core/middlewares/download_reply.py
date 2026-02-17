@@ -47,99 +47,22 @@ async def download_reply_middleware(ctx, next):
 
 
 async def _handle_playlist_reply(ctx, pending, stanza_id, choice_num):
-    """Handle reply to playlist track list: treat selected track like a search result."""
-
-    if choice_num < 1 or choice_num > len(pending.entries):
-        await ctx.bot.reply(ctx.msg, t_error("downloader.invalid_choice"))
-        return
-
-    selected = pending.entries[choice_num - 1]
-    pending_downloads.remove(stanza_id)
-
-    await ctx.bot.send_reaction(ctx.msg, "⏳")
-
-    try:
-        info = await downloader.get_info(selected.url)
-    except DownloadError as e:
-        await ctx.bot.send_reaction(ctx.msg, "❌")
-        await ctx.bot.reply(ctx.msg, t_error("downloader.failed", error=str(e)))
-        return
-
-    if not info.formats:
-        await ctx.bot.send_reaction(ctx.msg, "❌")
-        await ctx.bot.reply(
-            ctx.msg,
-            f"{sym.INFO} {t('downloader.no_formats')}\n"
-            f"{sym.INFO} {t('downloader.use_audio_video_hint')}",
-        )
-        return
-
-    if len(info.formats) == 1:
-        fmt = info.formats[0]
-        try:
-            filepath = await downloader.download_format(
-                info.url,
-                fmt.format_id,
-                merge_audio=not fmt.has_audio,
-                is_audio=fmt.type == "audio",
-            )
-            media_type = "audio" if fmt.type == "audio" else "video"
-            caption = f"{sym.SPARKLE} {info.title}"
-            await ctx.bot.send_media(
-                ctx.msg.chat_jid,
-                media_type,
-                str(filepath),
-                caption=caption,
-                quoted=ctx.msg.event,
-            )
-            downloader.cleanup(filepath)
-            await ctx.bot.send_reaction(ctx.msg, "✅")
-        except Exception as e:
-            await ctx.bot.send_reaction(ctx.msg, "❌")
-            await report_error(ctx.bot, ctx.msg, "dl", e)
-        return
-
-    await ctx.bot.send_reaction(ctx.msg, "")
-
-    options_text = build_options_text(info)
-    response = None
-
-    if info.thumbnail:
-        try:
-            async with httpx.AsyncClient(timeout=5) as http:
-                resp = await http.get(info.thumbnail)
-                if resp.status_code == 200 and len(resp.content) > 0:
-                    response = await ctx.bot.send_image(
-                        ctx.msg.chat_jid,
-                        resp.content,
-                        caption=options_text,
-                        quoted=ctx.msg.event,
-                    )
-        except Exception:
-            pass
-
-    if not response:
-        response = await ctx.bot.reply(ctx.msg, options_text)
-
-    pending_downloads.add(
-        response.ID,
-        PendingDownload(
-            url=info.url,
-            info=info,
-            sender_jid=pending.sender_jid,
-            chat_jid=pending.chat_jid,
-        ),
-    )
+    """Handle reply to playlist track list."""
+    await _handle_selection_reply(ctx, pending, stanza_id, choice_num, pending.entries)
 
 
 async def _handle_search_reply(ctx, pending, stanza_id, choice_num):
-    """Handle reply to search results: fetch info for chosen result and show formats."""
+    """Handle reply to search results."""
+    await _handle_selection_reply(ctx, pending, stanza_id, choice_num, pending.results)
 
-    if choice_num < 1 or choice_num > len(pending.results):
+
+async def _handle_selection_reply(ctx, pending, stanza_id, choice_num, items):
+    """Shared handler for search/playlist replies: fetch info and show format options."""
+    if choice_num < 1 or choice_num > len(items):
         await ctx.bot.reply(ctx.msg, t_error("downloader.invalid_choice"))
         return
 
-    selected = pending.results[choice_num - 1]
+    selected = items[choice_num - 1]
     pending_downloads.remove(stanza_id)
 
     await ctx.bot.send_reaction(ctx.msg, "⏳")

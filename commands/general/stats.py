@@ -14,7 +14,7 @@ class StatsCommand(Command):
     name = "stats"
     aliases = ["botstats"]
     description = "Show bot statistics"
-    usage = "/stats"
+    usage = "stats"
     category = "general"
 
     async def execute(self, ctx: CommandContext) -> None:

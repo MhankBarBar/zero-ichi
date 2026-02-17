@@ -947,8 +947,6 @@ async def remove_blacklist_word(group_id: str, word: str):
     return {"success": True, "message": f"Word '{word}' removed from blacklist"}
 
 
-
-
 @app.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket):
     """WebSocket for real-time dashboard updates."""
@@ -964,8 +962,6 @@ async def websocket_endpoint(ws: WebSocket):
         event_bus.unsubscribe(queue)
 
 
-
-
 @_api.get("/api/analytics/commands")
 async def get_analytics_commands(days: int = Query(7, ge=1, le=90)):
     """Get top commands by usage."""
@@ -977,9 +973,7 @@ async def get_analytics_commands(days: int = Query(7, ge=1, le=90)):
 
 
 @_api.get("/api/analytics/timeline")
-async def get_analytics_timeline(
-    command: str = Query(""), days: int = Query(7, ge=1, le=90)
-):
+async def get_analytics_timeline(command: str = Query(""), days: int = Query(7, ge=1, le=90)):
     """Get daily usage timeline."""
     return {
         "timeline": command_analytics.get_usage_timeline(command, days),

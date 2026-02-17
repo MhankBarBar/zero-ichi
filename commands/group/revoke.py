@@ -9,7 +9,7 @@ from core.i18n import t_error, t_success
 class RevokeCommand(Command):
     name = "revoke"
     description = "Revoke and get new invite link"
-    usage = "/revoke"
+    usage = "revoke"
     group_only = True
     admin_only = True
     bot_admin_required = True

@@ -9,18 +9,15 @@ from contextvars import ContextVar
 from pathlib import Path
 
 from core import symbols as sym
+from core.constants import LOCALES_DIR
 
-LOCALES_DIR = Path(__file__).parent.parent / "locales"
 _locales: dict[str, dict] = {}
 _default_lang: str = "en"
 _chat_languages: dict[str, str] = {}
 
 _current_chat: ContextVar[str | None] = ContextVar("current_chat", default=None)
 
-AVAILABLE_LANGUAGES = {
-    "en": "English",
-    "id": "Indonesian (Bahasa Indonesia)",
-}
+_available_languages: dict[str, str] = {}
 
 
 def set_context(chat_jid: str) -> None:
@@ -83,7 +80,7 @@ def set_chat_language(chat_jid: str, lang: str) -> bool:
     Returns:
         True if successful, False if language not available
     """
-    if lang not in AVAILABLE_LANGUAGES:
+    if lang not in _available_languages:
         return False
 
     _chat_languages[chat_jid] = lang
@@ -164,6 +161,22 @@ def t(key: str, chat_jid: str = None, **kwargs) -> str:
     return value
 
 
+def _load_available_languages() -> None:
+    """Load available languages from locale files."""
+    global _available_languages
+    _available_languages = {}
+
+    for file in LOCALES_DIR.glob("*.json"):
+        try:
+            with open(file, encoding="utf-8") as f:
+                data = json.load(f)
+                meta = data.get("_meta", {})
+                label = meta.get("label", file.stem)
+                _available_languages[file.stem] = label
+        except Exception:
+            _available_languages[file.stem] = file.stem
+
+
 def init_i18n(lang: str = None) -> None:
     """
     Initialize i18n with language from config.
@@ -179,13 +192,14 @@ def init_i18n(lang: str = None) -> None:
         lang = runtime_config.get_nested("bot", "language", default="en")
 
     _default_lang = lang
+    _load_available_languages()
     load_locale(lang)
     load_chat_languages()
 
 
 def get_available_languages() -> dict[str, str]:
     """Return dict of available language codes and names."""
-    return AVAILABLE_LANGUAGES.copy()
+    return _available_languages.copy()
 
 
 def t_error(key: str, chat_jid: str = None, **kwargs) -> str:

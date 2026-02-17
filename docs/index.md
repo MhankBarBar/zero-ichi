@@ -53,6 +53,12 @@ features:
     details: "Middleware pipeline, type hints, hot-reload, JSON Schema config validation, and a clean architecture that makes extensibility a breeze."
     link: /development/architecture
     linkText: See architecture
+  - icon:
+      src: /icons/git-pull-request.svg
+    title: Contributing
+    details: "Want to help? Check out our contribution guide to get started with development, testing, and submitting PRs."
+    link: /development/contributing
+    linkText: Read guide
 ---
 
 <div class="stats-section">
@@ -67,10 +73,6 @@ features:
   <div class="stat-item">
     <div class="stat-number">2</div>
     <div class="stat-label">Languages</div>
-  </div>
-  <div class="stat-item">
-    <div class="stat-number">1000+</div>
-    <div class="stat-label">Supported Sites</div>
   </div>
 </div>
 

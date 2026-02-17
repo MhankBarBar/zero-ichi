@@ -11,9 +11,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
+from core.constants import MEMORY_DIR
 from core.logger import log_debug, log_error
 
-MEMORY_DIR = Path("data/ai_memory")
 MAX_MESSAGES = 100
 DEFAULT_TTL_HOURS = 24
 

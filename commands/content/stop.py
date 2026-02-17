@@ -13,7 +13,7 @@ from core.storage import GroupData
 class StopCommand(Command):
     name = "stop"
     description = "Remove an auto-reply filter"
-    usage = "/stop <trigger>"
+    usage = "stop <trigger>"
     aliases = ["unfilter", "delfilter", "rmfilter"]
     group_only = True
     admin_only = True

@@ -5,13 +5,11 @@ Tracks token usage per user and per chat with configurable daily limits.
 """
 
 import json
-import time
 from datetime import datetime
-from pathlib import Path
 
-from core.logger import log_debug, log_info
+from core.constants import DATA_DIR
+from core.logger import log_debug
 
-DATA_DIR = Path("data")
 TOKEN_FILE = DATA_DIR / "ai_tokens.json"
 
 
@@ -45,18 +43,14 @@ class TokenTracker:
         """Daily per-user token limit."""
         from core.runtime_config import runtime_config
 
-        return runtime_config.get_nested(
-            "agentic_ai", "daily_token_limit_user", default=50_000
-        )
+        return runtime_config.get_nested("agentic_ai", "daily_token_limit_user", default=50_000)
 
     @property
     def _chat_limit(self) -> int:
         """Daily per-chat token limit."""
         from core.runtime_config import runtime_config
 
-        return runtime_config.get_nested(
-            "agentic_ai", "daily_token_limit_chat", default=200_000
-        )
+        return runtime_config.get_nested("agentic_ai", "daily_token_limit_chat", default=200_000)
 
     def _ensure_today(self) -> None:
         """Reset counters if it's a new day."""

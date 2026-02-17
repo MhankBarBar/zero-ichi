@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 from google.protobuf.json_format import MessageToDict
 from neonize.proto.waE2E.WAWebProtobufsE2E_pb2 import Message
 
+from core.constants import CONTEXT_FIELDS, MEDIA_FIELDS, TEXT_SOURCES
 from core.logger import log_debug, log_warning
 from core.types import ChatType, get_chat_type_from_jid
 
@@ -50,13 +51,6 @@ class MessageHelper:
         """Get the raw protobuf Message object."""
         return self._message
 
-    TEXT_SOURCES = (
-        ("conversation", None),
-        ("extendedTextMessage", "text"),
-        ("imageMessage", "caption"),
-        ("videoMessage", "caption"),
-    )
-
     @property
     def text(self) -> str:
         """
@@ -64,7 +58,7 @@ class MessageHelper:
 
         Works with plain text, extended text, and media captions.
         """
-        for field_name, attr_name in self.TEXT_SOURCES:
+        for field_name, attr_name in TEXT_SOURCES:
             field = getattr(self._message, field_name, None)
             if field:
                 if attr_name is None:
@@ -265,13 +259,7 @@ class MessageHelper:
 
     def _extract_quoted_text(self, quoted) -> str:
         """Extract text from quoted message."""
-        text_sources = (
-            ("conversation", None),
-            ("extendedTextMessage", "text"),
-            ("imageMessage", "caption"),
-            ("videoMessage", "caption"),
-        )
-        for field_name, attr_name in text_sources:
+        for field_name, attr_name in TEXT_SOURCES:
             field = getattr(quoted, field_name, None)
             if field:
                 if attr_name is None:
@@ -281,26 +269,9 @@ class MessageHelper:
                     return value
         return ""
 
-    MEDIA_FIELDS = (
-        ("imageMessage", "image"),
-        ("videoMessage", "video"),
-        ("stickerMessage", "sticker"),
-        ("documentMessage", "document"),
-        ("audioMessage", "audio"),
-    )
-
-    CONTEXT_FIELDS = (
-        "extendedTextMessage",
-        "imageMessage",
-        "videoMessage",
-        "stickerMessage",
-        "documentMessage",
-        "audioMessage",
-    )
-
     def _extract_context_info(self, raw_msg):
         """Extract contextInfo from any message type that has it."""
-        for field_name in self.CONTEXT_FIELDS:
+        for field_name in CONTEXT_FIELDS:
             try:
                 if raw_msg.HasField(field_name):
                     field = getattr(raw_msg, field_name)
@@ -338,7 +309,7 @@ class MessageHelper:
 
     def _detect_media_type(self, msg) -> str | None:
         """Detect media type from a Message object."""
-        for field_name, media_type in self.MEDIA_FIELDS:
+        for field_name, media_type in MEDIA_FIELDS:
             try:
                 if msg.HasField(field_name):
                     return media_type

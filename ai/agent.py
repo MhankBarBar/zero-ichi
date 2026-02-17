@@ -11,8 +11,6 @@ import os
 import re
 from typing import TYPE_CHECKING
 
-import base64
-
 from pydantic_ai import Agent, BinaryContent, RunContext
 
 from ai.context import BotDependencies
@@ -418,15 +416,11 @@ Note: When user mentions @{bot_jid} or @{bot_lid}, they are talking TO you, not 
 
             user_prompt_parts: list = []
 
-            text_content = (
-                f"{context_info}{history_text}{skills_context}\n\nUser message: {msg.text or '(image)'}"
-            )
+            text_content = f"{context_info}{history_text}{skills_context}\n\nUser message: {msg.text or '(image)'}"
             user_prompt_parts.append(text_content)
 
             if image_data:
-                user_prompt_parts.append(
-                    BinaryContent(data=image_data, media_type="image/jpeg")
-                )
+                user_prompt_parts.append(BinaryContent(data=image_data, media_type="image/jpeg"))
 
             result = await bot_agent.run(
                 user_prompt_parts,
@@ -446,7 +440,6 @@ Note: When user mentions @{bot_jid} or @{bot_lid}, they are talking TO you, not 
             if result.output:
                 memory.add(role="assistant", content=result.output)
 
-            # Track token usage
             try:
                 usage = result.usage()
                 total_tokens = (usage.total_tokens or 0) if usage else 0

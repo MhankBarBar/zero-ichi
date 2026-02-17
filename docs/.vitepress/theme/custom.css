@@ -1,107 +1,170 @@
 /**
  * Custom theme overrides for Zero Ichi docs.
- * WhatsApp-inspired green palette.
+ * Aesthetic: Tech Heavy (WhatsApp Green Edition)
  */
 
-/* ── Brand colors (WhatsApp green) ───────────────────────── */
+/* ── Fonts & Colors ──────────────────────────────────────── */
 :root {
+    --vp-font-family-base: 'Inter', sans-serif;
+    --vp-font-family-mono: 'JetBrains Mono', monospace;
+
+    /* Common Brand Colors */
     --vp-c-brand-1: #25d366;
+    /* WhatsApp Green */
     --vp-c-brand-2: #128c7e;
+    /* Teal Green */
     --vp-c-brand-3: #075e54;
-    --vp-c-brand-soft: rgba(37, 211, 102, 0.14);
+    /* Dark Teal */
+    --vp-c-brand-soft: rgba(37, 211, 102, 0.1);
 
-    --vp-home-hero-name-color: transparent;
-    --vp-home-hero-name-background: linear-gradient(135deg,
-            #075e54 0%,
-            #25d366 100%);
+    /* Light Mode Defaults */
+    --vp-c-bg: #ffffff;
+    --vp-c-bg-alt: #f0f2f5;
+    /* WhatsApp Chat BG-ish */
+    --vp-c-bg-soft: #f8f9fa;
 
-    --vp-home-hero-image-background-image: linear-gradient(135deg,
-            rgba(7, 94, 84, 0.3) 0%,
-            rgba(37, 211, 102, 0.3) 100%);
-    --vp-home-hero-image-filter: blur(56px);
+    --vp-c-text-1: #111827;
+    --vp-c-text-2: #4b5563;
+
+    --vp-c-border: #e5e7eb;
+    --vp-c-divider: #e5e7eb;
+
+    --tech-grid-color: rgba(0, 0, 0, 0.05);
 }
 
 .dark {
-    --vp-c-brand-1: #25d366;
-    --vp-c-brand-2: #34eb7a;
-    --vp-c-brand-3: #128c7e;
-    --vp-c-brand-soft: rgba(37, 211, 102, 0.14);
+    /* Dark Mode Overrides */
+    --vp-c-bg: #09090b;
+    --vp-c-bg-alt: #121215;
+    --vp-c-bg-soft: #18181b;
 
-    --vp-home-hero-image-background-image: linear-gradient(135deg,
-            rgba(7, 94, 84, 0.25) 0%,
-            rgba(37, 211, 102, 0.2) 100%);
+    --vp-c-text-1: #fafafa;
+    --vp-c-text-2: #a1a1aa;
+
+    --vp-c-border: #27272a;
+    --vp-c-divider: #27272a;
+
+    --tech-grid-color: rgba(37, 211, 102, 0.05);
 }
 
-/* ── Hero section ────────────────────────────────────────── */
+/* ── Global Tech Grid Background ─────────────────────────── */
+body {
+    background-color: var(--vp-c-bg);
+    background-image:
+        linear-gradient(var(--tech-grid-color) 1px, transparent 1px),
+        linear-gradient(90deg, var(--tech-grid-color) 1px, transparent 1px);
+    background-size: 40px 40px;
+}
+
+/* ── Hero Section ────────────────────────────────────────── */
 .VPHero .name {
-    font-size: 3rem !important;
-    letter-spacing: -0.02em;
-}
-
-.VPHero .text {
-    font-size: 2.5rem !important;
-    background: linear-gradient(135deg, #128c7e 0%, #25d366 100%);
+    font-family: var(--vp-font-family-mono);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    background: linear-gradient(120deg, var(--vp-c-brand-3) 0%, var(--vp-c-brand-1) 100%);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
 }
 
+.dark .VPHero .name {
+    background: linear-gradient(120deg, #fff 0%, #a1a1aa 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.VPHero .text {
+    font-size: 2.5rem !important;
+    color: var(--vp-c-brand-1);
+    font-family: var(--vp-font-family-mono);
+    opacity: 0.9;
+}
+
 .VPHero .tagline {
-    font-size: 1.15rem !important;
-    max-width: 520px;
-    line-height: 1.6;
+    font-family: var(--vp-font-family-base);
     color: var(--vp-c-text-2);
 }
 
-.VPHero .image-container {
-    transform: scale(1.05);
-    transition: transform 0.5s ease;
+.VPHero .image-container::after {
+    /* Technical glow behind logo */
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 200px;
+    height: 200px;
+    background: var(--vp-c-brand-1);
+    filter: blur(80px);
+    opacity: 0.15;
+    z-index: -1;
 }
 
-.VPHero .image-container:hover {
-    transform: scale(1.1) rotate(2deg);
-}
-
-/* ── Feature cards ───────────────────────────────────────── */
+/* ── Feature Cards (Industrial Look) ─────────────────────── */
 .VPFeature {
-    border: 1px solid var(--vp-c-bg-soft) !important;
-    background: var(--vp-c-bg-soft) !important;
-    border-radius: 12px !important;
-    transition: all 0.3s ease !important;
+    background: var(--vp-c-bg-alt) !important;
+    border: 1px solid var(--vp-c-border) !important;
+    border-radius: 4px !important;
+    /* Sharper corners */
+    transition: all 0.2s ease !important;
+    position: relative;
+    overflow: hidden;
 }
 
 .VPFeature:hover {
     border-color: var(--vp-c-brand-1) !important;
-    transform: translateY(-4px);
-    box-shadow: 0 12px 24px -8px rgba(37, 211, 102, 0.15);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 20px -10px rgba(37, 211, 102, 0.2);
 }
 
-.dark .VPFeature:hover {
-    box-shadow: 0 12px 24px -8px rgba(37, 211, 102, 0.25);
+/* Tech accent line */
+.VPFeature::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 2px;
+    height: 0;
+    background: var(--vp-c-brand-1);
+    transition: height 0.3s ease;
 }
 
-.VPFeature .icon {
-    background: linear-gradient(135deg, var(--vp-c-brand-soft), transparent);
-    border-radius: 8px;
-    padding: 8px;
+.VPFeature:hover::before {
+    height: 100%;
 }
 
 .VPFeature .title {
-    font-weight: 700 !important;
+    font-family: var(--vp-font-family-mono);
+    letter-spacing: -0.02em;
 }
 
-.VPFeature .details {
-    color: var(--vp-c-text-2);
-    line-height: 1.6;
+/* ── Code Blocks (Terminal Style) ────────────────────────── */
+.vp-doc div[class*='language-'] {
+    border-radius: 4px;
+    border: 1px solid var(--vp-c-border);
+    background-color: var(--vp-c-bg-alt) !important;
 }
 
-/* ── Stats section ───────────────────────────────────────── */
+.dark .vp-doc div[class*='language-'] {
+    background-color: #0d0d0d !important;
+}
+
+.vp-doc code {
+    font-family: var(--vp-font-family-mono) !important;
+    font-size: 0.9em;
+}
+
+/* ── Stats Section ───────────────────────────────────────── */
 .stats-section {
     display: flex;
     justify-content: center;
-    gap: 3rem;
-    padding: 3rem 1.5rem;
-    flex-wrap: wrap;
+    gap: 2rem;
+    padding: 4rem 1rem;
+    border-top: 1px solid var(--vp-c-divider);
+    border-bottom: 1px solid var(--vp-c-divider);
+    background: var(--vp-c-bg-alt);
+    margin: 4rem 0;
 }
 
 .stat-item {
@@ -109,142 +172,157 @@
 }
 
 .stat-number {
+    font-family: var(--vp-font-family-mono);
     font-size: 2.5rem;
-    font-weight: 800;
-    background: linear-gradient(135deg, #075e54, #25d366);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    line-height: 1.2;
+    font-weight: 700;
+    color: var(--vp-c-brand-1);
 }
 
 .stat-label {
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    color: var(--vp-c-text-2);
+    margin-top: 0.5rem;
+}
+
+/* ── Buttons ─────────────────────────────────────────────── */
+.VPButton.brand {
+    border-radius: 4px !important;
+    background-color: var(--vp-c-brand-1) !important;
+    border: 1px solid var(--vp-c-brand-1) !important;
+    font-family: var(--vp-font-family-mono);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
     font-size: 0.9rem;
-    color: var(--vp-c-text-2);
-    margin-top: 0.25rem;
-    font-weight: 500;
 }
 
-/* ── Custom homepage sections ────────────────────────────── */
+.VPButton.brand:hover {
+    background-color: transparent !important;
+    color: var(--vp-c-brand-1) !important;
+}
+
+.VPButton.alt {
+    border-radius: 4px !important;
+    border-color: var(--vp-c-border) !important;
+    font-family: var(--vp-font-family-mono);
+    font-size: 0.9rem;
+}
+
+.VPButton.alt:hover {
+    border-color: var(--vp-c-text-1) !important;
+}
+
+/* ── Sidebar & Nav ───────────────────────────────────────── */
+.VPSidebar {
+    border-right: 1px solid var(--vp-c-border) !important;
+    background-color: var(--vp-c-bg) !important;
+}
+
+.VPNavBar {
+    background-color: var(--vp-c-bg) !important;
+    /* Glass effect base */
+    border-bottom: 1px solid var(--vp-c-border) !important;
+    backdrop-filter: blur(10px);
+    opacity: 0.95;
+}
+
+.dark .VPNavBar {
+    background-color: rgba(9, 9, 11, 0.8) !important;
+}
+
+/* ── Step Cards (Process) ────────────────────────────────── */
 .home-section {
-    max-width: 900px;
+    max-width: 960px;
     margin: 0 auto;
-    padding: 2rem 1.5rem 4rem;
+    padding: 0 1.5rem 4rem;
 }
 
-.home-section h2 {
-    font-size: 1.75rem;
-    font-weight: 700;
-    text-align: center;
-    margin-bottom: 0.5rem;
-}
-
-.home-section .subtitle {
-    text-align: center;
-    color: var(--vp-c-text-2);
-    margin-bottom: 2rem;
-    font-size: 1rem;
-}
-
-/* ── Quick start steps ───────────────────────────────────── */
 .quick-steps {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 1.5rem;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+    margin-top: 2rem;
 }
 
 .step-card {
-    background: var(--vp-c-bg-soft);
-    border-radius: 12px;
+    background: var(--vp-c-bg-alt);
+    border: 1px solid var(--vp-c-border);
     padding: 1.5rem;
-    border: 1px solid var(--vp-c-divider);
-    transition: border-color 0.3s ease;
+    transition: all 0.2s;
 }
 
 .step-card:hover {
-    border-color: var(--vp-c-brand-1);
+    border-color: var(--vp-c-text-2);
 }
 
 .step-number {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #075e54, #25d366);
-    color: white;
+    font-family: var(--vp-font-family-mono);
+    color: var(--vp-c-brand-1);
+    font-size: 1.25rem;
     font-weight: 700;
-    font-size: 0.85rem;
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.5rem;
+    display: block;
 }
 
 .step-card h3 {
-    margin: 0 0 0.5rem;
+    margin: 0;
     font-size: 1rem;
     font-weight: 600;
+    color: var(--vp-c-text-1);
 }
 
 .step-card p {
-    margin: 0;
-    font-size: 0.875rem;
     color: var(--vp-c-text-2);
+    font-size: 0.9rem;
     line-height: 1.5;
 }
 
-.step-card code {
-    background: var(--vp-c-bg-mute);
-    padding: 0.15em 0.4em;
-    border-radius: 4px;
-    font-size: 0.8rem;
-}
-
-/* ── Command categories ──────────────────────────────────── */
+/* ── Command Categories ──────────────────────────────────── */
 .categories-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    display: flex;
+    flex-wrap: wrap;
     gap: 0.75rem;
+    margin-top: 1.5rem;
 }
 
 .category-chip {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.6rem 1rem;
-    background: var(--vp-c-bg-soft);
-    border-radius: 8px;
-    border: 1px solid var(--vp-c-divider);
+    padding: 0.5rem 1rem;
+    background: var(--vp-c-bg-alt);
+    border: 1px solid var(--vp-c-border);
+    border-radius: 4px;
+    font-family: var(--vp-font-family-mono);
     font-size: 0.85rem;
-    font-weight: 500;
-    transition: all 0.2s ease;
+    color: var(--vp-c-text-2) !important;
     text-decoration: none !important;
-    color: var(--vp-c-text-1) !important;
+    transition: all 0.2s;
 }
 
 .category-chip:hover {
+    color: var(--vp-c-brand-1) !important;
     border-color: var(--vp-c-brand-1);
     background: var(--vp-c-brand-soft);
+    transform: translateY(-1px);
 }
 
-/* ── Responsive ──────────────────────────────────────────── */
-@media (max-width: 640px) {
-    .VPHero .name {
-        font-size: 2.2rem !important;
-    }
+/* ── Scrollbars ──────────────────────────────────────────── */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
 
-    .VPHero .text {
-        font-size: 1.6rem !important;
-    }
+::-webkit-scrollbar-track {
+    background: var(--vp-c-bg);
+}
 
-    .stats-section {
-        gap: 1.5rem;
-    }
+::-webkit-scrollbar-thumb {
+    background: var(--vp-c-border);
+    border-radius: 4px;
+}
 
-    .stat-number {
-        font-size: 2rem;
-    }
-
-    .quick-steps {
-        grid-template-columns: 1fr;
-    }
+::-webkit-scrollbar-thumb:hover {
+    background: var(--vp-c-text-2);
 }

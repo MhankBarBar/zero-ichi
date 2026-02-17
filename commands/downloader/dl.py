@@ -6,6 +6,7 @@ Flow:
   User replies to that message with a number → downloads that quality
 
   /dl <search query> → search YouTube → show results list
+  /dl -n <count> <search query> → search with custom result count (max 20)
   User replies with number → show format options for that result
   User replies with format number → download
 
@@ -36,14 +37,16 @@ class DlCommand(Command):
     name = "dl"
     aliases = ["download"]
     description = "Download media from URL or search YouTube"
-    usage = "/dl <url or search query>"
+    usage = "dl <url or search query> | dl -n <count> <query>"
     category = "downloader"
     cooldown = 10
 
     async def execute(self, ctx: CommandContext) -> None:
         """Download media from a URL or search YouTube."""
         if not ctx.args:
-            await ctx.client.reply(ctx.message, t_error("errors.usage", usage=self.usage))
+            await ctx.client.reply(
+                ctx.message, t_error("errors.usage", usage=self.get_usage(ctx.prefix))
+            )
             return
 
         raw_input = ctx.raw_args.strip()
@@ -57,8 +60,21 @@ class DlCommand(Command):
 
     async def _handle_search(self, ctx: CommandContext, query: str) -> None:
         """Search YouTube and show results list."""
+        count = 5
+        if query.startswith("-n "):
+            parts = query[3:].split(None, 1)
+            if parts and parts[0].isdigit():
+                count = min(int(parts[0]), 20)
+                query = parts[1] if len(parts) > 1 else ""
+
+        if not query:
+            await ctx.client.reply(
+                ctx.message, t_error("errors.usage", usage=f"{ctx.prefix}dl [-n count] <query>")
+            )
+            return
+
         try:
-            results = await downloader.search_youtube(query, count=5)
+            results = await downloader.search_youtube(query, count=count)
         except DownloadError as e:
             await ctx.client.send_reaction(ctx.message, "❌")
             await ctx.client.reply(ctx.message, t_error("downloader.failed", error=str(e)))
@@ -119,7 +135,7 @@ class DlCommand(Command):
             await ctx.client.reply(
                 ctx.message,
                 f"{sym.INFO} {t('downloader.no_formats')}\n"
-                f"{sym.INFO} {t('downloader.use_audio_video_hint')}",
+                f"{sym.INFO} {t('downloader.use_audio_video_hint', prefix=ctx.prefix)}",
             )
             return
 
@@ -217,6 +233,7 @@ class DlCommand(Command):
         for idx, r in enumerate(results, 1):
             lines.append(f" `{idx}.` *{r.title}*")
             lines.append(f"     {sym.ARROW} {r.uploader} {sym.BULLET} {r.duration}")
+            lines.append(f"     {sym.BULLET} {r.url}")
             lines.append("")
 
         lines.append(f"{sym.INFO} {t('downloader.choose_result_hint')}")

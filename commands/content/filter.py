@@ -2,19 +2,17 @@
 Filter command - Set auto-reply filter (text or media).
 """
 
-from neonize.proto.waE2E.WAWebProtobufsE2E_pb2 import Message
-
 from config.settings import features
 from core.command import Command, CommandContext
 from core.i18n import t_error, t_success
-from core.logger import log_error, log_info
-from core.storage import DATA_DIR, GroupData
+from core.media import get_media_caption, save_media_to_disk
+from core.storage import GroupData
 
 
 class FilterCommand(Command):
     name = "filter"
     description = "Set an auto-reply filter (text or media)"
-    usage = "/filter <trigger> [response] or reply to media with /filter <trigger>"
+    usage = "filter <trigger> [response] or reply to media with filter <trigger>"
     group_only = True
     admin_only = True
 
@@ -27,7 +25,7 @@ class FilterCommand(Command):
         group_jid = ctx.message.chat_jid
 
         if not ctx.args:
-            await ctx.client.reply(ctx.message, t_error("filter.usage"))
+            await ctx.client.reply(ctx.message, t_error("filter.usage", prefix=ctx.prefix))
             return
 
         trigger = ctx.args[0].lower()
@@ -42,12 +40,16 @@ class FilterCommand(Command):
             filter_type = media_type
 
             if not response_text:
-                if media_type == "image" and msg_obj.imageMessage.caption:
-                    response_text = msg_obj.imageMessage.caption
-                elif media_type == "video" and msg_obj.videoMessage.caption:
-                    response_text = msg_obj.videoMessage.caption
+                response_text = get_media_caption(msg_obj, media_type)
 
-            media_path = await self._save_media(ctx, group_jid, trigger, media_type, msg_obj)
+            media_path = await save_media_to_disk(
+                ctx.client,
+                msg_obj,
+                media_type,
+                group_jid,
+                trigger,
+                subfolder="filter_media",
+            )
 
             if not media_path:
                 return
@@ -73,56 +75,3 @@ class FilterCommand(Command):
         await ctx.client.reply(
             ctx.message, t_success("filter.set", trigger=trigger, type=filter_type)
         )
-
-    async def _save_media(
-        self,
-        ctx: CommandContext,
-        group_jid: str,
-        trigger: str,
-        media_type: str,
-        message: Message,
-    ) -> str | None:
-        """Download and save filter media file."""
-        try:
-            safe_jid = group_jid.replace(":", "_").replace("@", "_")
-            media_dir = DATA_DIR / safe_jid / "filter_media"
-            media_dir.mkdir(parents=True, exist_ok=True)
-
-            extensions = {
-                "image": ".jpg",
-                "video": ".mp4",
-                "sticker": ".webp",
-                "document": "",
-                "audio": ".ogg",
-            }
-            ext = extensions.get(media_type, "")
-
-            if (
-                media_type == "document"
-                and message.documentMessage
-                and message.documentMessage.fileName
-            ):
-                import os
-
-                _, f_ext = os.path.splitext(message.documentMessage.fileName)
-                if f_ext:
-                    ext = f_ext
-
-            log_info(f"Downloading {media_type} for filter '{trigger}'...")
-            media_bytes = await ctx.client._client.download_any(message)
-
-            if media_bytes:
-                safe_trigger = trigger.replace("/", "_").replace("\\", "_").replace(":", "_")
-                file_path = media_dir / f"{safe_trigger}{ext}"
-                with open(file_path, "wb") as f:
-                    f.write(media_bytes)
-                log_info(f"Saved filter media to {file_path}")
-                return str(file_path)
-            else:
-                log_error(f"Download returned empty bytes for filter '{trigger}'")
-                await ctx.client.reply(ctx.message, t_error("filter.download_failed"))
-        except Exception as e:
-            log_error(f"Failed to save filter media: {e}")
-            await ctx.client.reply(ctx.message, t_error("filter.save_failed", error=str(e)))
-
-        return None

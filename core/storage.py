@@ -10,8 +10,14 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-DATA_DIR = Path(__file__).parent.parent / "data"
+from core.constants import DATA_DIR
+
 DATA_DIR.mkdir(exist_ok=True)
+
+
+def safe_jid(jid: str) -> str:
+    """Sanitize a JID for use in file/directory names."""
+    return jid.replace(":", "_").replace("@", "_")
 
 
 def _atomic_write(file: Path, data: Any) -> None:
@@ -38,8 +44,7 @@ class GroupData:
 
     def __init__(self, group_jid: str) -> None:
         """Initialize storage for a specific group."""
-        safe_jid = group_jid.replace(":", "_").replace("@", "_")
-        self.group_dir = DATA_DIR / safe_jid
+        self.group_dir = DATA_DIR / safe_jid(group_jid)
         self.group_dir.mkdir(exist_ok=True)
 
     def _get_file(self, name: str) -> Path:
@@ -148,6 +153,15 @@ class GroupData:
     def save_warnings_config(self, config: dict) -> None:
         """Save warnings configuration."""
         self.save("warnings_config", config)
+
+    @property
+    def muted(self) -> list:
+        """Get list of muted users."""
+        return self.load("muted", [])
+
+    def save_muted(self, users: list) -> None:
+        """Save muted users."""
+        self.save("muted", users)
 
 
 class Storage:
