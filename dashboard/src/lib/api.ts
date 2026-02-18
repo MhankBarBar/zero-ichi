@@ -67,6 +67,15 @@ export interface Config {
   };
 }
 
+export interface AIConfig {
+  enabled: boolean;
+  provider: string;
+  model: string;
+  trigger_mode: string;
+  owner_only: boolean;
+  has_api_key: boolean;
+}
+
 export interface Command {
   name: string;
   description: string;
@@ -344,4 +353,16 @@ export const api = {
     fetchAPI<AnalyticsTimeline>(
       `/api/analytics/timeline?command=${encodeURIComponent(command)}&days=${days}`
     ),
+
+  leaveGroup: (groupId: string) =>
+    fetchAPI(`/api/groups/${encodeURIComponent(groupId)}/leave`, {
+      method: "POST",
+    }),
+
+  getAIConfig: () => fetchAPI<AIConfig>("/api/ai-config"),
+  updateAIConfig: (config: Omit<AIConfig, "has_api_key">) =>
+    fetchAPI("/api/ai-config", {
+      method: "PUT",
+      body: JSON.stringify(config),
+    }),
 };

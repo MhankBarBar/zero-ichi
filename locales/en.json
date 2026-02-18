@@ -504,5 +504,12 @@
     "no_groups": "No groups found.",
     "starting": "Broadcasting to {count} groups... this might take a moment.",
     "finished": "Broadcast complete!\n\n✅ Success: {success}\n❌ Failed: {fail}"
+  },
+  "leave": {
+    "left": "Left group `{group}`.",
+    "leaving": "Leaving this group...",
+    "failed": "Failed to leave group: {error}",
+    "not_group": "Use this command in a group or provide a group JID.",
+    "no_permission": "Only group admins or the owner can use this command."
   }
 }

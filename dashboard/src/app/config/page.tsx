@@ -4,28 +4,31 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, GlowCard } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { IconAlertCircle, IconClock } from "@tabler/icons-react";
-import { api, type Config, type RateLimitConfig } from "@/lib/api";
+import { api, type Config, type RateLimitConfig, type AIConfig } from "@/lib/api";
 import { NumberInput } from "@/components/ui/number-input";
 import { useToast } from "@/components/ui/toast";
+import { IconAlertCircle, IconClock, IconRobot } from "@tabler/icons-react";
 
 export default function ConfigPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [config, setConfig] = useState<Config | null>(null);
     const [rateLimit, setRateLimit] = useState<RateLimitConfig | null>(null);
+    const [aiConfig, setAiConfig] = useState<AIConfig | null>(null);
     const toast = useToast();
 
     useEffect(() => {
         async function fetchData() {
             try {
                 setLoading(true);
-                const [configData, rateLimitData] = await Promise.all([
+                const [configData, rateLimitData, aiConfigData] = await Promise.all([
                     api.getConfig(),
                     api.getRateLimit().catch(() => null),
+                    api.getAIConfig().catch(() => null),
                 ]);
                 setConfig(configData);
                 setRateLimit(rateLimitData);
+                setAiConfig(aiConfigData);
                 setError(null);
             } catch (err) {
                 setError("Failed to load config. Is the API server running?");
@@ -249,6 +252,121 @@ export default function ConfigPage() {
                                 disabled={!rateLimit.enabled}
                                 description="Time window for burst limit"
                             />
+                        </div>
+                    </CardContent>
+                </GlowCard>
+            )}
+
+            {aiConfig && (
+                <GlowCard className="bg-gradient-to-br from-purple-900/30 to-indigo-900/30 border-purple-700/50">
+                    <CardHeader>
+                        <div className="flex items-center gap-2">
+                            <IconRobot className="h-5 w-5 text-purple-400" />
+                            <CardTitle className="text-white">AI Configuration</CardTitle>
+                        </div>
+                        <CardDescription>Configure the Agentic AI assistant</CardDescription>
+                    </CardHeader>
+
+                    <CardContent className="space-y-6">
+                        <div className="flex items-center justify-between py-3 border-b border-neutral-700/50">
+                            <div className="space-y-0.5">
+                                <label className="text-sm font-medium text-white">Enable AI</label>
+                                <p className="text-xs text-neutral-500">Enable the Agentic AI assistant</p>
+                            </div>
+                            <Switch
+                                checked={aiConfig.enabled}
+                                onCheckedChange={async (checked) => {
+                                    const newConfig = { ...aiConfig, enabled: checked };
+                                    setAiConfig(newConfig);
+                                    try {
+                                        await api.updateAIConfig(newConfig);
+                                        toast.success(checked ? "AI enabled" : "AI disabled");
+                                    } catch { toast.error("Failed to update AI config"); }
+                                }}
+                            />
+                        </div>
+
+                        {!aiConfig.has_api_key && (
+                            <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+                                <p className="text-xs text-yellow-400">⚠️ No API key configured. Set one via the bot command: <code className="bg-neutral-800 px-1 rounded">config ai key &lt;key&gt;</code></p>
+                            </div>
+                        )}
+
+                        <div className="grid gap-6 md:grid-cols-2">
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-white">Provider</label>
+                                <select
+                                    value={aiConfig.provider}
+                                    onChange={async (e) => {
+                                        const newConfig = { ...aiConfig, provider: e.target.value };
+                                        setAiConfig(newConfig);
+                                        try {
+                                            await api.updateAIConfig(newConfig);
+                                            toast.success("Provider updated");
+                                        } catch { toast.error("Failed to update"); }
+                                    }}
+                                    className="w-full rounded-lg bg-neutral-700 border border-neutral-600 text-white px-3 py-2 text-sm"
+                                >
+                                    <option value="openai">OpenAI</option>
+                                    <option value="google">Google</option>
+                                    <option value="anthropic">Anthropic</option>
+                                </select>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-white">Model</label>
+                                <Input
+                                    value={aiConfig.model}
+                                    onChange={async (e) => {
+                                        setAiConfig({ ...aiConfig, model: e.target.value });
+                                    }}
+                                    onBlur={async () => {
+                                        try {
+                                            await api.updateAIConfig(aiConfig);
+                                            toast.success("Model updated");
+                                        } catch { toast.error("Failed to update"); }
+                                    }}
+                                    className="bg-neutral-700 border-neutral-600 text-white"
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-white">Trigger Mode</label>
+                                <select
+                                    value={aiConfig.trigger_mode}
+                                    onChange={async (e) => {
+                                        const newConfig = { ...aiConfig, trigger_mode: e.target.value };
+                                        setAiConfig(newConfig);
+                                        try {
+                                            await api.updateAIConfig(newConfig);
+                                            toast.success("Trigger mode updated");
+                                        } catch { toast.error("Failed to update"); }
+                                    }}
+                                    className="w-full rounded-lg bg-neutral-700 border border-neutral-600 text-white px-3 py-2 text-sm"
+                                >
+                                    <option value="mention">Mention</option>
+                                    <option value="always">Always</option>
+                                    <option value="reply">Reply</option>
+                                </select>
+                            </div>
+
+                            <div className="flex items-center justify-between py-3">
+                                <div className="space-y-0.5">
+                                    <label className="text-sm font-medium text-white">Owner Only</label>
+                                    <p className="text-xs text-neutral-500">Restrict AI to owner</p>
+                                </div>
+                                <Switch
+                                    checked={aiConfig.owner_only}
+                                    onCheckedChange={async (checked) => {
+                                        const newConfig = { ...aiConfig, owner_only: checked };
+                                        setAiConfig(newConfig);
+                                        try {
+                                            await api.updateAIConfig(newConfig);
+                                            toast.success(checked ? "Owner only enabled" : "Owner only disabled");
+                                        } catch { toast.error("Failed to update"); }
+                                    }}
+                                />
+                            </div>
                         </div>
                     </CardContent>
                 </GlowCard>

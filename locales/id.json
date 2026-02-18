@@ -505,5 +505,12 @@
     "and_more": "...dan {count} lagi.",
     "starting": "Lagi broadcast ke {count} grup... tunggu bentar ya.",
     "finished": "Broadcast selesai!\n\n✅ Sukses: {success}\n❌ Gagal: {fail}"
+  },
+  "leave": {
+    "left": "Udah keluar dari grup `{group}`.",
+    "leaving": "Keluar dari grup...",
+    "failed": "Gagal keluar dari grup: {error}",
+    "not_group": "Pake command ini di grup atau kasih group JID.",
+    "no_permission": "Cuma admin grup atau owner yang bisa pake command ini."
   }
 }

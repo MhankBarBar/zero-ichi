@@ -2,6 +2,8 @@
 Poll command - Create polls in groups.
 """
 
+import re
+
 from core import symbols as sym
 from core.command import Command, CommandContext
 from core.i18n import t
@@ -21,8 +23,6 @@ class PollCommand(Command):
 
     async def execute(self, ctx: CommandContext) -> None:
         """Create a poll."""
-        import re
-
         text = ctx.raw_args
         if not text:
             await ctx.client.reply(

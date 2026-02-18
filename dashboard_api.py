@@ -458,6 +458,20 @@ async def get_groups():
     return {"groups": groups}
 
 
+@_api.post("/api/groups/{group_id}/leave")
+async def leave_group(group_id: str):
+    """Make the bot leave a group."""
+    bot = get_bot()
+    if not await check_bot_logged_in(bot) or bot is None:
+        raise HTTPException(status_code=503, detail="Bot not connected")
+
+    try:
+        await bot.leave_group(group_id)
+        return {"success": True, "message": f"Left group {group_id}"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
 @_api.get("/api/groups/{group_id}")
 async def get_group(group_id: str):
     """Get a specific group's settings."""
@@ -980,6 +994,41 @@ async def get_analytics_timeline(command: str = Query(""), days: int = Query(7, 
         "command": command or "all",
         "days": days,
     }
+
+
+class AIConfigUpdate(BaseModel):
+    """Model for AI configuration updates."""
+
+    enabled: bool = False
+    provider: str = "openai"
+    model: str = "gpt-4o-mini"
+    trigger_mode: str = "mention"
+    owner_only: bool = True
+
+
+@_api.get("/api/ai-config")
+async def get_ai_config():
+    """Get AI configuration."""
+    return {
+        "enabled": runtime_config.get_nested("agentic_ai", "enabled", default=False),
+        "provider": runtime_config.get_nested("agentic_ai", "provider", default="openai"),
+        "model": runtime_config.get_nested("agentic_ai", "model", default="gpt-4o-mini"),
+        "trigger_mode": runtime_config.get_nested("agentic_ai", "trigger_mode", default="mention"),
+        "owner_only": runtime_config.get_nested("agentic_ai", "owner_only", default=True),
+        "has_api_key": bool(runtime_config.get_nested("agentic_ai", "api_key", default="")),
+    }
+
+
+@_api.put("/api/ai-config")
+async def update_ai_config(config: AIConfigUpdate):
+    """Update AI configuration."""
+    runtime_config.set_nested("agentic_ai", "enabled", config.enabled)
+    runtime_config.set_nested("agentic_ai", "provider", config.provider)
+    runtime_config.set_nested("agentic_ai", "model", config.model)
+    runtime_config.set_nested("agentic_ai", "trigger_mode", config.trigger_mode)
+    runtime_config.set_nested("agentic_ai", "owner_only", config.owner_only)
+    runtime_config._save()
+    return {"success": True}
 
 
 app.include_router(_api)

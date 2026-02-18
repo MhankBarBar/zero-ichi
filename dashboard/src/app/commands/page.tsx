@@ -120,8 +120,8 @@ export default function CommandsPage() {
                 </p>
             </div>
 
-            <div className="flex flex-col md:flex-row gap-4">
-                <div className="relative flex-1">
+            <div className="space-y-4">
+                <div className="relative">
                     <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-500" />
                     <Input
                         placeholder="Search commands..."
@@ -130,10 +130,10 @@ export default function CommandsPage() {
                         className="pl-10 bg-neutral-800 border-neutral-700 text-white"
                     />
                 </div>
-                <div className="flex gap-2 flex-wrap">
+                <div className="flex gap-2 overflow-x-auto pb-1">
                     <button
                         onClick={() => setSelectedCategory(null)}
-                        className={`px-3 py-2 rounded-lg text-sm transition-colors ${!selectedCategory
+                        className={`px-3 py-2 rounded-lg text-sm transition-colors whitespace-nowrap shrink-0 ${!selectedCategory
                             ? "bg-green-600 text-white"
                             : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700"
                             }`}
@@ -144,7 +144,7 @@ export default function CommandsPage() {
                         <button
                             key={cat}
                             onClick={() => setSelectedCategory(cat)}
-                            className={`px-3 py-2 rounded-lg text-sm transition-colors ${selectedCategory === cat
+                            className={`px-3 py-2 rounded-lg text-sm transition-colors whitespace-nowrap shrink-0 ${selectedCategory === cat
                                 ? "bg-green-600 text-white"
                                 : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700"
                                 }`}

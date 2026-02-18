@@ -15,6 +15,7 @@ from core.i18n import (
     t_error,
     t_success,
 )
+from core.permissions import check_admin_permission
 
 
 class LangCommand(Command):
@@ -31,8 +32,6 @@ class LangCommand(Command):
         is_group = "@g.us" in chat_jid or "@lid" in chat_jid and ctx.message.is_group
 
         if is_group:
-            from core.permissions import check_admin_permission
-
             if not await check_admin_permission(ctx.client, chat_jid, ctx.message.sender_jid):
                 await ctx.client.reply(ctx.message, t_error("errors.admin_required", chat_jid))
                 return

@@ -9,6 +9,7 @@ from datetime import datetime
 
 from core.constants import DATA_DIR
 from core.logger import log_debug
+from core.runtime_config import runtime_config
 
 TOKEN_FILE = DATA_DIR / "ai_tokens.json"
 
@@ -41,15 +42,11 @@ class TokenTracker:
     @property
     def _user_limit(self) -> int:
         """Daily per-user token limit."""
-        from core.runtime_config import runtime_config
-
         return runtime_config.get_nested("agentic_ai", "daily_token_limit_user", default=50_000)
 
     @property
     def _chat_limit(self) -> int:
         """Daily per-chat token limit."""
-        from core.runtime_config import runtime_config
-
         return runtime_config.get_nested("agentic_ai", "daily_token_limit_chat", default=200_000)
 
     def _ensure_today(self) -> None:

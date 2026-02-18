@@ -2,6 +2,7 @@ import asyncio
 import base64
 import importlib
 import io
+import signal
 import sys
 from pathlib import Path
 
@@ -24,6 +25,7 @@ from core.client import BotClient
 from core.command import command_loader
 from core.handlers.welcome import handle_member_join, handle_member_leave
 from core.i18n import init_i18n
+from core.jid_resolver import resolve_pair
 from core.logger import (
     console,
     log_bullet,
@@ -105,8 +107,6 @@ async def connected_handler(c: NewAClient, event: ConnectedEv) -> None:
 
     owner_jid = runtime_config.get_owner_jid()
     if owner_jid:
-        from core.jid_resolver import resolve_pair
-
         await resolve_pair(owner_jid, bot)
         log_info(f"Preloaded JID cache for owner: {owner_jid}")
 
@@ -297,8 +297,6 @@ def interrupt_handler(signal, frame):
 
 
 if __name__ == "__main__":
-    import signal
-
     signal.signal(signal.SIGINT, interrupt_handler)
 
     try:

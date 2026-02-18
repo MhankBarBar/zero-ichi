@@ -5,6 +5,7 @@ Rules command - Group rules management.
 from core import symbols as sym
 from core.command import Command, CommandContext
 from core.i18n import t
+from core.permissions import check_command_permissions
 from core.storage import GroupData
 
 
@@ -40,8 +41,6 @@ class RulesCommand(Command):
         action = ctx.args[0].lower()
 
         if action == "set":
-            from core.permissions import check_command_permissions
-
             can_execute, error = await check_command_permissions(
                 ctx.client, ctx.message, admin_only=True
             )
@@ -63,8 +62,6 @@ class RulesCommand(Command):
             )
 
         elif action == "clear":
-            from core.permissions import check_command_permissions
-
             can_execute, error = await check_command_permissions(
                 ctx.client, ctx.message, admin_only=True
             )

@@ -407,8 +407,8 @@ export default function AnalyticsPage() {
                                 key={d}
                                 onClick={() => setDays(d)}
                                 className={`px-3 py-1.5 rounded-md transition-colors ${days === d
-                                        ? "bg-purple-500/20 text-purple-300 font-medium"
-                                        : "text-neutral-400 hover:text-white"
+                                    ? "bg-green-500/20 text-green-300 font-medium"
+                                    : "text-neutral-400 hover:text-white"
                                     }`}
                             >
                                 {d}d

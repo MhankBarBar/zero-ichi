@@ -7,6 +7,8 @@ All settings are stored in a JSON file with JSON Schema validation.
 See config.schema.json for the schema definition.
 """
 
+import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -201,8 +203,6 @@ class RuntimeConfig:
             overrides = {}
             if overrides_file.exists():
                 try:
-                    import json
-
                     with open(overrides_file, encoding="utf-8") as f:
                         overrides = json.load(f)
                 except Exception:
@@ -242,8 +242,6 @@ class RuntimeConfig:
         This keeps config.json clean by only saving
         the differences (overrides) to a separate JSON file.
         """
-        import json
-
         try:
             base_config = jsonc.load(CONFIG_FILE)
             base_config = self._merge_defaults(base_config, DEFAULT_CONFIG)
@@ -306,8 +304,6 @@ class RuntimeConfig:
 
         if not is_regex:
             return raw
-
-        import re
 
         pattern = raw.lstrip("^")
 

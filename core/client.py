@@ -1242,24 +1242,24 @@ class BotClient:
         """
         try:
             groups = await self._client.get_joined_groups()
+            me = await self._client.get_me()
+            my_jid_str = f"{me.JID.User}@{me.JID.Server}"
             result = []
 
             for group in groups:
                 jid_str = f"{group.JID.User}@{group.JID.Server}"
                 name = group.GroupName.Name if group.GroupName else "Unknown"
 
-                me = await self._client.get_me()
-                my_jid = me.JID
                 is_admin = False
                 member_count = len(group.Participants) if group.Participants else 0
 
                 for participant in group.Participants:
                     p_jid = f"{participant.JID.User}@{participant.JID.Server}"
-                    my_jid_str = f"{my_jid.User}@{my_jid.Server}"
 
                     if p_jid == my_jid_str:
-                        is_admin = getattr(participant, "IsAdmin", False) or getattr(
-                            participant, "IsSuperAdmin", False
+                        is_admin = bool(participant.IsAdmin) or bool(participant.IsSuperAdmin)
+                        print(
+                            f"[DEBUG ADMIN] Group={name} my_jid={my_jid_str} p_jid={p_jid} IsAdmin={participant.IsAdmin} IsSuperAdmin={participant.IsSuperAdmin} result={is_admin}"
                         )
                         break
 
@@ -1282,6 +1282,18 @@ class BotClient:
 
             log_warning(f"Failed to get joined groups: {e}")
             return []
+
+    async def leave_group(self, group_jid: str) -> None:
+        """Leave a WhatsApp group.
+
+        Args:
+            group_jid: The JID of the group to leave (e.g., '123456@g.us').
+        """
+        from neonize.utils import build_jid
+
+        parts = group_jid.split("@")
+        jid = build_jid(parts[0], parts[1] if len(parts) > 1 else "g.us")
+        await self._client.leave_group(jid)
 
     async def connect(self) -> None:
         """Connect to WhatsApp."""

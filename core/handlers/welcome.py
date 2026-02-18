@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from core.i18n import t
+from core.logger import log_warning
 from core.storage import GroupData as GroupStorage
 
 if TYPE_CHECKING:
@@ -110,8 +111,6 @@ async def handle_member_leave(bot, group_jid: str, member_jid: str, member_name:
     try:
         await bot.send(group_jid, message)
     except Exception as e:
-        from core.logger import log_warning
-
         log_warning(f"Failed to send goodbye message: {e}")
 
 

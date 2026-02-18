@@ -206,8 +206,6 @@ class MessageHelper:
         Returns:
             True if the quoted message sender matches the JID
         """
-        from core.logger import log_debug
-
         try:
             ctx = self._extract_context_info(self._message)
             if not ctx or not ctx.quotedMessage:

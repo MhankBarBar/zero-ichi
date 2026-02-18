@@ -429,7 +429,7 @@ export default function DashboardPage() {
                     </>
                   )}
                 </span>
-                <Link href="/analytics" className="text-xs text-neutral-500 hover:text-purple-400 transition-colors">
+                <Link href="/analytics" className="text-xs text-neutral-500 hover:text-green-400 transition-colors">
                   View all →
                 </Link>
               </span>

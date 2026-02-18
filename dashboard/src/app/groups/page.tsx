@@ -266,7 +266,21 @@ export default function GroupsPage() {
                                         </div>
                                     )}
 
-                                    <Button variant="outline" className="w-full" disabled={!selectedGroup.isAdmin}>
+                                    <Button
+                                        variant="outline"
+                                        className="w-full border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                                        onClick={async () => {
+                                            if (!confirm(`Leave group "${selectedGroup.name}"? This cannot be undone.`)) return;
+                                            try {
+                                                await api.leaveGroup(selectedGroup.id);
+                                                toast.success("Left group", selectedGroup.name);
+                                                setGroups((prev) => prev.filter((g) => g.id !== selectedGroup.id));
+                                                setSelectedGroup(null);
+                                            } catch (err) {
+                                                toast.error("Failed to leave group", String(err));
+                                            }
+                                        }}
+                                    >
                                         Leave Group
                                     </Button>
                                 </CardContent>

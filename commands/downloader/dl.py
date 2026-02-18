@@ -21,7 +21,7 @@ from core import symbols as sym
 from core.command import Command, CommandContext
 from core.downloader import DownloadError, FileTooLargeError, downloader
 from core.i18n import t, t_error
-from core.logger import log_info
+from core.logger import log_info, log_warning
 from core.pending_store import (
     PendingDownload,
     PendingPlaylist,
@@ -295,8 +295,6 @@ class DlCommand(Command):
                             quoted=ctx.message.event,
                         )
             except Exception as e:
-                from core.logger import log_warning
-
                 log_warning(f"Failed to send thumbnail: {e}")
 
         return await ctx.client.reply(ctx.message, text)
