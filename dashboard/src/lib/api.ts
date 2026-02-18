@@ -402,18 +402,13 @@ export const api = {
             },
         ),
 
-    getTopCommands: (days = 7, groupId?: string) => {
-        const query = new URLSearchParams({ days: days.toString() });
-        if (groupId) query.set("group_id", groupId);
-        return fetchAPI<AnalyticsCommands>(`/api/analytics/commands?${query}`);
-    },
+    getTopCommands: (days = 7) =>
+        fetchAPI<AnalyticsCommands>(`/api/analytics/commands?days=${days}`),
 
-    getTimeline: (command = "", days = 7, groupId?: string) => {
-        const query = new URLSearchParams({ days: days.toString() });
-        if (command) query.set("command", command);
-        if (groupId) query.set("group_id", groupId);
-        return fetchAPI<AnalyticsTimeline>(`/api/analytics/timeline?${query}`);
-    },
+    getTimeline: (command = "", days = 7) =>
+        fetchAPI<AnalyticsTimeline>(
+            `/api/analytics/timeline?command=${encodeURIComponent(command)}&days=${days}`,
+        ),
 
     leaveGroup: (groupId: string) =>
         fetchAPI(`/api/groups/${encodeURIComponent(groupId)}/leave`, {
