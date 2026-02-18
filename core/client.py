@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from typing import TYPE_CHECKING
 
 from neonize.aioze.client import NewAClient
@@ -1242,26 +1243,39 @@ class BotClient:
         """
         try:
             groups = await self._client.get_joined_groups()
+            me = await self._client.get_me()
+            my_jid_user = me.JID.User if me and me.JID else ""
+            my_lid_user = me.LID.User if me and hasattr(me, "LID") and me.LID else ""
             result = []
+
+            if not hasattr(self, "_group_info_cache"):
+                self._group_info_cache: dict[str, tuple[float, object]] = {}
+
+            cache_ttl = 60
 
             for group in groups:
                 jid_str = f"{group.JID.User}@{group.JID.Server}"
                 name = group.GroupName.Name if group.GroupName else "Unknown"
-
-                me = await self._client.get_me()
-                my_jid = me.JID
-                is_admin = False
                 member_count = len(group.Participants) if group.Participants else 0
 
-                for participant in group.Participants:
-                    p_jid = f"{participant.JID.User}@{participant.JID.Server}"
-                    my_jid_str = f"{my_jid.User}@{my_jid.Server}"
+                is_admin = False
+                now = time.time()
+                cached = self._group_info_cache.get(jid_str)
 
-                    if p_jid == my_jid_str:
-                        is_admin = getattr(participant, "IsAdmin", False) or getattr(
-                            participant, "IsSuperAdmin", False
-                        )
-                        break
+                try:
+                    if cached and (now - cached[0]) < cache_ttl:
+                        group_info = cached[1]
+                    else:
+                        group_info = await self._client.get_group_info(group.JID)
+                        self._group_info_cache[jid_str] = (now, group_info)
+
+                    for participant in group_info.Participants:
+                        p_user = participant.JID.User
+                        if p_user == my_jid_user or (my_lid_user and p_user == my_lid_user):
+                            is_admin = bool(participant.IsAdmin) or bool(participant.IsSuperAdmin)
+                            break
+                except Exception:
+                    pass
 
                 result.append(
                     {
@@ -1282,6 +1296,16 @@ class BotClient:
 
             log_warning(f"Failed to get joined groups: {e}")
             return []
+
+    async def leave_group(self, group_jid: str) -> None:
+        """Leave a WhatsApp group.
+
+        Args:
+            group_jid: The JID of the group to leave (e.g., '123456@g.us').
+        """
+        parts = group_jid.split("@")
+        jid = build_jid(parts[0], parts[1] if len(parts) > 1 else "g.us")
+        await self._client.leave_group(jid)
 
     async def connect(self) -> None:
         """Connect to WhatsApp."""

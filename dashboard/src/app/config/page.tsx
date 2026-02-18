@@ -1,31 +1,44 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, GlowCard } from "@/components/ui/card";
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+    GlowCard,
+} from "@/components/ui/card";
+import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
-import { IconAlertCircle, IconClock } from "@tabler/icons-react";
-import { api, type Config, type RateLimitConfig } from "@/lib/api";
 import { NumberInput } from "@/components/ui/number-input";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/toast";
+import { useWebSocket } from "@/hooks/use-websocket";
+import { api, type AIConfig, type Config, type RateLimitConfig } from "@/lib/api";
+import { IconAlertCircle, IconClock, IconRobot } from "@tabler/icons-react";
+import { useEffect, useState } from "react";
 
 export default function ConfigPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [config, setConfig] = useState<Config | null>(null);
     const [rateLimit, setRateLimit] = useState<RateLimitConfig | null>(null);
+    const [aiConfig, setAiConfig] = useState<AIConfig | null>(null);
     const toast = useToast();
+    const { lastEvent } = useWebSocket();
 
     useEffect(() => {
         async function fetchData() {
             try {
                 setLoading(true);
-                const [configData, rateLimitData] = await Promise.all([
+                const [configData, rateLimitData, aiConfigData] = await Promise.all([
                     api.getConfig(),
                     api.getRateLimit().catch(() => null),
+                    api.getAIConfig().catch(() => null),
                 ]);
                 setConfig(configData);
                 setRateLimit(rateLimitData);
+                setAiConfig(aiConfigData);
                 setError(null);
             } catch (err) {
                 setError("Failed to load config. Is the API server running?");
@@ -37,11 +50,43 @@ export default function ConfigPage() {
         fetchData();
     }, []);
 
+    useEffect(() => {
+        if (!lastEvent || lastEvent.type !== "config_update") return;
+        const { section, key, value } = lastEvent.data as {
+            section: string;
+            key: string;
+            value: unknown;
+        };
 
+        if (section === "agentic_ai" && key === "all") {
+            setAiConfig(value as AIConfig);
+        } else {
+            setConfig((prev) => {
+                if (!prev) return prev;
+                const sectionData = prev[section as keyof Config];
+                if (typeof sectionData === "object" && sectionData !== null) {
+                    return {
+                        ...prev,
+                        [section]: {
+                            ...sectionData,
+                            [key]: value,
+                        },
+                    };
+                }
+                return prev;
+            });
+        }
+    }, [lastEvent]);
 
     const friendlyLabels: Record<string, Record<string, string>> = {
         bot: { name: "Bot Name", prefix: "Command Prefix", auto_read: "Auto Read" },
-        features: { anti_delete: "Anti-Delete", anti_link: "Anti-Link", welcome: "Welcome Messages", notes: "Notes", warnings: "Warnings" },
+        features: {
+            anti_delete: "Anti-Delete",
+            anti_link: "Anti-Link",
+            welcome: "Welcome Messages",
+            notes: "Notes",
+            warnings: "Warnings",
+        },
         logging: { log_messages: "Message Logging", verbose: "Debug Mode" },
         warnings: { limit: "Warning Limit" },
     };
@@ -106,14 +151,14 @@ export default function ConfigPage() {
             <div className="space-y-8">
                 <div>
                     <h1 className="text-3xl font-bold text-white">Configuration</h1>
-                    <p className="text-neutral-400 mt-1">Loading...</p>
+                    <p className="mt-1 text-neutral-400">Loading...</p>
                 </div>
                 <div className="grid gap-6">
                     {[1, 2, 3].map((i) => (
-                        <Card key={i} className="bg-neutral-800/50 border-neutral-700">
+                        <Card key={i} className="border-neutral-700 bg-neutral-800/50">
                             <CardContent className="py-8">
-                                <div className="h-4 w-32 bg-neutral-700 animate-pulse rounded mb-4" />
-                                <div className="h-4 w-48 bg-neutral-700 animate-pulse rounded" />
+                                <div className="mb-4 h-4 w-32 animate-pulse rounded bg-neutral-700" />
+                                <div className="h-4 w-48 animate-pulse rounded bg-neutral-700" />
                             </CardContent>
                         </Card>
                     ))}
@@ -127,9 +172,9 @@ export default function ConfigPage() {
             <div className="space-y-8">
                 <div>
                     <h1 className="text-3xl font-bold text-white">Configuration</h1>
-                    <p className="text-neutral-400 mt-1">Manage your bot settings</p>
+                    <p className="mt-1 text-neutral-400">Manage your bot settings</p>
                 </div>
-                <Card className="bg-red-900/30 border-red-700/50">
+                <Card className="border-red-700/50 bg-red-900/30">
                     <CardContent className="flex items-center gap-4 py-4">
                         <IconAlertCircle className="h-6 w-6 text-red-400" />
                         <div>
@@ -147,35 +192,112 @@ export default function ConfigPage() {
             title: "Bot",
             description: "Basic bot settings",
             settings: [
-                { section: "bot", key: "name", label: "Bot Name", type: "text", value: config.bot.name, description: "Display name for the bot" },
-                { section: "bot", key: "prefix", label: "Command Prefix", type: "text", value: config.bot.prefix, description: "Character(s) that trigger commands" },
-                { section: "bot", key: "auto_read", label: "Auto Read", type: "toggle", value: config.bot.auto_read, description: "Mark messages as read automatically" },
+                {
+                    section: "bot",
+                    key: "name",
+                    label: "Bot Name",
+                    type: "text",
+                    value: config.bot.name,
+                    description: "Display name for the bot",
+                },
+                {
+                    section: "bot",
+                    key: "prefix",
+                    label: "Command Prefix",
+                    type: "text",
+                    value: config.bot.prefix,
+                    description: "Character(s) that trigger commands",
+                },
+                {
+                    section: "bot",
+                    key: "auto_read",
+                    label: "Auto Read",
+                    type: "toggle",
+                    value: config.bot.auto_read,
+                    description: "Mark messages as read automatically",
+                },
             ],
         },
         {
             title: "Features",
             description: "Enable or disable bot features",
             settings: [
-                { section: "features", key: "anti_delete", label: "Anti-Delete", type: "toggle", value: config.features.anti_delete, description: "Save deleted messages" },
-                { section: "features", key: "anti_link", label: "Anti-Link", type: "toggle", value: config.features.anti_link, description: "Remove messages with links" },
-                { section: "features", key: "welcome", label: "Welcome Messages", type: "toggle", value: config.features.welcome, description: "Greet new members" },
-                { section: "features", key: "notes", label: "Notes", type: "toggle", value: config.features.notes, description: "Enable #notes system" },
-                { section: "features", key: "warnings", label: "Warnings", type: "toggle", value: config.features.warnings, description: "Warning system" },
+                {
+                    section: "features",
+                    key: "anti_delete",
+                    label: "Anti-Delete",
+                    type: "toggle",
+                    value: config.features.anti_delete,
+                    description: "Save deleted messages",
+                },
+                {
+                    section: "features",
+                    key: "anti_link",
+                    label: "Anti-Link",
+                    type: "toggle",
+                    value: config.features.anti_link,
+                    description: "Remove messages with links",
+                },
+                {
+                    section: "features",
+                    key: "welcome",
+                    label: "Welcome Messages",
+                    type: "toggle",
+                    value: config.features.welcome,
+                    description: "Greet new members",
+                },
+                {
+                    section: "features",
+                    key: "notes",
+                    label: "Notes",
+                    type: "toggle",
+                    value: config.features.notes,
+                    description: "Enable #notes system",
+                },
+                {
+                    section: "features",
+                    key: "warnings",
+                    label: "Warnings",
+                    type: "toggle",
+                    value: config.features.warnings,
+                    description: "Warning system",
+                },
             ],
         },
         {
             title: "Logging",
             description: "Logging configuration",
             settings: [
-                { section: "logging", key: "log_messages", label: "Log Messages", type: "toggle", value: config.logging.log_messages, description: "Log incoming messages" },
-                { section: "logging", key: "verbose", label: "Verbose Mode", type: "toggle", value: config.logging.verbose, description: "Enable debug logging" },
+                {
+                    section: "logging",
+                    key: "log_messages",
+                    label: "Log Messages",
+                    type: "toggle",
+                    value: config.logging.log_messages,
+                    description: "Log incoming messages",
+                },
+                {
+                    section: "logging",
+                    key: "verbose",
+                    label: "Verbose Mode",
+                    type: "toggle",
+                    value: config.logging.verbose,
+                    description: "Enable debug logging",
+                },
             ],
         },
         {
             title: "Warnings",
             description: "Warning system settings",
             settings: [
-                { section: "warnings", key: "limit", label: "Warning Limit", type: "number", value: config.warnings.limit, description: "Max warnings before action" },
+                {
+                    section: "warnings",
+                    key: "limit",
+                    label: "Warning Limit",
+                    type: "number",
+                    value: config.warnings.limit,
+                    description: "Max warnings before action",
+                },
             ],
         },
     ];
@@ -184,11 +306,11 @@ export default function ConfigPage() {
         <div className="space-y-8">
             <div>
                 <h1 className="text-3xl font-bold text-white">Configuration</h1>
-                <p className="text-neutral-400 mt-1">Manage your bot settings</p>
+                <p className="mt-1 text-neutral-400">Manage your bot settings</p>
             </div>
 
             {rateLimit && (
-                <GlowCard className="bg-gradient-to-br from-green-900/30 to-emerald-900/30 border-green-700/50">
+                <GlowCard className="border-green-700/50 bg-gradient-to-br from-green-900/30 to-emerald-900/30">
                     <CardHeader>
                         <div className="flex items-center gap-2">
                             <IconClock className="h-5 w-5 text-green-400" />
@@ -198,10 +320,14 @@ export default function ConfigPage() {
                     </CardHeader>
 
                     <CardContent className="space-y-6">
-                        <div className="flex items-center justify-between py-3 border-b border-neutral-700/50">
+                        <div className="flex items-center justify-between border-b border-neutral-700/50 py-3">
                             <div className="space-y-0.5">
-                                <label className="text-sm font-medium text-white">Enable Rate Limiting</label>
-                                <p className="text-xs text-neutral-500">Apply cooldowns between commands</p>
+                                <label className="text-sm font-medium text-white">
+                                    Enable Rate Limiting
+                                </label>
+                                <p className="text-xs text-neutral-500">
+                                    Apply cooldowns between commands
+                                </p>
                             </div>
                             <Switch
                                 checked={rateLimit.enabled}
@@ -254,9 +380,154 @@ export default function ConfigPage() {
                 </GlowCard>
             )}
 
+            {aiConfig && (
+                <GlowCard className="border-green-700/50 bg-gradient-to-br from-green-900/30 to-emerald-900/30">
+                    <CardHeader>
+                        <div className="flex items-center gap-2">
+                            <IconRobot className="h-5 w-5 text-green-400" />
+                            <CardTitle className="text-white">AI Configuration</CardTitle>
+                        </div>
+                        <CardDescription>Configure the Agentic AI assistant</CardDescription>
+                    </CardHeader>
+
+                    <CardContent className="space-y-6">
+                        <div className="flex items-center justify-between border-b border-neutral-700/50 py-3">
+                            <div className="space-y-0.5">
+                                <label className="text-sm font-medium text-white">Enable AI</label>
+                                <p className="text-xs text-neutral-500">
+                                    Enable the Agentic AI assistant
+                                </p>
+                            </div>
+                            <Switch
+                                checked={aiConfig.enabled}
+                                onCheckedChange={async (checked) => {
+                                    const newConfig = { ...aiConfig, enabled: checked };
+                                    setAiConfig(newConfig);
+                                    try {
+                                        await api.updateAIConfig(newConfig);
+                                        toast.success(checked ? "AI enabled" : "AI disabled");
+                                    } catch {
+                                        toast.error("Failed to update AI config");
+                                    }
+                                }}
+                            />
+                        </div>
+
+                        {!aiConfig.has_api_key && (
+                            <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-3">
+                                <p className="text-xs text-yellow-400">
+                                    ⚠️ No API key configured. Set one via the bot command:{" "}
+                                    <code className="rounded bg-neutral-800 px-1">
+                                        config ai key &lt;key&gt;
+                                    </code>
+                                </p>
+                            </div>
+                        )}
+
+                        <div className="grid gap-6 md:grid-cols-2">
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-white">Provider</label>
+                                <CustomSelect
+                                    value={aiConfig.provider}
+                                    onChange={async (val) => {
+                                        const newConfig = { ...aiConfig, provider: val };
+                                        setAiConfig(newConfig);
+                                        try {
+                                            await api.updateAIConfig(newConfig);
+                                            toast.success("Provider updated");
+                                        } catch {
+                                            toast.error("Failed to update");
+                                        }
+                                    }}
+                                    options={[
+                                        { label: "OpenAI", value: "openai" },
+                                        { label: "Google", value: "google" },
+                                        { label: "Anthropic", value: "anthropic" },
+                                    ]}
+                                    className="w-full"
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-white">Model</label>
+                                <Input
+                                    value={aiConfig.model}
+                                    onChange={async (e) => {
+                                        setAiConfig({ ...aiConfig, model: e.target.value });
+                                    }}
+                                    onBlur={async () => {
+                                        try {
+                                            await api.updateAIConfig(aiConfig);
+                                            toast.success("Model updated");
+                                        } catch {
+                                            toast.error("Failed to update");
+                                        }
+                                    }}
+                                    className="border-neutral-600 bg-neutral-700 text-white"
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-white">
+                                    Trigger Mode
+                                </label>
+                                <CustomSelect
+                                    value={aiConfig.trigger_mode}
+                                    onChange={async (val) => {
+                                        const newConfig = { ...aiConfig, trigger_mode: val };
+                                        setAiConfig(newConfig);
+                                        try {
+                                            await api.updateAIConfig(newConfig);
+                                            toast.success("Trigger mode updated");
+                                        } catch {
+                                            toast.error("Failed to update");
+                                        }
+                                    }}
+                                    options={[
+                                        { label: "Mention", value: "mention" },
+                                        { label: "Always", value: "always" },
+                                        { label: "Reply", value: "reply" },
+                                    ]}
+                                    className="w-full"
+                                />
+                            </div>
+
+                            <div className="flex items-center justify-between py-3">
+                                <div className="space-y-0.5">
+                                    <label className="text-sm font-medium text-white">
+                                        Owner Only
+                                    </label>
+                                    <p className="text-xs text-neutral-500">Restrict AI to owner</p>
+                                </div>
+                                <Switch
+                                    checked={aiConfig.owner_only}
+                                    onCheckedChange={async (checked) => {
+                                        const newConfig = { ...aiConfig, owner_only: checked };
+                                        setAiConfig(newConfig);
+                                        try {
+                                            await api.updateAIConfig(newConfig);
+                                            toast.success(
+                                                checked
+                                                    ? "Owner only enabled"
+                                                    : "Owner only disabled",
+                                            );
+                                        } catch {
+                                            toast.error("Failed to update");
+                                        }
+                                    }}
+                                />
+                            </div>
+                        </div>
+                    </CardContent>
+                </GlowCard>
+            )}
+
             <div className="grid gap-6">
                 {sections.map((section) => (
-                    <GlowCard key={section.title} className="bg-neutral-900/50 backdrop-blur-sm border-neutral-800">
+                    <GlowCard
+                        key={section.title}
+                        className="border-neutral-800 bg-neutral-900/50 backdrop-blur-sm"
+                    >
                         <CardHeader>
                             <CardTitle className="text-white">{section.title}</CardTitle>
                             <CardDescription>{section.description}</CardDescription>
@@ -265,14 +536,16 @@ export default function ConfigPage() {
                             {section.settings.map((setting) => (
                                 <div
                                     key={setting.key}
-                                    className="flex items-center justify-between py-3 border-b border-neutral-700/50 last:border-0"
+                                    className="flex items-center justify-between border-b border-neutral-700/50 py-3 last:border-0"
                                 >
                                     <div className="space-y-0.5">
                                         <label className="text-sm font-medium text-white">
                                             {setting.label}
                                         </label>
                                         {setting.description && (
-                                            <p className="text-xs text-neutral-500">{setting.description}</p>
+                                            <p className="text-xs text-neutral-500">
+                                                {setting.description}
+                                            </p>
                                         )}
                                     </div>
                                     <div>
@@ -280,7 +553,11 @@ export default function ConfigPage() {
                                             <Switch
                                                 checked={setting.value as boolean}
                                                 onCheckedChange={(checked) =>
-                                                    updateConfig(setting.section, setting.key, checked)
+                                                    updateConfig(
+                                                        setting.section,
+                                                        setting.key,
+                                                        checked,
+                                                    )
                                                 }
                                             />
                                         ) : setting.type === "number" ? (
@@ -297,9 +574,13 @@ export default function ConfigPage() {
                                                 type="text"
                                                 value={setting.value as string}
                                                 onChange={(e) =>
-                                                    updateConfig(setting.section, setting.key, e.target.value)
+                                                    updateConfig(
+                                                        setting.section,
+                                                        setting.key,
+                                                        e.target.value,
+                                                    )
                                                 }
-                                                className="w-48 bg-neutral-700 border-neutral-600 text-white"
+                                                className="w-48 border-neutral-600 bg-neutral-700 text-white"
                                             />
                                         )}
                                     </div>

@@ -11,6 +11,7 @@ import re
 from pathlib import Path
 from typing import TypedDict
 
+import httpx
 import yaml
 
 from core.constants import SKILLS_DIR
@@ -92,8 +93,6 @@ def load_skill_from_file(path: Path | str) -> SkillData | None:
 async def load_skill_from_url(url: str) -> SkillData | None:
     """Load a skill from a URL."""
     try:
-        import httpx
-
         async with httpx.AsyncClient() as client:
             response = await client.get(url, timeout=10.0)
             response.raise_for_status()

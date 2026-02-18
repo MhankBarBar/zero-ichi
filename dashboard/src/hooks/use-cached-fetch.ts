@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 interface CacheEntry<T> {
     data: T;
@@ -21,18 +21,14 @@ const cache = new Map<string, CacheEntry<unknown>>();
 export function useCachedFetch<T>(
     key: string,
     fetcher: () => Promise<T>,
-    options: UseCachedFetchOptions = {}
+    options: UseCachedFetchOptions = {},
 ): {
     data: T | null;
     loading: boolean;
     error: Error | null;
     refetch: () => Promise<void>;
 } {
-    const {
-        cacheTime = 30000,
-        refetchOnMount = false,
-        enabled = true,
-    } = options;
+    const { cacheTime = 30000, refetchOnMount = false, enabled = true } = options;
 
     const [data, setData] = useState<T | null>(() => {
         const cached = cache.get(key) as CacheEntry<T> | undefined;
@@ -152,13 +148,13 @@ export function useDebounce<T>(value: T, delay: number): T {
  */
 export function useThrottle<T extends (...args: unknown[]) => unknown>(
     callback: T,
-    delay: number
+    delay: number,
 ): T {
-    const lastRun = useRef(Date.now());
+    const lastRun = useRef(0);
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     return useCallback(
-        ((...args: Parameters<T>) => {
+        (...args: Parameters<T>) => {
             const now = Date.now();
             if (now - lastRun.current >= delay) {
                 lastRun.current = now;
@@ -172,10 +168,10 @@ export function useThrottle<T extends (...args: unknown[]) => unknown>(
                         lastRun.current = Date.now();
                         callback(...args);
                     },
-                    delay - (now - lastRun.current)
+                    delay - (now - lastRun.current),
                 );
             }
-        }) as T,
-        [callback, delay]
-    );
+        },
+        [callback, delay],
+    ) as T;
 }

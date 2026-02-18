@@ -85,4 +85,10 @@ Everything you need to know, neatly organized:
 - `dashboard/`: The pretty face
 - `locales/`: The dictionary
 
-[Contributing Guide →](https://zeroichi.mhankbarbar.dev/development/architecture)
+[Contributing Guide →](https://zeroichi.mhankbarbar.dev/development/contributing)
+
+---
+
+## License
+
+[MIT](LICENSE)

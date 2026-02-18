@@ -16,6 +16,7 @@ from datetime import datetime
 from core.command import Command, CommandContext
 from core.i18n import t, t_error, t_info, t_success
 from core.media import get_media_caption
+from core.scheduler import get_scheduler
 from core.utils import format_duration, parse_duration
 
 
@@ -36,7 +37,6 @@ class RemindCommand(Command):
 
     async def execute(self, ctx: CommandContext) -> None:
         """Handle remind command."""
-        from core.scheduler import get_scheduler
 
         scheduler = get_scheduler()
         if not scheduler:

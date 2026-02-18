@@ -1,23 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { useToast } from "@/components/ui/toast";
+import { api, type Filter, type Group } from "@/lib/api";
 import {
+    IconAlertCircle,
+    IconArrowRight,
+    IconDeviceFloppy,
     IconFilter,
     IconPlus,
-    IconTrash,
     IconSearch,
+    IconTrash,
     IconUsers,
-    IconAlertCircle,
     IconX,
-    IconDeviceFloppy,
-    IconArrowRight
 } from "@tabler/icons-react";
-import { api, type Group, type Filter } from "@/lib/api";
-import { useToast } from "@/components/ui/toast";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
+import { useEffect, useState } from "react";
 
 interface FilterModalProps {
     isOpen: boolean;
@@ -45,9 +45,9 @@ function FilterModal({ isOpen, onClose, onSave }: FilterModalProps) {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6 w-full max-w-lg mx-4 shadow-2xl"
+                className="mx-4 w-full max-w-lg rounded-2xl border border-neutral-700 bg-neutral-900 p-6 shadow-2xl"
             >
-                <div className="flex items-center justify-between mb-6">
+                <div className="mb-6 flex items-center justify-between">
                     <h2 className="text-xl font-bold text-white">Create Filter</h2>
                     <button onClick={onClose} className="text-neutral-400 hover:text-white">
                         <IconX className="h-5 w-5" />
@@ -56,22 +56,22 @@ function FilterModal({ isOpen, onClose, onSave }: FilterModalProps) {
 
                 <div className="space-y-4">
                     <div>
-                        <label className="block text-sm font-medium text-neutral-400 mb-2">
+                        <label className="mb-2 block text-sm font-medium text-neutral-400">
                             Trigger Word/Phrase
                         </label>
                         <Input
                             placeholder="e.g. hello, good morning"
                             value={trigger}
                             onChange={(e) => setTrigger(e.target.value)}
-                            className="bg-neutral-800 border-neutral-700 text-white"
+                            className="border-neutral-700 bg-neutral-800 text-white"
                         />
-                        <p className="text-xs text-neutral-500 mt-1">
+                        <p className="mt-1 text-xs text-neutral-500">
                             The bot will respond when this word/phrase is detected
                         </p>
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-neutral-400 mb-2">
+                        <label className="mb-2 block text-sm font-medium text-neutral-400">
                             Auto Response
                         </label>
                         <textarea
@@ -79,12 +79,12 @@ function FilterModal({ isOpen, onClose, onSave }: FilterModalProps) {
                             value={response}
                             onChange={(e) => setResponse(e.target.value)}
                             rows={4}
-                            className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                            className="w-full resize-none rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-white placeholder-neutral-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                         />
                     </div>
                 </div>
 
-                <div className="flex gap-3 mt-6">
+                <div className="mt-6 flex gap-3">
                     <Button
                         variant="outline"
                         onClick={onClose}
@@ -97,7 +97,7 @@ function FilterModal({ isOpen, onClose, onSave }: FilterModalProps) {
                         disabled={!trigger.trim() || !response.trim()}
                         className="flex-1 bg-blue-600 hover:bg-blue-500"
                     >
-                        <IconDeviceFloppy className="h-4 w-4 mr-2" />
+                        <IconDeviceFloppy className="mr-2 h-4 w-4" />
                         Create Filter
                     </Button>
                 </div>
@@ -153,10 +153,11 @@ export default function FiltersPage() {
 
         try {
             await api.createFilter(selectedGroup.id, trigger, response);
-            setFilters(prev => [...prev, { trigger, response }]);
+            setFilters((prev) => [...prev, { trigger, response }]);
             toast.success("Filter created", `Trigger "${trigger}" is now active`);
-        } catch (err: any) {
-            toast.error("Failed to create filter", err.message);
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : "An unknown error occurred";
+            toast.error("Failed to create filter", message);
         }
     };
 
@@ -165,16 +166,18 @@ export default function FiltersPage() {
 
         try {
             await api.deleteFilter(selectedGroup.id, trigger);
-            setFilters(prev => prev.filter(f => f.trigger !== trigger));
+            setFilters((prev) => prev.filter((f) => f.trigger !== trigger));
             toast.success("Filter deleted", `Trigger "${trigger}" has been removed`);
-        } catch (err: any) {
-            toast.error("Failed to delete filter", err.message);
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : "An unknown error occurred";
+            toast.error("Failed to delete filter", message);
         }
     };
 
-    const filteredFilters = filters.filter(filter =>
-        filter.trigger.toLowerCase().includes(search.toLowerCase()) ||
-        filter.response.toLowerCase().includes(search.toLowerCase())
+    const filteredFilters = filters.filter(
+        (filter) =>
+            filter.trigger.toLowerCase().includes(search.toLowerCase()) ||
+            filter.response.toLowerCase().includes(search.toLowerCase()),
     );
 
     if (loading) {
@@ -182,14 +185,17 @@ export default function FiltersPage() {
             <div className="space-y-8">
                 <div>
                     <h1 className="text-3xl font-bold text-white">Filters Manager</h1>
-                    <p className="text-neutral-400 mt-1">Loading groups...</p>
+                    <p className="mt-1 text-neutral-400">Loading groups...</p>
                 </div>
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {[1, 2, 3].map((i) => (
-                        <Card key={i} className="bg-neutral-800/50 border-neutral-700 animate-pulse">
+                        <Card
+                            key={i}
+                            className="animate-pulse border-neutral-700 bg-neutral-800/50"
+                        >
                             <CardContent className="p-6">
-                                <div className="h-6 bg-neutral-700 rounded w-3/4 mb-2"></div>
-                                <div className="h-4 bg-neutral-700 rounded w-1/2"></div>
+                                <div className="mb-2 h-6 w-3/4 rounded bg-neutral-700"></div>
+                                <div className="h-4 w-1/2 rounded bg-neutral-700"></div>
                             </CardContent>
                         </Card>
                     ))}
@@ -203,10 +209,10 @@ export default function FiltersPage() {
             <div className="space-y-8">
                 <div>
                     <h1 className="text-3xl font-bold text-white">Filters Manager</h1>
-                    <p className="text-neutral-400 mt-1">Manage auto-reply filters</p>
+                    <p className="mt-1 text-neutral-400">Manage auto-reply filters</p>
                 </div>
-                <Card className="bg-red-500/10 border-red-500/20">
-                    <CardContent className="p-6 flex items-center gap-3">
+                <Card className="border-red-500/20 bg-red-500/10">
+                    <CardContent className="flex items-center gap-3 p-6">
                         <IconAlertCircle className="h-5 w-5 text-red-400" />
                         <p className="text-red-400">{error}</p>
                     </CardContent>
@@ -220,7 +226,7 @@ export default function FiltersPage() {
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold text-white">Filters Manager</h1>
-                    <p className="text-neutral-400 mt-1">
+                    <p className="mt-1 text-neutral-400">
                         {selectedGroup
                             ? `Managing filters for ${selectedGroup.name}`
                             : "Select a group to manage auto-reply filters"}
@@ -231,7 +237,7 @@ export default function FiltersPage() {
                         onClick={() => setModalOpen(true)}
                         className="bg-blue-600 hover:bg-blue-500"
                     >
-                        <IconPlus className="h-4 w-4 mr-2" />
+                        <IconPlus className="mr-2 h-4 w-4" />
                         Add Filter
                     </Button>
                 )}
@@ -240,21 +246,27 @@ export default function FiltersPage() {
             {!selectedGroup ? (
                 /* Group Selection */
                 <div className="space-y-4">
-                    <p className="text-neutral-500 text-sm">Select a group to manage its filters:</p>
+                    <p className="text-sm text-neutral-500">
+                        Select a group to manage its filters:
+                    </p>
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                         {groups.map((group) => (
                             <Card
                                 key={group.id}
-                                className="bg-neutral-800/50 border-neutral-700 cursor-pointer hover:border-blue-500/50 transition-colors"
+                                className="cursor-pointer border-neutral-700 bg-neutral-800/50 transition-colors hover:border-blue-500/50"
                                 onClick={() => loadFilters(group)}
                             >
-                                <CardContent className="p-4 flex items-center gap-4">
-                                    <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center">
+                                <CardContent className="flex items-center gap-4 p-4">
+                                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500/20 to-purple-500/20">
                                         <IconUsers className="h-5 w-5 text-blue-400" />
                                     </div>
-                                    <div className="flex-1 min-w-0">
-                                        <h3 className="text-white font-medium truncate">{group.name}</h3>
-                                        <p className="text-neutral-500 text-sm">{group.memberCount} members</p>
+                                    <div className="min-w-0 flex-1">
+                                        <h3 className="truncate font-medium text-white">
+                                            {group.name}
+                                        </h3>
+                                        <p className="text-sm text-neutral-500">
+                                            {group.memberCount} members
+                                        </p>
                                     </div>
                                 </CardContent>
                             </Card>
@@ -272,13 +284,13 @@ export default function FiltersPage() {
                         >
                             ← Back to Groups
                         </Button>
-                        <div className="relative flex-1 max-w-md">
-                            <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-500" />
+                        <div className="relative max-w-md flex-1">
+                            <IconSearch className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-neutral-500" />
                             <Input
                                 placeholder="Search filters..."
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
-                                className="pl-10 bg-neutral-800 border-neutral-700 text-white"
+                                className="border-neutral-700 bg-neutral-800 pl-10 text-white"
                             />
                         </div>
                     </div>
@@ -286,22 +298,25 @@ export default function FiltersPage() {
                     {filtersLoading ? (
                         <div className="space-y-3">
                             {[1, 2, 3].map((i) => (
-                                <Card key={i} className="bg-neutral-800/50 border-neutral-700 animate-pulse">
+                                <Card
+                                    key={i}
+                                    className="animate-pulse border-neutral-700 bg-neutral-800/50"
+                                >
                                     <CardContent className="p-4">
-                                        <div className="h-5 bg-neutral-700 rounded w-1/3 mb-2"></div>
-                                        <div className="h-4 bg-neutral-700 rounded w-2/3"></div>
+                                        <div className="mb-2 h-5 w-1/3 rounded bg-neutral-700"></div>
+                                        <div className="h-4 w-2/3 rounded bg-neutral-700"></div>
                                     </CardContent>
                                 </Card>
                             ))}
                         </div>
                     ) : filteredFilters.length === 0 ? (
-                        <Card className="bg-neutral-800/50 border-neutral-700">
+                        <Card className="border-neutral-700 bg-neutral-800/50">
                             <CardContent className="p-12 text-center">
-                                <IconFilter className="h-12 w-12 text-neutral-600 mx-auto mb-4" />
-                                <h3 className="text-lg font-medium text-neutral-400 mb-2">
+                                <IconFilter className="mx-auto mb-4 h-12 w-12 text-neutral-600" />
+                                <h3 className="mb-2 text-lg font-medium text-neutral-400">
                                     {search ? "No filters found" : "No filters yet"}
                                 </h3>
-                                <p className="text-neutral-500 text-sm mb-4">
+                                <p className="mb-4 text-sm text-neutral-500">
                                     {search
                                         ? "Try a different search term"
                                         : "Create auto-reply filters for this group"}
@@ -311,7 +326,7 @@ export default function FiltersPage() {
                                         onClick={() => setModalOpen(true)}
                                         className="bg-blue-600 hover:bg-blue-500"
                                     >
-                                        <IconPlus className="h-4 w-4 mr-2" />
+                                        <IconPlus className="mr-2 h-4 w-4" />
                                         Create Filter
                                     </Button>
                                 )}
@@ -327,23 +342,25 @@ export default function FiltersPage() {
                                         animate={{ opacity: 1, y: 0 }}
                                         exit={{ opacity: 0, y: -20 }}
                                     >
-                                        <Card className="bg-neutral-800/50 border-neutral-700 hover:border-neutral-600 transition-colors group">
+                                        <Card className="group border-neutral-700 bg-neutral-800/50 transition-colors hover:border-neutral-600">
                                             <CardContent className="p-4">
                                                 <div className="flex items-start justify-between gap-4">
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center gap-3 mb-2">
-                                                            <span className="px-2 py-1 bg-blue-500/20 text-blue-400 text-sm font-medium rounded">
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="mb-2 flex items-center gap-3">
+                                                            <span className="rounded bg-blue-500/20 px-2 py-1 text-sm font-medium text-blue-400">
                                                                 {filter.trigger}
                                                             </span>
                                                             <IconArrowRight className="h-4 w-4 text-neutral-600" />
                                                         </div>
-                                                        <p className="text-neutral-400 text-sm line-clamp-2">
+                                                        <p className="line-clamp-2 text-sm text-neutral-400">
                                                             {filter.response}
                                                         </p>
                                                     </div>
                                                     <button
-                                                        onClick={() => handleDeleteFilter(filter.trigger)}
-                                                        className="p-2 rounded-lg hover:bg-red-500/20 text-neutral-400 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
+                                                        onClick={() =>
+                                                            handleDeleteFilter(filter.trigger)
+                                                        }
+                                                        className="rounded-lg p-2 text-neutral-400 opacity-0 transition-all group-hover:opacity-100 hover:bg-red-500/20 hover:text-red-400"
                                                     >
                                                         <IconTrash className="h-4 w-4" />
                                                     </button>

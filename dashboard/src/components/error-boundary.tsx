@@ -1,8 +1,8 @@
 "use client";
 
-import React, { Component, ReactNode } from "react";
-import { IconAlertTriangle, IconRefresh } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
+import { IconAlertTriangle, IconRefresh } from "@tabler/icons-react";
+import React, { Component, ReactNode } from "react";
 
 interface Props {
     children: ReactNode;
@@ -39,21 +39,15 @@ export class ErrorBoundary extends Component<Props, State> {
             }
 
             return (
-                <div className="min-h-[200px] flex flex-col items-center justify-center p-8 bg-neutral-900/50 rounded-xl border border-neutral-800">
-                    <div className="p-4 rounded-full bg-red-500/20 mb-4">
+                <div className="flex min-h-[200px] flex-col items-center justify-center rounded-xl border border-neutral-800 bg-neutral-900/50 p-8">
+                    <div className="mb-4 rounded-full bg-red-500/20 p-4">
                         <IconAlertTriangle className="h-8 w-8 text-red-400" />
                     </div>
-                    <h3 className="text-lg font-semibold text-white mb-2">
-                        Something went wrong
-                    </h3>
-                    <p className="text-sm text-neutral-400 text-center mb-4 max-w-md">
+                    <h3 className="mb-2 text-lg font-semibold text-white">Something went wrong</h3>
+                    <p className="mb-4 max-w-md text-center text-sm text-neutral-400">
                         {this.state.error?.message || "An unexpected error occurred"}
                     </p>
-                    <Button
-                        onClick={this.handleReset}
-                        variant="outline"
-                        className="gap-2"
-                    >
+                    <Button onClick={this.handleReset} variant="outline" className="gap-2">
                         <IconRefresh className="h-4 w-4" />
                         Try again
                     </Button>
@@ -67,7 +61,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
 export function withErrorBoundary<P extends object>(
     WrappedComponent: React.ComponentType<P>,
-    fallback?: ReactNode
+    fallback?: ReactNode,
 ) {
     return function WithErrorBoundary(props: P) {
         return (
@@ -81,12 +75,12 @@ export function withErrorBoundary<P extends object>(
 export function CardSkeleton({ className = "" }: { className?: string }) {
     return (
         <div
-            className={`bg-neutral-800/50 rounded-xl border border-neutral-800 animate-pulse ${className}`}
+            className={`animate-pulse rounded-xl border border-neutral-800 bg-neutral-800/50 ${className}`}
         >
-            <div className="p-6 space-y-4">
-                <div className="h-4 bg-neutral-700 rounded w-1/3" />
-                <div className="h-8 bg-neutral-700 rounded w-1/2" />
-                <div className="h-3 bg-neutral-700 rounded w-2/3" />
+            <div className="space-y-4 p-6">
+                <div className="h-4 w-1/3 rounded bg-neutral-700" />
+                <div className="h-8 w-1/2 rounded bg-neutral-700" />
+                <div className="h-3 w-2/3 rounded bg-neutral-700" />
             </div>
         </div>
     );
@@ -94,11 +88,11 @@ export function CardSkeleton({ className = "" }: { className?: string }) {
 
 export function TableRowSkeleton({ columns = 4 }: { columns?: number }) {
     return (
-        <div className="flex items-center gap-4 p-4 bg-neutral-800/30 rounded-lg animate-pulse">
+        <div className="flex animate-pulse items-center gap-4 rounded-lg bg-neutral-800/30 p-4">
             {Array.from({ length: columns }).map((_, i) => (
                 <div
                     key={i}
-                    className="h-4 bg-neutral-700 rounded flex-1"
+                    className="h-4 flex-1 rounded bg-neutral-700"
                     style={{ maxWidth: i === 0 ? "40%" : "20%" }}
                 />
             ))}
@@ -108,22 +102,22 @@ export function TableRowSkeleton({ columns = 4 }: { columns?: number }) {
 
 export function PageSkeleton() {
     return (
-        <div className="space-y-6 animate-pulse">
-            <div className="flex justify-between items-center">
+        <div className="animate-pulse space-y-6">
+            <div className="flex items-center justify-between">
                 <div className="space-y-2">
-                    <div className="h-8 bg-neutral-700 rounded w-48" />
-                    <div className="h-4 bg-neutral-700 rounded w-64" />
+                    <div className="h-8 w-48 rounded bg-neutral-700" />
+                    <div className="h-4 w-64 rounded bg-neutral-700" />
                 </div>
-                <div className="h-10 bg-neutral-700 rounded w-24" />
+                <div className="h-10 w-24 rounded bg-neutral-700" />
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
                 {[...Array(4)].map((_, i) => (
                     <CardSkeleton key={i} />
                 ))}
             </div>
 
-            <div className="h-64 bg-neutral-800/50 rounded-xl border border-neutral-800" />
+            <div className="h-64 rounded-xl border border-neutral-800 bg-neutral-800/50" />
         </div>
     );
 }

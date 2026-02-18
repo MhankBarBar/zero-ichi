@@ -2,6 +2,7 @@ import asyncio
 import base64
 import importlib
 import io
+import signal
 import sys
 from pathlib import Path
 
@@ -22,8 +23,10 @@ from config.settings import (
 from core.cache import message_cache
 from core.client import BotClient
 from core.command import command_loader
+from core.env import validate_environment
 from core.handlers.welcome import handle_member_join, handle_member_leave
 from core.i18n import init_i18n
+from core.jid_resolver import resolve_pair
 from core.logger import (
     console,
     log_bullet,
@@ -47,6 +50,7 @@ from core.session import session_state
 from core.shared import set_bot
 
 load_dotenv()
+validate_environment()
 client = NewAClient(
     f"{BOT_NAME}.session",
     props=DeviceProps(
@@ -105,8 +109,6 @@ async def connected_handler(c: NewAClient, event: ConnectedEv) -> None:
 
     owner_jid = runtime_config.get_owner_jid()
     if owner_jid:
-        from core.jid_resolver import resolve_pair
-
         await resolve_pair(owner_jid, bot)
         log_info(f"Preloaded JID cache for owner: {owner_jid}")
 
@@ -210,10 +212,6 @@ async def start_bot() -> None:
     log_step("Connecting to WhatsApp...")
 
     if LOGIN_METHOD == "PAIR_CODE":
-        if not PHONE_NUMBER:
-            log_error("PHONE_NUMBER is required for PAIR_CODE login method!")
-            log_warning("Please update config.json")
-            return
         log_step(f"Initiating Pair Code login for {PHONE_NUMBER}...")
         try:
             session_state.is_pairing = True
@@ -297,8 +295,6 @@ def interrupt_handler(signal, frame):
 
 
 if __name__ == "__main__":
-    import signal
-
     signal.signal(signal.SIGINT, interrupt_handler)
 
     try:

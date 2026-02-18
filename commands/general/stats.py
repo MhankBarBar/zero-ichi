@@ -3,6 +3,7 @@ Stats command - Bot usage statistics.
 """
 
 import platform
+import time
 
 from core import symbols as sym
 from core.command import Command, CommandContext, command_loader
@@ -26,8 +27,6 @@ class StatsCommand(Command):
         total_cmds = len(command_loader.enabled_commands)
 
         try:
-            import time
-
             from commands.general.uptime import _start_time
 
             elapsed = time.time() - _start_time
