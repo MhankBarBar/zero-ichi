@@ -1,16 +1,16 @@
 "use client";
 
-import * as React from "react";
-import { createContext, useContext, useState, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { cn } from "@/lib/utils";
 import {
-    IconCheck,
     IconAlertCircle,
-    IconInfoCircle,
     IconAlertTriangle,
+    IconCheck,
+    IconInfoCircle,
     IconX,
 } from "@tabler/icons-react";
-import { cn } from "@/lib/utils";
+import { AnimatePresence, motion } from "framer-motion";
+import * as React from "react";
+import { createContext, useCallback, useContext, useState } from "react";
 
 type ToastType = "success" | "error" | "info" | "warning";
 
@@ -36,7 +36,12 @@ const ToastContext = createContext<ToastContextValue | null>(null);
 
 const toastConfig: Record<
     ToastType,
-    { icon: React.ComponentType<{ className?: string }>; bgClass: string; borderClass: string; iconClass: string }
+    {
+        icon: React.ComponentType<{ className?: string }>;
+        bgClass: string;
+        borderClass: string;
+        iconClass: string;
+    }
 > = {
     success: {
         icon: IconCheck,
@@ -64,13 +69,7 @@ const toastConfig: Record<
     },
 };
 
-function ToastItem({
-    toast,
-    onRemove,
-}: {
-    toast: Toast;
-    onRemove: (id: string) => void;
-}) {
+function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: string) => void }) {
     const config = toastConfig[toast.type];
     const Icon = config.icon;
 
@@ -89,27 +88,25 @@ function ToastItem({
             exit={{ opacity: 0, x: 100, scale: 0.95 }}
             transition={{ type: "spring", stiffness: 400, damping: 25 }}
             className={cn(
-                "relative flex items-start gap-3 w-full max-w-sm p-4 rounded-xl border backdrop-blur-md shadow-lg",
+                "relative flex w-full max-w-sm items-start gap-3 rounded-xl border p-4 shadow-lg backdrop-blur-md",
                 config.bgClass,
-                config.borderClass
+                config.borderClass,
             )}
         >
-            <div className={cn("p-1.5 rounded-lg", config.bgClass)}>
+            <div className={cn("rounded-lg p-1.5", config.bgClass)}>
                 <Icon className={cn("h-4 w-4", config.iconClass)} />
             </div>
 
-            <div className="flex-1 min-w-0">
-                <p className="font-medium text-white text-sm">{toast.title}</p>
+            <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-white">{toast.title}</p>
                 {toast.message && (
-                    <p className="text-xs text-neutral-400 mt-0.5 line-clamp-2">
-                        {toast.message}
-                    </p>
+                    <p className="mt-0.5 line-clamp-2 text-xs text-neutral-400">{toast.message}</p>
                 )}
             </div>
 
             <button
                 onClick={() => onRemove(toast.id)}
-                className="shrink-0 p-1 rounded-lg hover:bg-white/10 text-neutral-500 hover:text-white transition-colors"
+                className="shrink-0 rounded-lg p-1 text-neutral-500 transition-colors hover:bg-white/10 hover:text-white"
             >
                 <IconX className="h-4 w-4" />
             </button>
@@ -119,11 +116,11 @@ function ToastItem({
                 animate={{ scaleX: 0 }}
                 transition={{ duration: (toast.duration ?? 4000) / 1000, ease: "linear" }}
                 className={cn(
-                    "absolute bottom-0 left-0 right-0 h-0.5 origin-left rounded-b-xl",
+                    "absolute right-0 bottom-0 left-0 h-0.5 origin-left rounded-b-xl",
                     toast.type === "success" && "bg-green-500",
                     toast.type === "error" && "bg-red-500",
                     toast.type === "info" && "bg-blue-500",
-                    toast.type === "warning" && "bg-amber-500"
+                    toast.type === "warning" && "bg-amber-500",
                 )}
             />
         </motion.div>
@@ -137,7 +134,7 @@ function ToastContainer() {
     const { toasts, removeToast } = context;
 
     return (
-        <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none">
+        <div className="pointer-events-none fixed right-4 bottom-4 z-[100] flex flex-col gap-2">
             <AnimatePresence mode="popLayout">
                 {toasts.map((toast) => (
                     <div key={toast.id} className="pointer-events-auto">
@@ -165,28 +162,28 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         (title: string, message?: string) => {
             addToast({ type: "success", title, message });
         },
-        [addToast]
+        [addToast],
     );
 
     const error = useCallback(
         (title: string, message?: string) => {
             addToast({ type: "error", title, message });
         },
-        [addToast]
+        [addToast],
     );
 
     const info = useCallback(
         (title: string, message?: string) => {
             addToast({ type: "info", title, message });
         },
-        [addToast]
+        [addToast],
     );
 
     const warning = useCallback(
         (title: string, message?: string) => {
             addToast({ type: "warning", title, message });
         },
-        [addToast]
+        [addToast],
     );
 
     return (

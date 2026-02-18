@@ -12,17 +12,18 @@ The dashboard provides a web-based interface for managing and monitoring the Zer
 
 ## Screenshots
 
-| Dashboard | Login |
-|-----------|-------|
+| Dashboard                          | Login                                |
+| ---------------------------------- | ------------------------------------ |
 | ![Dashboard](public/dashboard.png) | ![Login](public/dashboard_login.png) |
 
-| QR Login |
-|----------|
+| QR Login                         |
+| -------------------------------- |
 | ![QR Login](public/qr_login.png) |
 
-| Send Message |
-|----------|
+| Send Message                             |
+| ---------------------------------------- |
 | ![Send Message](public/send_message.png) |
+
 ---
 
 ## Getting Started
@@ -90,15 +91,15 @@ dashboard/
 
 ## Features
 
-| Feature | Description |
-|---------|-------------|
-| Status Overview | Real-time bot status and uptime |
-| Statistics | Message and command usage metrics |
+| Feature         | Description                        |
+| --------------- | ---------------------------------- |
+| Status Overview | Real-time bot status and uptime    |
+| Statistics      | Message and command usage metrics  |
 | Command Manager | Enable/disable commands at runtime |
-| Group Manager | Configure per-group settings |
-| Configuration | Modify bot settings via UI |
-| Task Scheduler | View and manage scheduled tasks |
-| Logs Viewer | Browse recent bot activity |
+| Group Manager   | Configure per-group settings       |
+| Configuration   | Modify bot settings via UI         |
+| Task Scheduler  | View and manage scheduled tasks    |
+| Logs Viewer     | Browse recent bot activity         |
 
 ---
 
@@ -106,14 +107,13 @@ dashboard/
 
 The dashboard expects the bot API to be running at `http://localhost:8000`. The API is started automatically when running the bot via `uv run main.py`.
 
-| Endpoint | Description |
-|----------|-------------|
-| `GET /api/status` | Bot status and uptime |
-| `GET /api/stats` | Usage statistics |
+| Endpoint            | Description             |
+| ------------------- | ----------------------- |
+| `GET /api/status`   | Bot status and uptime   |
+| `GET /api/stats`    | Usage statistics        |
 | `GET /api/commands` | Command list and status |
-| `GET /api/groups` | Joined groups |
-| `GET /api/config` | Current configuration |
-| `PUT /api/config` | Update configuration |
-| `GET /api/tasks` | Scheduled tasks |
-| `GET /api/logs` | Recent logs |
-
+| `GET /api/groups`   | Joined groups           |
+| `GET /api/config`   | Current configuration   |
+| `PUT /api/config`   | Update configuration    |
+| `GET /api/tasks`    | Scheduled tasks         |
+| `GET /api/logs`     | Recent logs             |

@@ -18,6 +18,7 @@ from urllib.parse import unquote
 
 from fastapi import (
     APIRouter,
+    Body,
     Depends,
     FastAPI,
     File,
@@ -362,6 +363,9 @@ async def update_config(update: ConfigUpdate):
     try:
         runtime_config.set_nested(update.section, update.key, update.value)
         runtime_config._save()
+        await event_bus.emit(
+            "config_update", {"section": update.section, "key": update.key, "value": update.value}
+        )
         return {"success": True, "message": f"Updated {update.section}.{update.key}"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
@@ -403,6 +407,7 @@ async def toggle_command(name: str, toggle: CommandToggle):
 
     runtime_config.set("disabled_commands", disabled)
     runtime_config._save()
+    await event_bus.emit("command_update", {"name": name, "enabled": toggle.enabled})
 
     return {"success": True, "name": name, "enabled": toggle.enabled}
 
@@ -461,15 +466,73 @@ async def get_groups():
 @_api.post("/api/groups/{group_id}/leave")
 async def leave_group(group_id: str):
     """Make the bot leave a group."""
+    import time
+
+    if not hasattr(leave_group, "_last_call"):
+        leave_group._last_call = 0.0
+
+    now = time.time()
+    if now - leave_group._last_call < 10:
+        remaining = int(10 - (now - leave_group._last_call))
+        raise HTTPException(status_code=429, detail=f"Rate limited. Try again in {remaining}s")
+
     bot = get_bot()
     if not await check_bot_logged_in(bot) or bot is None:
         raise HTTPException(status_code=503, detail="Bot not connected")
 
     try:
+        leave_group._last_call = now
         await bot.leave_group(group_id)
-        return {"success": True, "message": f"Left group {group_id}"}
+        await event_bus.emit("group_update", {"action": "leave", "group_id": group_id})
+        return {"success": True}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@_api.post("/api/groups/bulk")
+async def bulk_update_groups(
+    group_ids: list[str] = Body(...),
+    action: str = Body(...),
+    value: bool = Body(...),
+):
+    """Bulk update group settings.
+
+    Args:
+        group_ids: List of group IDs to update.
+        action: Setting to update (antilink, welcome, mute).
+        value: New value for the setting.
+    """
+    valid_actions = ["antilink", "welcome", "mute"]
+    if action not in valid_actions:
+        raise HTTPException(
+            status_code=400, detail=f"Invalid action. Must be one of {valid_actions}"
+        )
+
+    success_count = 0
+    for gid in group_ids:
+        try:
+            group_storage = GroupData(gid)
+            if action == "antilink":
+                group_storage.set_anti_link(value)
+            elif action == "welcome":
+                current = group_storage.load("welcome", {"enabled": True, "message": "Welcome!"})
+                current["enabled"] = value
+                group_storage.save("welcome", current)
+            elif action == "mute":
+                current = group_storage.load("mute", {"enabled": False, "message": "Group Muted"})
+                current["enabled"] = value
+                group_storage.save("mute", current)
+            success_count += 1
+        except Exception:
+            continue
+
+    if success_count > 0:
+        await event_bus.emit(
+            "group_update",
+            {"action": "bulk_update", "group_ids": group_ids, "setting": action, "value": value},
+        )
+
+    return {"success": True, "updated": success_count}
 
 
 @_api.get("/api/groups/{group_id}")
@@ -491,6 +554,9 @@ async def update_group(group_id: str, settings: GroupSettings):
             "welcome": settings.welcome,
             "mute": settings.mute,
         },
+    )
+    await event_bus.emit(
+        "group_update", {"action": "update", "group_id": group_id, "settings": settings.dict()}
     )
     return {"success": True}
 
@@ -734,6 +800,70 @@ async def get_scheduled_tasks():
     return {"tasks": tasks, "count": len(tasks)}
 
 
+@_api.post("/api/tasks")
+async def create_task(task: dict = Body(...)):
+    """Create a new scheduled task."""
+    scheduler = get_scheduler()
+    if not scheduler:
+        raise HTTPException(status_code=503, detail="Scheduler not available")
+
+    task_type = task.get("type")
+    chat_jid = task.get("chat_jid")
+    message = task.get("message")
+
+    if not all([task_type, chat_jid, message]):
+        raise HTTPException(status_code=400, detail="Missing required fields")
+
+    try:
+        if task_type == "reminder":
+            trigger_time = task.get("trigger_time")
+            if not trigger_time:
+                raise HTTPException(status_code=400, detail="Missing trigger_time for reminder")
+
+            new_task = scheduler.add_reminder(
+                chat_jid=chat_jid,
+                message=message,
+                trigger_time=datetime.fromisoformat(trigger_time.replace("Z", "+00:00")),
+                creator_jid="dashboard",
+            )
+
+        elif task_type == "auto_message":
+            interval = task.get("interval_minutes")
+            if not interval:
+                raise HTTPException(
+                    status_code=400, detail="Missing interval_minutes for auto_message"
+                )
+
+            new_task = scheduler.add_auto_message(
+                chat_jid=chat_jid,
+                message=message,
+                interval_minutes=int(interval),
+                creator_jid="dashboard",
+            )
+
+        elif task_type == "recurring":
+            cron = task.get("cron_expression")
+            if not cron:
+                raise HTTPException(
+                    status_code=400, detail="Missing cron_expression for recurring task"
+                )
+
+            new_task = scheduler.add_recurring(
+                chat_jid=chat_jid,
+                message=message,
+                cron_expression=cron,
+                creator_jid="dashboard",
+            )
+
+        else:
+            raise HTTPException(status_code=400, detail="Invalid task type")
+
+        return {"success": True, "task": new_task.to_dict()}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
 @_api.delete("/api/tasks/{task_id}")
 async def delete_task(task_id: str):
     """Delete a scheduled task."""
@@ -790,7 +920,8 @@ async def get_notes(group_id: str):
                 {
                     "name": name,
                     "content": data.get("content", ""),
-                    "media_type": data.get("media_type", "text"),
+                    "media_type": data.get("type", "text"),
+                    "media_path": data.get("media_path"),
                 }
             )
         else:
@@ -799,6 +930,7 @@ async def get_notes(group_id: str):
                     "name": name,
                     "content": str(data),
                     "media_type": "text",
+                    "media_path": None,
                 }
             )
 
@@ -815,8 +947,9 @@ async def create_note(group_id: str, note: NoteCreate):
         raise HTTPException(status_code=400, detail=f"Note '{note.name}' already exists")
 
     notes[note.name] = {
+        "type": note.media_type or "text",
         "content": note.content,
-        "media_type": note.media_type or "text",
+        "media_path": None,
     }
     group_storage.save_notes(notes)
 
@@ -832,9 +965,11 @@ async def update_note(group_id: str, note_name: str, note: NoteUpdate):
     if note_name not in notes:
         raise HTTPException(status_code=404, detail=f"Note '{note_name}' not found")
 
+    existing = notes[note_name] if isinstance(notes[note_name], dict) else {}
     notes[note_name] = {
+        "type": note.media_type or existing.get("type", "text"),
         "content": note.content,
-        "media_type": note.media_type or "text",
+        "media_path": existing.get("media_path"),
     }
     group_storage.save_notes(notes)
 
@@ -854,6 +989,88 @@ async def delete_note(group_id: str, note_name: str):
     group_storage.save_notes(notes)
 
     return {"success": True, "message": f"Note '{note_name}' deleted"}
+
+
+@_api.post("/api/groups/{group_id}/notes/{note_name}/media")
+async def upload_note_media(
+    group_id: str,
+    note_name: str,
+    file: UploadFile = File(...),
+):
+    """Upload media for a note."""
+    from pathlib import Path
+
+    group_storage = GroupData(group_id)
+    notes = group_storage.notes
+
+    if note_name not in notes:
+        raise HTTPException(status_code=404, detail=f"Note '{note_name}' not found")
+
+    ext = Path(file.filename or "file").suffix.lower()
+    media_type_map = {
+        ".jpg": "image",
+        ".jpeg": "image",
+        ".png": "image",
+        ".gif": "image",
+        ".webp": "sticker",
+        ".mp4": "video",
+        ".mkv": "video",
+        ".avi": "video",
+        ".mp3": "audio",
+        ".ogg": "audio",
+        ".wav": "audio",
+        ".pdf": "document",
+        ".doc": "document",
+        ".docx": "document",
+    }
+    media_type = media_type_map.get(ext, "document")
+
+    media_dir = Path(f"data/{group_id}/media")
+    media_dir.mkdir(parents=True, exist_ok=True)
+
+    file_path = media_dir / f"{note_name}{ext}"
+    content = await file.read()
+    file_path.write_bytes(content)
+
+    note_data = (
+        notes[note_name]
+        if isinstance(notes[note_name], dict)
+        else {"content": str(notes[note_name])}
+    )
+    note_data["type"] = media_type
+    note_data["media_path"] = str(file_path.resolve())
+    notes[note_name] = note_data
+    group_storage.save_notes(notes)
+
+    return {
+        "success": True,
+        "media_type": media_type,
+        "media_path": str(file_path.resolve()),
+    }
+
+
+@_api.get("/api/groups/{group_id}/notes/{note_name}/media")
+async def get_note_media(group_id: str, note_name: str):
+    """Serve note media file."""
+    from pathlib import Path
+
+    group_storage = GroupData(group_id)
+    notes = group_storage.notes
+
+    if note_name not in notes:
+        raise HTTPException(status_code=404, detail=f"Note '{note_name}' not found")
+
+    note_data = notes[note_name]
+    if not isinstance(note_data, dict) or not note_data.get("media_path"):
+        raise HTTPException(status_code=404, detail="No media for this note")
+
+    media_path = Path(note_data["media_path"])
+    if not media_path.exists():
+        raise HTTPException(status_code=404, detail="Media file not found")
+
+    from fastapi.responses import FileResponse
+
+    return FileResponse(str(media_path))
 
 
 class FilterCreate(BaseModel):
@@ -977,22 +1194,26 @@ async def websocket_endpoint(ws: WebSocket):
 
 
 @_api.get("/api/analytics/commands")
-async def get_analytics_commands(days: int = Query(7, ge=1, le=90)):
-    """Get top commands by usage."""
+async def get_analytics_commands(days: int = Query(7, ge=1, le=90), group_id: str = Query("")):
+    """Get top commands by usage, optionally filtered by group."""
     return {
-        "top_commands": command_analytics.get_top_commands(days),
-        "total": command_analytics.get_total_commands(days),
+        "top_commands": command_analytics.get_top_commands(days, chat_jid=group_id),
+        "total": command_analytics.get_total_commands(days, chat_jid=group_id),
         "days": days,
+        "group_id": group_id,
     }
 
 
 @_api.get("/api/analytics/timeline")
-async def get_analytics_timeline(command: str = Query(""), days: int = Query(7, ge=1, le=90)):
-    """Get daily usage timeline."""
+async def get_analytics_timeline(
+    command: str = Query(""), days: int = Query(7, ge=1, le=90), group_id: str = Query("")
+):
+    """Get daily usage timeline, optionally filtered by group."""
     return {
-        "timeline": command_analytics.get_usage_timeline(command, days),
+        "timeline": command_analytics.get_usage_timeline(command, days, chat_jid=group_id),
         "command": command or "all",
         "days": days,
+        "group_id": group_id,
     }
 
 
@@ -1015,7 +1236,10 @@ async def get_ai_config():
         "model": runtime_config.get_nested("agentic_ai", "model", default="gpt-4o-mini"),
         "trigger_mode": runtime_config.get_nested("agentic_ai", "trigger_mode", default="mention"),
         "owner_only": runtime_config.get_nested("agentic_ai", "owner_only", default=True),
-        "has_api_key": bool(runtime_config.get_nested("agentic_ai", "api_key", default="")),
+        "has_api_key": bool(
+            runtime_config.get_nested("agentic_ai", "api_key", default="")
+            or os.getenv("AI_API_KEY", "")
+        ),
     }
 
 
@@ -1028,6 +1252,9 @@ async def update_ai_config(config: AIConfigUpdate):
     runtime_config.set_nested("agentic_ai", "trigger_mode", config.trigger_mode)
     runtime_config.set_nested("agentic_ai", "owner_only", config.owner_only)
     runtime_config._save()
+    await event_bus.emit(
+        "config_update", {"section": "agentic_ai", "key": "all", "value": config.dict()}
+    )
     return {"success": True}
 
 

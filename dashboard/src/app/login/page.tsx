@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { IconLock, IconUser, IconAlertCircle, IconRefresh } from "@tabler/icons-react";
+import { IconAlertCircle, IconLock, IconRefresh, IconUser } from "@tabler/icons-react";
 import { motion } from "framer-motion";
+import { useState } from "react";
 
 export default function LoginPage() {
     const [username, setUsername] = useState("");
@@ -21,11 +21,14 @@ export default function LoginPage() {
         const auth = btoa(`${username}:${password}`);
 
         try {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/status`, {
-                headers: {
-                    "Authorization": `Basic ${auth}`
-                }
-            });
+            const res = await fetch(
+                `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/status`,
+                {
+                    headers: {
+                        Authorization: `Basic ${auth}`,
+                    },
+                },
+            );
 
             if (res.ok) {
                 localStorage.setItem("dashboard_auth", auth);
@@ -41,57 +44,63 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-black p-4">
+        <div className="flex min-h-screen items-center justify-center bg-black p-4">
             <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 className="w-full max-w-md"
             >
-                <div className="text-center mb-8">
-                    <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-green-500 mb-4 shadow-lg shadow-green-500/20">
+                <div className="mb-8 text-center">
+                    <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-green-500 shadow-lg shadow-green-500/20">
                         <IconLock className="h-8 w-8 text-white" />
                     </div>
-                    <h1 className="text-3xl font-bold text-white tracking-tight">Zero Ichi</h1>
-                    <p className="text-neutral-500 mt-2">Dashboard Login</p>
+                    <h1 className="text-3xl font-bold tracking-tight text-white">Zero Ichi</h1>
+                    <p className="mt-2 text-neutral-500">Dashboard Login</p>
                 </div>
 
-                <Card className="bg-neutral-900/50 backdrop-blur-sm border-neutral-800">
+                <Card className="border-neutral-800 bg-neutral-900/50 backdrop-blur-sm">
                     <CardHeader>
-                        <CardTitle className="text-white text-lg">Login</CardTitle>
-                        <CardDescription>Enter your credentials to access the dashboard</CardDescription>
+                        <CardTitle className="text-lg text-white">Login</CardTitle>
+                        <CardDescription>
+                            Enter your credentials to access the dashboard
+                        </CardDescription>
                     </CardHeader>
                     <CardContent>
                         <form onSubmit={handleLogin} className="space-y-4">
                             <div className="space-y-2">
-                                <label className="text-xs font-bold text-neutral-500 uppercase tracking-widest">Username</label>
+                                <label className="text-xs font-bold tracking-widest text-neutral-500 uppercase">
+                                    Username
+                                </label>
                                 <div className="relative">
-                                    <IconUser className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-500" />
+                                    <IconUser className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-neutral-500" />
                                     <Input
                                         placeholder="Username"
                                         value={username}
                                         onChange={(e) => setUsername(e.target.value)}
-                                        className="bg-neutral-800 border-neutral-700 text-white pl-10 h-11"
+                                        className="h-11 border-neutral-700 bg-neutral-800 pl-10 text-white"
                                         required
                                     />
                                 </div>
                             </div>
                             <div className="space-y-2">
-                                <label className="text-xs font-bold text-neutral-500 uppercase tracking-widest">Password</label>
+                                <label className="text-xs font-bold tracking-widest text-neutral-500 uppercase">
+                                    Password
+                                </label>
                                 <div className="relative">
-                                    <IconLock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-500" />
+                                    <IconLock className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-neutral-500" />
                                     <Input
                                         type="password"
                                         placeholder="Password"
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
-                                        className="bg-neutral-800 border-neutral-700 text-white pl-10 h-11"
+                                        className="h-11 border-neutral-700 bg-neutral-800 pl-10 text-white"
                                         required
                                     />
                                 </div>
                             </div>
 
                             {error && (
-                                <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center gap-2 text-red-400 text-sm">
+                                <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-400">
                                     <IconAlertCircle className="h-4 w-4 shrink-0" />
                                     <p>{error}</p>
                                 </div>
@@ -99,7 +108,7 @@ export default function LoginPage() {
 
                             <Button
                                 type="submit"
-                                className="w-full h-11 bg-green-600 hover:bg-green-500 text-white font-bold gap-2 mt-4"
+                                className="mt-4 h-11 w-full gap-2 bg-green-600 font-bold text-white hover:bg-green-500"
                                 disabled={loading}
                             >
                                 {loading ? <IconRefresh className="h-4 w-4 animate-spin" /> : null}
@@ -109,8 +118,9 @@ export default function LoginPage() {
                     </CardContent>
                 </Card>
 
-                <p className="text-center text-neutral-600 text-xs mt-8">
-                    Credentials can be set in your <span className="font-mono text-neutral-500">.env</span> file
+                <p className="mt-8 text-center text-xs text-neutral-600">
+                    Credentials can be set in your{" "}
+                    <span className="font-mono text-neutral-500">.env</span> file
                 </p>
             </motion.div>
         </div>

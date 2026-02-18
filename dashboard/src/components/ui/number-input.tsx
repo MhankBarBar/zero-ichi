@@ -1,8 +1,8 @@
 "use client";
 
-import * as React from "react";
-import { IconMinus, IconPlus } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
+import { IconMinus, IconPlus } from "@tabler/icons-react";
+import * as React from "react";
 
 interface NumberInputProps {
     value: number;
@@ -50,20 +50,18 @@ export function NumberInput({
 
     return (
         <div className={cn("space-y-2", className)}>
-            {label && (
-                <label className="text-sm font-medium text-neutral-300">{label}</label>
-            )}
+            {label && <label className="text-sm font-medium text-neutral-300">{label}</label>}
             <div className="flex items-center">
                 <button
                     type="button"
                     onClick={handleDecrement}
                     disabled={disabled || value <= min}
                     className={cn(
-                        "h-10 w-10 rounded-l-lg flex items-center justify-center",
-                        "bg-neutral-800 border border-r-0 border-neutral-700",
-                        "text-neutral-400 hover:text-white hover:bg-neutral-700",
-                        "transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
-                        "focus:outline-none focus:ring-2 focus:ring-green-500/50"
+                        "flex h-10 w-10 items-center justify-center rounded-l-lg",
+                        "border border-r-0 border-neutral-700 bg-neutral-800",
+                        "text-neutral-400 hover:bg-neutral-700 hover:text-white",
+                        "transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+                        "focus:ring-2 focus:ring-green-500/50 focus:outline-none",
                     )}
                 >
                     <IconMinus className="h-4 w-4" />
@@ -78,11 +76,11 @@ export function NumberInput({
                     step={step}
                     disabled={disabled}
                     className={cn(
-                        "h-10 w-20 text-center text-white font-medium",
-                        "bg-neutral-800 border-y border-neutral-700",
-                        "focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500",
-                        "disabled:opacity-50 disabled:cursor-not-allowed",
-                        "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        "h-10 w-20 text-center font-medium text-white",
+                        "border-y border-neutral-700 bg-neutral-800",
+                        "focus:border-green-500 focus:ring-2 focus:ring-green-500/50 focus:outline-none",
+                        "disabled:cursor-not-allowed disabled:opacity-50",
+                        "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
                     )}
                 />
 
@@ -91,19 +89,17 @@ export function NumberInput({
                     onClick={handleIncrement}
                     disabled={disabled || value >= max}
                     className={cn(
-                        "h-10 w-10 rounded-r-lg flex items-center justify-center",
-                        "bg-neutral-800 border border-l-0 border-neutral-700",
-                        "text-neutral-400 hover:text-white hover:bg-neutral-700",
-                        "transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
-                        "focus:outline-none focus:ring-2 focus:ring-green-500/50"
+                        "flex h-10 w-10 items-center justify-center rounded-r-lg",
+                        "border border-l-0 border-neutral-700 bg-neutral-800",
+                        "text-neutral-400 hover:bg-neutral-700 hover:text-white",
+                        "transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+                        "focus:ring-2 focus:ring-green-500/50 focus:outline-none",
                     )}
                 >
                     <IconPlus className="h-4 w-4" />
                 </button>
             </div>
-            {description && (
-                <p className="text-xs text-neutral-500">{description}</p>
-            )}
+            {description && <p className="text-xs text-neutral-500">{description}</p>}
         </div>
     );
 }

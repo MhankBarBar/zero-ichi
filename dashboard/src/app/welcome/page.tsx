@@ -1,21 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, GlowCard } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { useToast } from "@/components/ui/toast";
+import { api, type Group } from "@/lib/api";
 import {
+    IconDeviceFloppy,
     IconHeart,
     IconHeartBroken,
-    IconRefresh,
-    IconUsers,
-    IconDeviceFloppy,
     IconSearch,
+    IconUsers,
 } from "@tabler/icons-react";
-import { api, type Group, type WelcomeConfig } from "@/lib/api";
-import { motion, AnimatePresence } from "framer-motion";
-import { useToast } from "@/components/ui/toast";
+import { AnimatePresence, motion } from "framer-motion";
+import { useCallback, useEffect, useState } from "react";
 
 export default function WelcomeGoodbyePage() {
     const [groups, setGroups] = useState<Group[]>([]);
@@ -30,7 +29,7 @@ export default function WelcomeGoodbyePage() {
     const [goodbyeEnabled, setGoodbyeEnabled] = useState(false);
     const [goodbyeMessage, setGoodbyeMessage] = useState("");
 
-    const fetchGroups = async () => {
+    const fetchGroups = useCallback(async () => {
         try {
             const data = await api.getGroups();
             setGroups(data.groups || []);
@@ -39,9 +38,9 @@ export default function WelcomeGoodbyePage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [toast]);
 
-    const fetchWelcomeGoodbye = async (groupId: string) => {
+    const fetchWelcomeGoodbye = useCallback(async (groupId: string) => {
         try {
             const [welcomeData, goodbyeData] = await Promise.all([
                 api.getWelcome(groupId).catch(() => ({ enabled: false, message: "" })),
@@ -55,11 +54,11 @@ export default function WelcomeGoodbyePage() {
         } catch (err) {
             console.error("Failed to fetch welcome/goodbye:", err);
         }
-    };
+    }, []);
 
     useEffect(() => {
         fetchGroups();
-    }, []);
+    }, [fetchGroups]);
 
     useEffect(() => {
         if (selectedGroup) {
@@ -103,8 +102,8 @@ export default function WelcomeGoodbyePage() {
         }
     };
 
-    const filteredGroups = groups.filter(
-        (g) => g.name.toLowerCase().includes(searchTerm.toLowerCase())
+    const filteredGroups = groups.filter((g) =>
+        g.name.toLowerCase().includes(searchTerm.toLowerCase()),
     );
 
     const placeholderHelp = [
@@ -124,41 +123,41 @@ export default function WelcomeGoodbyePage() {
                 >
                     Welcome & Goodbye
                 </motion.h1>
-                <p className="text-neutral-500 mt-1">
+                <p className="mt-1 text-neutral-500">
                     Customize messages for when members join or leave groups
                 </p>
             </div>
 
-            <div className="grid md:grid-cols-3 gap-6">
-                <div className="md:col-span-1 space-y-4">
-                    <GlowCard className="bg-neutral-900/50 backdrop-blur-sm border-neutral-800">
+            <div className="grid gap-6 md:grid-cols-3">
+                <div className="space-y-4 md:col-span-1">
+                    <GlowCard className="border-neutral-800 bg-neutral-900/50 backdrop-blur-sm">
                         <CardHeader className="pb-4">
-                            <CardTitle className="text-lg flex items-center gap-2">
+                            <CardTitle className="flex items-center gap-2 text-lg">
                                 <IconUsers className="h-5 w-5 text-blue-400" />
                                 Select Group
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="relative">
-                                <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-500" />
+                                <IconSearch className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-neutral-500" />
                                 <Input
                                     placeholder="Search groups..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="pl-10 bg-neutral-800 border-neutral-700"
+                                    className="border-neutral-700 bg-neutral-800 pl-10"
                                 />
                             </div>
 
-                            <div className="space-y-2 max-h-96 overflow-y-auto">
+                            <div className="max-h-96 space-y-2 overflow-y-auto">
                                 {loading ? (
                                     [...Array(5)].map((_, i) => (
                                         <div
                                             key={i}
-                                            className="h-12 bg-neutral-800 animate-pulse rounded-lg"
+                                            className="h-12 animate-pulse rounded-lg bg-neutral-800"
                                         />
                                     ))
                                 ) : filteredGroups.length === 0 ? (
-                                    <p className="text-neutral-500 text-sm text-center py-4">
+                                    <p className="py-4 text-center text-sm text-neutral-500">
                                         No groups found
                                     </p>
                                 ) : (
@@ -166,14 +165,15 @@ export default function WelcomeGoodbyePage() {
                                         <motion.button
                                             key={group.id}
                                             onClick={() => handleSelectGroup(group)}
-                                            className={`w-full p-3 rounded-lg text-left transition-all ${selectedGroup?.id === group.id
-                                                    ? "bg-blue-600/20 border border-blue-500/50"
-                                                    : "bg-neutral-800 hover:bg-neutral-700 border border-transparent"
-                                                }`}
+                                            className={`w-full rounded-lg p-3 text-left transition-all ${
+                                                selectedGroup?.id === group.id
+                                                    ? "border border-blue-500/50 bg-blue-600/20"
+                                                    : "border border-transparent bg-neutral-800 hover:bg-neutral-700"
+                                            }`}
                                             whileHover={{ scale: 1.01 }}
                                             whileTap={{ scale: 0.99 }}
                                         >
-                                            <p className="text-white font-medium truncate">
+                                            <p className="truncate font-medium text-white">
                                                 {group.name}
                                             </p>
                                             <p className="text-xs text-neutral-500">
@@ -187,7 +187,7 @@ export default function WelcomeGoodbyePage() {
                     </GlowCard>
                 </div>
 
-                <div className="md:col-span-2 space-y-6">
+                <div className="space-y-6 md:col-span-2">
                     <AnimatePresence mode="wait">
                         {!selectedGroup ? (
                             <motion.div
@@ -197,7 +197,7 @@ export default function WelcomeGoodbyePage() {
                                 exit={{ opacity: 0 }}
                                 className="flex flex-col items-center justify-center py-20 text-neutral-500"
                             >
-                                <IconUsers className="h-16 w-16 mb-4 opacity-50" />
+                                <IconUsers className="mb-4 h-16 w-16 opacity-50" />
                                 <p className="text-lg">Select a group to edit messages</p>
                             </motion.div>
                         ) : (
@@ -208,10 +208,10 @@ export default function WelcomeGoodbyePage() {
                                 exit={{ opacity: 0, x: -20 }}
                                 className="space-y-6"
                             >
-                                <GlowCard className="bg-neutral-900/50 backdrop-blur-sm border-neutral-800">
+                                <GlowCard className="border-neutral-800 bg-neutral-900/50 backdrop-blur-sm">
                                     <CardHeader className="pb-4">
                                         <div className="flex items-center justify-between">
-                                            <CardTitle className="text-lg flex items-center gap-2">
+                                            <CardTitle className="flex items-center gap-2 text-lg">
                                                 <IconHeart className="h-5 w-5 text-green-400" />
                                                 Welcome Message
                                             </CardTitle>
@@ -231,7 +231,7 @@ export default function WelcomeGoodbyePage() {
                                             placeholder="Welcome message for new members..."
                                             value={welcomeMessage}
                                             onChange={(e) => setWelcomeMessage(e.target.value)}
-                                            className="w-full min-h-[120px] bg-neutral-800 border border-neutral-700 text-white rounded-xl p-4 text-base focus:outline-none focus:ring-2 focus:ring-green-500/50 transition-all resize-none"
+                                            className="min-h-[120px] w-full resize-none rounded-xl border border-neutral-700 bg-neutral-800 p-4 text-base text-white transition-all focus:ring-2 focus:ring-green-500/50 focus:outline-none"
                                         />
                                         <div className="flex justify-end">
                                             <Button
@@ -246,10 +246,10 @@ export default function WelcomeGoodbyePage() {
                                     </CardContent>
                                 </GlowCard>
 
-                                <GlowCard className="bg-neutral-900/50 backdrop-blur-sm border-neutral-800">
+                                <GlowCard className="border-neutral-800 bg-neutral-900/50 backdrop-blur-sm">
                                     <CardHeader className="pb-4">
                                         <div className="flex items-center justify-between">
-                                            <CardTitle className="text-lg flex items-center gap-2">
+                                            <CardTitle className="flex items-center gap-2 text-lg">
                                                 <IconHeartBroken className="h-5 w-5 text-red-400" />
                                                 Goodbye Message
                                             </CardTitle>
@@ -269,7 +269,7 @@ export default function WelcomeGoodbyePage() {
                                             placeholder="Goodbye message when members leave..."
                                             value={goodbyeMessage}
                                             onChange={(e) => setGoodbyeMessage(e.target.value)}
-                                            className="w-full min-h-[120px] bg-neutral-800 border border-neutral-700 text-white rounded-xl p-4 text-base focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all resize-none"
+                                            className="min-h-[120px] w-full resize-none rounded-xl border border-neutral-700 bg-neutral-800 p-4 text-base text-white transition-all focus:ring-2 focus:ring-red-500/50 focus:outline-none"
                                         />
                                         <div className="flex justify-end">
                                             <Button
@@ -284,21 +284,21 @@ export default function WelcomeGoodbyePage() {
                                     </CardContent>
                                 </GlowCard>
 
-                                <Card className="bg-neutral-900/30 border-neutral-800">
+                                <Card className="border-neutral-800 bg-neutral-900/30">
                                     <CardContent className="p-4">
-                                        <p className="text-sm font-medium text-neutral-400 mb-3">
+                                        <p className="mb-3 text-sm font-medium text-neutral-400">
                                             Available Placeholders
                                         </p>
                                         <div className="flex flex-wrap gap-2">
                                             {placeholderHelp.map((p) => (
                                                 <div
                                                     key={p.placeholder}
-                                                    className="flex items-center gap-2 bg-neutral-800 px-3 py-1.5 rounded-lg"
+                                                    className="flex items-center gap-2 rounded-lg bg-neutral-800 px-3 py-1.5"
                                                 >
-                                                    <code className="text-blue-400 text-sm">
+                                                    <code className="text-sm text-blue-400">
                                                         {p.placeholder}
                                                     </code>
-                                                    <span className="text-neutral-500 text-xs">
+                                                    <span className="text-xs text-neutral-500">
                                                         {p.description}
                                                     </span>
                                                 </div>
