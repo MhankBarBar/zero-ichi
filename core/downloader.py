@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from core.constants import DOWNLOADS_DIR
-from core.logger import log_error, log_info, log_warning
+from core.logger import log_debug, log_error, log_info, log_warning
 from core.runtime_config import runtime_config
 
 MAX_FILE_SIZE_MB = runtime_config.get_nested("downloader", "max_file_size_mb", default=180)
@@ -156,9 +156,9 @@ class Downloader:
 
             if cookies_path.exists():
                 ydl_opts["cookiefile"] = str(cookies_path.absolute())
-                log_info(f"[DOWNLOADER] Using cookies: {cookies_path.name}")
+                log_debug(f"[DOWNLOADER] Using cookies: {cookies_path.name}")
             else:
-                log_info(f"[DOWNLOADER] Cookie file not found at: {cookies_path}")
+                log_debug(f"[DOWNLOADER] Cookie file not found at: {cookies_path}")
 
     @staticmethod
     def _parse_formats(raw_formats: list[dict]) -> list[FormatOption]:
@@ -393,7 +393,10 @@ class Downloader:
             "extract_flat": True,
             "skip_download": True,
             "ignoreerrors": True,
-            "extractor_args": {"youtube": {"player_client": ["web", "android", "mweb", "tv"]}},
+            "remote-components": "ejs:github",
+            "extractor_args": {
+                "youtube": {"player_js_variant": "tv"}
+            },  # https://github.com/yt-dlp/yt-dlp/issues/15814
         }
         self._add_cookies(flat_opts)
 
@@ -491,15 +494,15 @@ class Downloader:
             "quiet": True,
             "no_warnings": True,
             "merge_output_format": "mp4",
-            "extractor_args": {"youtube": {"player_client": ["ios", "android", "mweb", "tv", "web"]}},
+            "extractor_args": {
+                "youtube": {"player_client": ["ios", "android", "mweb", "tv", "web"]}
+            },
             "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         }
 
         if limit:
-            # Filesize filter at the format level with proper grouping
             ydl_opts["format"] = f"({fmt})[filesize<=?{int(limit)}M]"
 
-        # No hard 'max_filesize' here; we check it after download or let yt-dlp estimate
         self._add_cookies(ydl_opts)
 
         if is_audio:
@@ -543,7 +546,9 @@ class Downloader:
             "quiet": True,
             "no_warnings": True,
             "writethumbnail": True,
-            "extractor_args": {"youtube": {"player_client": ["ios", "android", "mweb", "tv", "web"]}},
+            "extractor_args": {
+                "youtube": {"player_client": ["ios", "android", "mweb", "tv", "web"]}
+            },
             "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "postprocessors": [
                 {
@@ -682,11 +687,13 @@ class Downloader:
             await _cleanup_partial()
             if "Download cancelled by user" in str(e) or isinstance(e, DownloadAbortedError):
                 raise DownloadAbortedError("Download cancelled by user") from e
-            
+
             error_msg = str(e)
-            if "Requested format is not available" in error_msg and os.getenv("YOUTUBE_COOKIES_PATH"):
+            if "Requested format is not available" in error_msg and os.getenv(
+                "YOUTUBE_COOKIES_PATH"
+            ):
                 error_msg += f"\nTIP: This error is often caused by invalid/expired cookies in {os.getenv('YOUTUBE_COOKIES_PATH')}. Try updating them or disabling cookies."
-            
+
             raise DownloadError(f"Download failed: {error_msg}") from e
         finally:
             if dl_key:
