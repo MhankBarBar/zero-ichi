@@ -261,6 +261,29 @@ Globally disable specific commands by name.
 
 ---
 
+## `dashboard` — Dashboard Settings {#dashboard}
+
+Configure the web dashboard API.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `enabled` | `boolean` | `false` | Enable the dashboard API server on startup |
+
+```json
+{
+  "dashboard": {
+    "enabled": false
+  }
+}
+```
+
+::: note
+The dashboard starts on port `8000` by default if enabled.
+This dashboard api is required to enable if you want to use the dashboard.
+:::
+
+---
+
 ## Environment Variables
 
 Store sensitive values in `.env` (never commit this file):
@@ -332,6 +355,9 @@ A complete `config.json` with all sections:
   "downloader": {
     "max_file_size_mb": 180
   },
-  "disabled_commands": []
+  "disabled_commands": [],
+  "dashboard": {
+    "enabled": false
+  }
 }
 ```

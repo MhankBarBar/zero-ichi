@@ -142,7 +142,15 @@ def _register_group_tools(agent: Agent) -> None:
         return "Could not get group info"
 
 
-bot_agent = _create_agent()
+_bot_agent: Agent | None = None
+
+
+def get_agent() -> Agent:
+    """Get or create the global agent instance."""
+    global _bot_agent
+    if _bot_agent is None:
+        _bot_agent = _create_agent()
+    return _bot_agent
 
 
 class AgenticAI:
@@ -422,7 +430,7 @@ Note: When user mentions @{bot_jid} or @{bot_lid}, they are talking TO you, not 
             if image_data:
                 user_prompt_parts.append(BinaryContent(data=image_data, media_type="image/jpeg"))
 
-            result = await bot_agent.run(
+            result = await get_agent().run(
                 user_prompt_parts,
                 deps=deps,
                 model=model_str,

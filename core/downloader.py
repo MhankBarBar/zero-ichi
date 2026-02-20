@@ -15,10 +15,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from core.constants import DOWNLOADS_DIR
-from core.logger import log_error, log_info
+from core.logger import log_error, log_info, log_warning
 from core.runtime_config import runtime_config
 
-MAX_FILE_SIZE_MB = runtime_config.get_nested("downloader", "max_file_size_mb", default=50)
+MAX_FILE_SIZE_MB = runtime_config.get_nested("downloader", "max_file_size_mb", default=180)
 
 
 def _format_size(size_bytes: int | float) -> str:
@@ -127,6 +127,12 @@ class FileTooLargeError(DownloadError):
         super().__init__(f"File too large: {size_mb:.1f} MB (max {max_mb:.0f} MB)")
 
 
+class DownloadAbortedError(DownloadError):
+    """Raised when a download is cancelled by the user."""
+
+    pass
+
+
 class Downloader:
     """yt-dlp wrapper for downloading media."""
 
@@ -134,11 +140,21 @@ class Downloader:
         self.download_dir = download_dir or DOWNLOADS_DIR
         self.max_size_mb = max_size_mb
         self.download_dir.mkdir(parents=True, exist_ok=True)
+        self._active_downloads: dict[str, bool] = {}
 
     def _make_output_path(self, prefix: str = "dl") -> str:
         """Generate a unique output path template for yt-dlp."""
         ts = int(time.time() * 1000)
         return str(self.download_dir / f"{prefix}_{ts}_%(id)s.%(ext)s")
+
+    def _add_cookies(self, ydl_opts: dict) -> None:
+        """Inject cookiefile into ydl_opts if env var is set."""
+        cookies_path = os.getenv("YOUTUBE_COOKIES_PATH")
+        if cookies_path:
+            if os.path.exists(cookies_path):
+                ydl_opts["cookiefile"] = cookies_path
+            else:
+                log_info(f"[DOWNLOADER] Cookie file not found: {cookies_path}")
 
     @staticmethod
     def _parse_formats(raw_formats: list[dict]) -> list[FormatOption]:
@@ -259,6 +275,7 @@ class Downloader:
             "extract_flat": True,
             "skip_download": True,
         }
+        self._add_cookies(ydl_opts)
 
         search_url = f"ytsearch{count}:{query}"
 
@@ -318,6 +335,7 @@ class Downloader:
             "ignoreerrors": True,
             "playlistend": max_entries,
         }
+        self._add_cookies(ydl_opts)
 
         def _extract():
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -372,6 +390,7 @@ class Downloader:
             "skip_download": True,
             "ignoreerrors": True,
         }
+        self._add_cookies(flat_opts)
 
         def _flat_extract():
             with yt_dlp.YoutubeDL(flat_opts) as ydl:
@@ -400,6 +419,7 @@ class Downloader:
             "extract_flat": False,
             "skip_download": True,
         }
+        self._add_cookies(full_opts)
 
         def _full_extract():
             with yt_dlp.YoutubeDL(full_opts) as ydl:
@@ -437,6 +457,8 @@ class Downloader:
         merge_audio: bool = False,
         is_audio: bool = False,
         progress_hook: callable | None = None,
+        chat_jid: str | None = None,
+        sender_jid: str | None = None,
     ) -> Path:
         """
         Download a specific format by its format_id.
@@ -461,6 +483,7 @@ class Downloader:
             "merge_output_format": "mp4",
             "max_filesize": int(limit * 1024 * 1024),
         }
+        self._add_cookies(ydl_opts)
 
         if is_audio:
             ydl_opts["writethumbnail"] = True
@@ -479,13 +502,15 @@ class Downloader:
                 },
             ]
 
-        return await self._download(url, ydl_opts, limit, progress_hook)
+        return await self._download(url, ydl_opts, limit, progress_hook, chat_jid, sender_jid)
 
     async def download_audio(
         self,
         url: str,
         max_size_mb: float | None = None,
         progress_hook: callable | None = None,
+        chat_jid: str | None = None,
+        sender_jid: str | None = None,
     ) -> Path:
         """
         Download audio from URL (best quality, MP3) with metadata + thumbnail.
@@ -517,14 +542,17 @@ class Downloader:
             ],
             "max_filesize": int(limit * 1024 * 1024),
         }
+        self._add_cookies(ydl_opts)
 
-        return await self._download(url, ydl_opts, limit, progress_hook)
+        return await self._download(url, ydl_opts, limit, progress_hook, chat_jid, sender_jid)
 
     async def download_video(
         self,
         url: str,
         max_size_mb: float | None = None,
         progress_hook: callable | None = None,
+        chat_jid: str | None = None,
+        sender_jid: str | None = None,
     ) -> Path:
         """
         Download video from URL (best quality, MP4).
@@ -546,8 +574,9 @@ class Downloader:
             "merge_output_format": "mp4",
             "max_filesize": int(limit * 1024 * 1024),
         }
+        self._add_cookies(ydl_opts)
 
-        return await self._download(url, ydl_opts, limit, progress_hook)
+        return await self._download(url, ydl_opts, limit, progress_hook, chat_jid, sender_jid)
 
     async def _download(
         self,
@@ -555,14 +584,23 @@ class Downloader:
         ydl_opts: dict,
         max_size_mb: float,
         progress_hook: callable | None = None,
+        chat_jid: str | None = None,
+        sender_jid: str | None = None,
     ) -> Path:
         """Internal download method."""
         import yt_dlp
 
         downloaded_file = None
+        dl_key = f"{chat_jid}:{sender_jid}" if chat_jid and sender_jid else None
+
+        if dl_key:
+            self._active_downloads[dl_key] = False
 
         def _progress(d):
             """yt-dlp progress hook."""
+            if dl_key and self._active_downloads.get(dl_key):
+                raise DownloadAbortedError("Download cancelled by user")
+
             if progress_hook and d.get("status") == "downloading":
                 try:
                     progress_hook(
@@ -581,25 +619,62 @@ class Downloader:
             nonlocal downloaded_file
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=True)
-                if info:
-                    filename = ydl.prepare_filename(info)
-                    base = os.path.splitext(filename)[0]
-                    for ext in [".mp3", ".m4a", ".mp4", ".webm", ".mkv", ".opus", ".ogg"]:
-                        candidate = base + ext
-                        if os.path.exists(candidate):
-                            downloaded_file = candidate
+                if not info:
+                    return
+
+                if "requested_downloads" in info:
+                    for rd in info["requested_downloads"]:
+                        path = rd.get("filepath")
+                        if path and os.path.exists(path):
+                            downloaded_file = path
                             return
-                    if os.path.exists(filename):
-                        downloaded_file = filename
+
+                filename = ydl.prepare_filename(info)
+                base = os.path.splitext(filename)[0]
+                for ext in [".mp3", ".m4a", ".mp4", ".webm", ".mkv", ".opus", ".ogg", ".ts"]:
+                    candidate = base + ext
+                    if os.path.exists(candidate):
+                        downloaded_file = candidate
+                        return
+
+                if os.path.exists(filename):
+                    downloaded_file = filename
+
+        async def _cleanup_partial():
+            import glob
+
+            base_path = ydl_opts.get("outtmpl", "").replace(".%(ext)s", "")
+            if base_path:
+                for f in glob.glob(f"{base_path}*"):
+                    try:
+                        if os.path.exists(f):
+                            os.remove(f)
+                            log_info(f"[DOWNLOADER] Cleaned up partial file: {f}")
+                    except Exception:
+                        log_warning(f"[DOWNLOADER] Failed to cleanup {f}")
 
         try:
             log_info(f"[DOWNLOADER] Starting download: {url}")
             await asyncio.to_thread(_run)
+        except DownloadAbortedError:
+            log_info(f"[DOWNLOADER] Download aborted locally: {url}")
+            await _cleanup_partial()
+            raise
         except Exception as e:
+            await _cleanup_partial()
+            if "Download cancelled by user" in str(e) or isinstance(e, DownloadAbortedError):
+                raise DownloadAbortedError("Download cancelled by user") from e
             raise DownloadError(f"Download failed: {e}") from e
+        finally:
+            if dl_key:
+                self._active_downloads.pop(dl_key, None)
 
         if not downloaded_file or not os.path.exists(downloaded_file):
-            raise DownloadError("Download completed but no file was found")
+            raise DownloadError(
+                f"Download failed: No file found after download. "
+                f"This often happens if the file exceeds the size limit ({max_size_mb}MB) "
+                f"or the format is temporary unavailable."
+            )
 
         file_size = os.path.getsize(downloaded_file)
         file_size_mb = file_size / (1024 * 1024)
@@ -629,6 +704,29 @@ class Downloader:
                 log_info("[DOWNLOADER] Cleaned up all downloads")
         except Exception as e:
             log_error(f"[DOWNLOADER] Cleanup all failed: {e}")
+
+    def cancel_download(self, chat_jid: str, sender_jid: str) -> bool:
+        """
+        Mark an active download as cancelled.
+        Returns True if a matching download was found.
+        """
+        dl_key = f"{chat_jid}:{sender_jid}"
+        if dl_key in self._active_downloads:
+            self._active_downloads[dl_key] = True
+            return True
+        return False
+
+    def cancel_all_in_chat(self, chat_jid: str) -> int:
+        """
+        Cancel all active downloads in a specific chat.
+        Returns the number of downloads cancelled.
+        """
+        count = 0
+        for key in list(self._active_downloads.keys()):
+            if key.startswith(f"{chat_jid}:"):
+                self._active_downloads[key] = True
+                count += 1
+        return count
 
 
 downloader = Downloader()

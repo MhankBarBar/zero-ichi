@@ -6,7 +6,15 @@ Zero Ichi includes a web dashboard for monitoring and administration, built with
 
 ### 1. Start the Bot
 
-The dashboard API starts automatically with the bot:
+The dashboard API starts automatically with the bot if enabled in `config.json`:
+
+```json
+"dashboard": {
+  "enabled": true
+}
+```
+
+Then start the bot:
 
 ```bash
 uv run main.py

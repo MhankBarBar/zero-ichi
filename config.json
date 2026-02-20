@@ -53,7 +53,10 @@
         "action": "kick"
     },
     "downloader": {
-        "max_file_size_mb": 50
+        "max_file_size_mb": 180
     },
-    "disabled_commands": []
+    "disabled_commands": [],
+    "dashboard": {
+        "enabled": false
+    }
 }

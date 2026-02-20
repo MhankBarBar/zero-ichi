@@ -64,6 +64,19 @@ Reply to the search results or playlist listing with a **number** to select a vi
 
 ---
 
+### `/cancel [all]`
+
+**Cancel an active download.**
+
+- **`/cancel`**: Cancels your own active download in the current chat.
+- **`/cancel all`**: Cancels **all** active downloads in the current chat (requires Admin or Owner permission).
+
+::: tip Partial Files
+Cancelled downloads are automatically cleaned up — no partial `.part` files are left on the server.
+:::
+
+---
+
 ## Supported Sites
 
 yt-dlp supports **1000+ sites** including:

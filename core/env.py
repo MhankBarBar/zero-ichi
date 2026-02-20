@@ -61,10 +61,14 @@ def validate_environment():
     if ai_config.get("enabled"):
         provider = ai_config.get("provider", "openai")
         api_key = (
-            ai_config.get("AI_API_KEY")
+            ai_config.get("API_KEY")
+            or os.getenv("AI_API_KEY")
             or os.getenv("GEMINI_API_KEY")
             or os.getenv("OPENAI_API_KEY")
         )
+
+        if api_key and not os.getenv("OPENAI_API_KEY"):
+            os.environ["OPENAI_API_KEY"] = api_key
 
         if not api_key:
             log_warning(f"AI is enabled but no API key found for provider '{provider}'.")

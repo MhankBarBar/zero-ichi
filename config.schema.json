@@ -309,6 +309,17 @@
             },
             "description": "List of command names that are disabled",
             "default": []
+        },
+        "dashboard": {
+            "type": "object",
+            "description": "Dashboard API and UI settings",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Enable the Dashboard API server",
+                    "default": false
+                }
+            }
         }
     },
     "required": [

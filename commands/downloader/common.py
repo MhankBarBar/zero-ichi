@@ -8,7 +8,13 @@ from collections.abc import Callable
 
 from core import symbols as sym
 from core.command import Command, CommandContext
-from core.downloader import DownloadError, FileTooLargeError, _format_size, downloader
+from core.downloader import (
+    DownloadAbortedError,
+    DownloadError,
+    FileTooLargeError,
+    _format_size,
+    downloader,
+)
 from core.errors import report_error
 from core.i18n import t, t_error
 
@@ -86,7 +92,12 @@ class BaseMediaCommand(Command):
                     loop,
                 )
 
-            filepath = await self.download_func(url, progress_hook=_progress_hook)
+            filepath = await self.download_func(
+                url,
+                progress_hook=_progress_hook,
+                chat_jid=ctx.message.chat_jid,
+                sender_jid=ctx.message.sender_jid,
+            )
 
             await ctx.client.edit_message(
                 ctx.message.chat_jid,
@@ -119,6 +130,13 @@ class BaseMediaCommand(Command):
                 ctx.message,
                 t_error("downloader.too_large", size=f"{e.size_mb:.1f}", max=f"{e.max_mb:.0f}"),
             )
+        except DownloadAbortedError:
+            await ctx.client.edit_message(
+                ctx.message.chat_jid,
+                progress_msg_id,
+                f"{header}{sym.INFO} {t('downloader.cancelled')}",
+            )
+            await ctx.client.send_reaction(ctx.message, "🚫")
         except DownloadError as e:
             await ctx.client.reply(ctx.message, t_error("downloader.failed", error=str(e)))
         except Exception as e:
