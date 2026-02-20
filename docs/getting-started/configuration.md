@@ -290,6 +290,16 @@ Store sensitive values in `.env` (never commit this file):
 
 ```bash
 AI_API_KEY=your_api_key_here
+YOUTUBE_COOKIES_PATH=data/cookies.txt
+```
+
+### YouTube Cookies
+
+If you are running the bot on a VPS, YouTube may block your requests with "Sign in to confirm you're not a bot" errors. To fix this:
+
+1.  Export your cookies from a logged-in browser (using an extension like [Get cookies.txt LOCALLY](https://chrome.google.com/webstore/detail/get-cookiestxt-locally/ccmgnabipihkhmhnoicpbihnkhnleogp)).
+2.  Save them to `data/cookies.txt` (or whatever path you set in `.env`).
+3.  Set the environment variable: `YOUTUBE_COOKIES_PATH=data/cookies.txt`.
 ```
 
 Copy the example file to get started:
