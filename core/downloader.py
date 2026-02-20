@@ -149,12 +149,16 @@ class Downloader:
 
     def _add_cookies(self, ydl_opts: dict) -> None:
         """Inject cookiefile into ydl_opts if env var is set."""
-        cookies_path = os.getenv("YOUTUBE_COOKIES_PATH")
-        if cookies_path:
-            if os.path.exists(cookies_path):
-                ydl_opts["cookiefile"] = cookies_path
+        cookies_path_raw = os.getenv("YOUTUBE_COOKIES_PATH")
+        if cookies_path_raw:
+            project_root = Path(__file__).parent.parent
+            cookies_path = project_root / cookies_path_raw
+
+            if cookies_path.exists():
+                ydl_opts["cookiefile"] = str(cookies_path.absolute())
+                log_info(f"[DOWNLOADER] Using cookies: {cookies_path.name}")
             else:
-                log_info(f"[DOWNLOADER] Cookie file not found: {cookies_path}")
+                log_info(f"[DOWNLOADER] Cookie file not found at: {cookies_path}")
 
     @staticmethod
     def _parse_formats(raw_formats: list[dict]) -> list[FormatOption]:
@@ -389,6 +393,7 @@ class Downloader:
             "extract_flat": True,
             "skip_download": True,
             "ignoreerrors": True,
+            "extractor_args": {"youtube": {"player_client": ["web", "android", "mweb", "tv"]}},
         }
         self._add_cookies(flat_opts)
 
@@ -434,6 +439,8 @@ class Downloader:
             raise DownloadError("No info returned for URL")
 
         raw_formats = info.get("formats", [])
+        if not raw_formats:
+            log_warning(f"[DOWNLOADER] No formats found for {url}. Info: {list(info.keys())}")
         format_options = self._parse_formats(raw_formats) if raw_formats else []
 
         actual_url = info.get("webpage_url", url)
@@ -473,7 +480,10 @@ class Downloader:
         limit = max_size_mb or self.max_size_mb
         output_template = self._make_output_path("dl")
 
-        fmt = f"{format_id}+bestaudio/{format_id}" if merge_audio else format_id
+        if merge_audio:
+            fmt = f"{format_id}+bestaudio/{format_id}/best"
+        else:
+            fmt = format_id
 
         ydl_opts = {
             "format": fmt,
@@ -481,8 +491,15 @@ class Downloader:
             "quiet": True,
             "no_warnings": True,
             "merge_output_format": "mp4",
-            "max_filesize": int(limit * 1024 * 1024),
+            "extractor_args": {"youtube": {"player_client": ["ios", "android", "mweb", "tv", "web"]}},
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         }
+
+        if limit:
+            # Filesize filter at the format level with proper grouping
+            ydl_opts["format"] = f"({fmt})[filesize<=?{int(limit)}M]"
+
+        # No hard 'max_filesize' here; we check it after download or let yt-dlp estimate
         self._add_cookies(ydl_opts)
 
         if is_audio:
@@ -521,11 +538,13 @@ class Downloader:
         output_template = self._make_output_path("audio")
 
         ydl_opts = {
-            "format": f"bestaudio[filesize<? {int(limit)}M]/bestaudio/best",
+            "format": f"bestaudio[filesize<=?{int(limit)}M]/bestaudio/best",
             "outtmpl": output_template,
             "quiet": True,
             "no_warnings": True,
             "writethumbnail": True,
+            "extractor_args": {"youtube": {"player_client": ["ios", "android", "mweb", "tv", "web"]}},
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "postprocessors": [
                 {
                     "key": "FFmpegExtractAudio",
@@ -540,7 +559,6 @@ class Downloader:
                     "key": "EmbedThumbnail",
                 },
             ],
-            "max_filesize": int(limit * 1024 * 1024),
         }
         self._add_cookies(ydl_opts)
 
@@ -563,11 +581,7 @@ class Downloader:
         output_template = self._make_output_path("video")
 
         ydl_opts = {
-            "format": (
-                f"bestvideo[filesize<? {int(limit)}M]+bestaudio[filesize<? {int(limit)}M]"
-                f"/best[filesize<? {int(limit)}M]"
-                f"/bestvideo+bestaudio/best"
-            ),
+            "format": f"(bestvideo[ext=mp4][filesize<=?{int(limit)}M]+bestaudio[ext=m4a]/best[ext=mp4][filesize<=?{int(limit)}M]/bestvideo+bestaudio/best)",
             "outtmpl": output_template,
             "quiet": True,
             "no_warnings": True,
@@ -592,6 +606,11 @@ class Downloader:
 
         downloaded_file = None
         dl_key = f"{chat_jid}:{sender_jid}" if chat_jid and sender_jid else None
+
+        base_output = ydl_opts.get("outtmpl", "")
+        if isinstance(base_output, dict):
+            base_output = base_output.get("default", "")
+        base_output = str(base_output).replace(".%(ext)s", "")
 
         if dl_key:
             self._active_downloads[dl_key] = False
@@ -643,9 +662,8 @@ class Downloader:
         async def _cleanup_partial():
             import glob
 
-            base_path = ydl_opts.get("outtmpl", "").replace(".%(ext)s", "")
-            if base_path:
-                for f in glob.glob(f"{base_path}*"):
+            if base_output and base_output != "None":
+                for f in glob.glob(f"{base_output}*"):
                     try:
                         if os.path.exists(f):
                             os.remove(f)
@@ -664,7 +682,12 @@ class Downloader:
             await _cleanup_partial()
             if "Download cancelled by user" in str(e) or isinstance(e, DownloadAbortedError):
                 raise DownloadAbortedError("Download cancelled by user") from e
-            raise DownloadError(f"Download failed: {e}") from e
+            
+            error_msg = str(e)
+            if "Requested format is not available" in error_msg and os.getenv("YOUTUBE_COOKIES_PATH"):
+                error_msg += f"\nTIP: This error is often caused by invalid/expired cookies in {os.getenv('YOUTUBE_COOKIES_PATH')}. Try updating them or disabling cookies."
+            
+            raise DownloadError(f"Download failed: {error_msg}") from e
         finally:
             if dl_key:
                 self._active_downloads.pop(dl_key, None)
