@@ -6,7 +6,13 @@ import time
 import httpx
 
 from core import symbols as sym
-from core.downloader import DownloadError, FileTooLargeError, _format_size, downloader
+from core.downloader import (
+    DownloadAbortedError,
+    DownloadError,
+    FileTooLargeError,
+    _format_size,
+    downloader,
+)
 from core.errors import report_error
 from core.i18n import t, t_error
 from core.pending_store import PendingDownload, PendingPlaylist, PendingSearch, pending_downloads
@@ -91,6 +97,8 @@ async def _handle_selection_reply(ctx, pending, stanza_id, choice_num, items):
                 fmt.format_id,
                 merge_audio=not fmt.has_audio,
                 is_audio=fmt.type == "audio",
+                chat_jid=ctx.msg.chat_jid,
+                sender_jid=ctx.msg.sender_jid,
             )
             media_type = "audio" if fmt.type == "audio" else "video"
             caption = f"{sym.SPARKLE} {info.title}"
@@ -200,6 +208,8 @@ async def _handle_download_reply(ctx, pending, stanza_id, choice_num):
             merge_audio=not selected.has_audio,
             is_audio=selected.type == "audio",
             progress_hook=_progress_hook,
+            chat_jid=ctx.msg.chat_jid,
+            sender_jid=ctx.msg.sender_jid,
         )
 
         await ctx.bot.edit_message(
@@ -237,6 +247,14 @@ async def _handle_download_reply(ctx, pending, stanza_id, choice_num):
             ctx.msg,
             t_error("downloader.too_large", size=f"{e.size_mb:.1f}", max=f"{e.max_mb:.0f}"),
         )
+    except DownloadAbortedError:
+        await ctx.bot.edit_message(
+            ctx.msg.chat_jid,
+            progress_msg_id,
+            f"{sym.ARROW} {t('downloader.downloading', title=pending.info.title, quality=quality_label)}\n\n"
+            f"{sym.INFO} {t('downloader.cancelled')}",
+        )
+        await ctx.bot.send_reaction(ctx.msg, "🚫")
     except DownloadError as e:
         await ctx.bot.send_reaction(ctx.msg, "❌")
         await ctx.bot.reply(ctx.msg, t_error("downloader.failed", error=str(e)))

@@ -19,7 +19,7 @@ import httpx
 
 from core import symbols as sym
 from core.command import Command, CommandContext
-from core.downloader import DownloadError, FileTooLargeError, downloader
+from core.downloader import DownloadAbortedError, DownloadError, FileTooLargeError, downloader
 from core.i18n import t, t_error
 from core.logger import log_info, log_warning
 from core.pending_store import (
@@ -165,6 +165,8 @@ class DlCommand(Command):
                 fmt.format_id,
                 merge_audio=not fmt.has_audio,
                 is_audio=fmt.type == "audio",
+                chat_jid=ctx.message.chat_jid,
+                sender_jid=ctx.message.sender_jid,
             )
 
             media_type = "audio" if fmt.type == "audio" else "video"
@@ -188,6 +190,9 @@ class DlCommand(Command):
                 ctx.message,
                 t_error("downloader.too_large", size=f"{e.size_mb:.1f}", max=f"{e.max_mb:.0f}"),
             )
+        except DownloadAbortedError:
+            await ctx.client.send_reaction(ctx.message, "🚫")
+            await ctx.client.reply(ctx.message, f"{sym.INFO} {t('downloader.cancelled')}")
         except (DownloadError, Exception) as e:
             await ctx.client.send_reaction(ctx.message, "❌")
             await ctx.client.reply(ctx.message, t_error("downloader.failed", error=str(e)))

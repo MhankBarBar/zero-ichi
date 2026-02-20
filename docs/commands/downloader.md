@@ -64,6 +64,19 @@ Reply to the search results or playlist listing with a **number** to select a vi
 
 ---
 
+### `/cancel [all]`
+
+**Cancel an active download.**
+
+- **`/cancel`**: Cancels your own active download in the current chat.
+- **`/cancel all`**: Cancels **all** active downloads in the current chat (requires Admin or Owner permission).
+
+::: tip Partial Files
+Cancelled downloads are automatically cleaned up — no partial `.part` files are left on the server.
+:::
+
+---
+
 ## Supported Sites
 
 yt-dlp supports **1000+ sites** including:
@@ -89,5 +102,12 @@ yt-dlp supports **1000+ sites** including:
 - **Selection expires**: 5 minutes after showing options
 - Files are automatically cleaned up after sending
 
-> [!NOTE]
-> If a video exceeds the size limit, try `/audio` instead — audio files are much smaller.
+## Troubleshooting
+
+### "Sign in to confirm you're not a bot"
+
+This is common on VPS environments. To resolve it:
+
+1.  **Use Cookies**: Follow the [Cookie Setup Guide](/getting-started/configuration#youtube-cookies).
+2.  **EJS Support**: The bot automatically enables **External JS Scripts (EJS)** and tries multiple player clients (`web`, `android`, `tv`) to bypass challenges.
+3.  **Deno/Node**: Ensure you have `Deno` or `Node.js` installed on your VPS, as `yt-dlp` uses them to solve YouTube's JavaScript challenges.

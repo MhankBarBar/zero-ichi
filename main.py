@@ -1,9 +1,15 @@
+"""
+Zero Ichi - WhatsApp Bot entry point.
+"""
+
 import asyncio
 import base64
 import importlib
 import io
+import os
 import signal
 import sys
+import traceback
 from pathlib import Path
 
 import segno
@@ -14,20 +20,25 @@ from neonize.events import ConnectedEv, GroupInfoEv, MessageEv
 from neonize.proto.waCompanionReg.WAWebProtobufsCompanionReg_pb2 import DeviceProps
 from watchfiles import awatch
 
-from config.settings import (
+load_dotenv(Path(__file__).parent / ".env")
+
+if os.getenv("AI_API_KEY") and not os.getenv("OPENAI_API_KEY"):
+    os.environ["OPENAI_API_KEY"] = os.getenv("AI_API_KEY")
+
+from config.settings import (  # noqa: E402
     AUTO_RELOAD,
     BOT_NAME,
     LOGIN_METHOD,
     PHONE_NUMBER,
 )
-from core.cache import message_cache
-from core.client import BotClient
-from core.command import command_loader
-from core.env import validate_environment
-from core.handlers.welcome import handle_member_join, handle_member_leave
-from core.i18n import init_i18n
-from core.jid_resolver import resolve_pair
-from core.logger import (
+from core.cache import message_cache  # noqa: E402
+from core.client import BotClient  # noqa: E402
+from core.command import command_loader  # noqa: E402
+from core.env import validate_environment  # noqa: E402
+from core.handlers.welcome import handle_member_join, handle_member_leave  # noqa: E402
+from core.i18n import init_i18n  # noqa: E402
+from core.jid_resolver import resolve_pair  # noqa: E402
+from core.logger import (  # noqa: E402
     console,
     log_bullet,
     log_error,
@@ -41,15 +52,14 @@ from core.logger import (
     show_pair_help,
     show_qr_prompt,
 )
-from core.message import MessageHelper
-from core.middleware import MessageContext
-from core.middlewares import build_pipeline
-from core.runtime_config import runtime_config
-from core.scheduler import init_scheduler
-from core.session import session_state
-from core.shared import set_bot
+from core.message import MessageHelper  # noqa: E402
+from core.middleware import MessageContext  # noqa: E402
+from core.middlewares import build_pipeline  # noqa: E402
+from core.runtime_config import runtime_config  # noqa: E402
+from core.scheduler import init_scheduler  # noqa: E402
+from core.session import session_state  # noqa: E402
+from core.shared import set_bot  # noqa: E402
 
-load_dotenv()
 validate_environment()
 client = NewAClient(
     f"{BOT_NAME}.session",
@@ -174,8 +184,6 @@ async def message_handler(c: NewAClient, event: MessageEv) -> None:
         await pipeline.execute(ctx)
     except Exception as e:
         log_error(f"Unhandled error in message handler: {e}")
-        import traceback
-
         log_error(traceback.format_exc())
 
 
@@ -188,19 +196,23 @@ async def start_bot() -> None:
 
     show_banner("Zero Ichi", "WhatsApp Bot built with 💖")
 
-    try:
-        import uvicorn
+    dashboard_enabled = runtime_config.get_nested("dashboard", "enabled", default=False)
+    if dashboard_enabled:
+        try:
+            import uvicorn
 
-        from dashboard_api import app as api_app
+            from dashboard_api import app as api_app
 
-        config = uvicorn.Config(api_app, host="0.0.0.0", port=8000, log_level="warning")
-        server = uvicorn.Server(config)
-        asyncio.create_task(server.serve())
-        log_success("Dashboard API starting on http://localhost:8000")
-    except ImportError:
-        log_warning("Dashboard API not available (install fastapi & uvicorn)")
-    except Exception as e:
-        log_warning(f"Dashboard API failed to start: {e}")
+            config = uvicorn.Config(api_app, host="0.0.0.0", port=8000, log_level="warning")
+            server = uvicorn.Server(config)
+            asyncio.create_task(server.serve())
+            log_success("Dashboard API starting on http://localhost:8000")
+        except ImportError:
+            log_warning("Dashboard API not available (install fastapi & uvicorn)")
+        except Exception as e:
+            log_warning(f"Dashboard API failed to start: {e}")
+    else:
+        log_info("Dashboard API is disabled in config.json")
 
     log_step("Starting bot...")
     log_bullet(f"Session: {BOT_NAME}")

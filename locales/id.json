@@ -472,7 +472,8 @@
     "searching": "Nyari di YouTube...",
     "search_results": "Hasil untuk: {query}",
     "no_results": "Gak ketemu hasil buat *{query}*.",
-    "choose_result_hint": "Balas dengan nomor untuk milih video."
+    "choose_result_hint": "Balas dengan nomor untuk milih video.",
+    "cancelled": "Download dibatalkan."
   },
   "toimg": {
     "reply_to_sticker": "Reply ke stiker buat convert jadi gambar.",

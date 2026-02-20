@@ -472,7 +472,8 @@
     "searching": "Searching YouTube...",
     "search_results": "Results for: {query}",
     "no_results": "No results found for *{query}*.",
-    "choose_result_hint": "Reply with the number to select a video."
+    "choose_result_hint": "Reply with the number to select a video.",
+    "cancelled": "Download cancelled."
   },
   "toimg": {
     "reply_to_sticker": "Reply to a sticker to convert it to an image.",

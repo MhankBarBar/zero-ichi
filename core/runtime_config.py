@@ -66,6 +66,9 @@ DEFAULT_CONFIG = {
         "owner_only": True,
     },
     "disabled_commands": [],
+    "dashboard": {
+        "enabled": False,
+    },
 }
 
 
