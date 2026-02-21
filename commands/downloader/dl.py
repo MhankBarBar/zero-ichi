@@ -290,15 +290,12 @@ class DlCommand(Command):
 
         if info.thumbnail:
             try:
-                async with httpx.AsyncClient(timeout=5) as http:
-                    resp = await http.get(info.thumbnail)
-                    if resp.status_code == 200 and len(resp.content) > 0:
-                        return await ctx.client.send_image(
-                            ctx.message.chat_jid,
-                            resp.content,
-                            caption=text,
-                            quoted=ctx.message.event,
-                        )
+                await ctx.client.send_image(
+                    ctx.message.chat_jid,
+                    info.thumbnail,
+                    caption=text,
+                    quoted=ctx.message.event,
+                )
             except Exception as e:
                 log_warning(f"Failed to send thumbnail: {e}")
 

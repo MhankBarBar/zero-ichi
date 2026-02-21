@@ -8,11 +8,14 @@ audio and video from YouTube, TikTok, Instagram, Twitter/X, and 1000+ sites.
 from __future__ import annotations
 
 import asyncio
+import glob
 import os
 import shutil
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+
+import yt_dlp
 
 from core.constants import DOWNLOADS_DIR
 from core.logger import log_debug, log_error, log_info, log_warning
@@ -161,6 +164,18 @@ class Downloader:
                 log_debug(f"[DOWNLOADER] Cookie file not found at: {cookies_path}")
 
     @staticmethod
+    def _base_ydl_opts() -> dict:
+        # https://github.com/yt-dlp/yt-dlp/issues/15814
+        # https://github.com/yt-dlp/yt-dlp/issues/15012
+        return {
+            "quiet": True,
+            "no_warnings": True,
+            "extractor_args": {"youtube": {"player_js_variant": ["tv"]}},
+            "remote_components": "ejs:github",
+            "js_runtimes": {"bun": {}},
+        }
+
+    @staticmethod
     def _parse_formats(raw_formats: list[dict]) -> list[FormatOption]:
         """Parse yt-dlp format list into clean FormatOption objects."""
         video_map: dict[str, FormatOption] = {}
@@ -271,11 +286,8 @@ class Downloader:
         Returns:
             List of dicts with title, url, duration, uploader
         """
-        import yt_dlp
-
         ydl_opts = {
-            "quiet": True,
-            "no_warnings": True,
+            **self._base_ydl_opts(),
             "extract_flat": True,
             "skip_download": True,
         }
@@ -329,11 +341,8 @@ class Downloader:
         Returns:
             PlaylistInfo with title, count, and entry list
         """
-        import yt_dlp
-
         ydl_opts = {
-            "quiet": True,
-            "no_warnings": True,
+            **self._base_ydl_opts(),
             "extract_flat": True,
             "skip_download": True,
             "ignoreerrors": True,
@@ -385,18 +394,11 @@ class Downloader:
 
     async def get_info(self, url: str) -> MediaInfo:
         """Extract media info without downloading."""
-        import yt_dlp
-
         flat_opts = {
-            "quiet": True,
-            "no_warnings": True,
+            **self._base_ydl_opts(),
             "extract_flat": True,
             "skip_download": True,
             "ignoreerrors": True,
-            "remote-components": "ejs:github",
-            "extractor_args": {
-                "youtube": {"player_js_variant": "tv"}
-            },  # https://github.com/yt-dlp/yt-dlp/issues/15814
         }
         self._add_cookies(flat_opts)
 
@@ -422,8 +424,7 @@ class Downloader:
             )
 
         full_opts = {
-            "quiet": True,
-            "no_warnings": True,
+            **self._base_ydl_opts(),
             "extract_flat": False,
             "skip_download": True,
         }
@@ -448,13 +449,23 @@ class Downloader:
 
         actual_url = info.get("webpage_url", url)
 
+        thumbnail = info.get("thumbnail", "")
+        thumbnails = info.get("thumbnails") or []
+        for t in reversed(thumbnails):
+            t_url = t.get("url", "")
+            t_ext = t.get("ext", "")
+            is_webp = t_ext == "webp" or t_url.lower().endswith(".webp")
+            if t_url and not is_webp:
+                thumbnail = t_url
+                break
+
         return MediaInfo(
             title=info.get("title", "Unknown"),
             duration=info.get("duration", 0) or 0,
             uploader=info.get("uploader", info.get("channel", "Unknown")),
             platform=info.get("extractor_key", info.get("extractor", "Unknown")),
             url=actual_url,
-            thumbnail=info.get("thumbnail", ""),
+            thumbnail=thumbnail,
             filesize_approx=info.get("filesize_approx", 0) or info.get("filesize", 0) or 0,
             formats=format_options,
         )
@@ -489,15 +500,10 @@ class Downloader:
             fmt = format_id
 
         ydl_opts = {
+            **self._base_ydl_opts(),
             "format": fmt,
             "outtmpl": output_template,
-            "quiet": True,
-            "no_warnings": True,
             "merge_output_format": "mp4",
-            "extractor_args": {
-                "youtube": {"player_client": ["ios", "android", "mweb", "tv", "web"]}
-            },
-            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         }
 
         if limit:
@@ -541,20 +547,19 @@ class Downloader:
         output_template = self._make_output_path("audio")
 
         ydl_opts = {
+            **self._base_ydl_opts(),
             "format": f"bestaudio[filesize<=?{int(limit)}M]/bestaudio/best",
             "outtmpl": output_template,
-            "quiet": True,
-            "no_warnings": True,
             "writethumbnail": True,
-            "extractor_args": {
-                "youtube": {"player_client": ["ios", "android", "mweb", "tv", "web"]}
-            },
-            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "postprocessors": [
                 {
                     "key": "FFmpegExtractAudio",
                     "preferredcodec": "mp3",
                     "preferredquality": "192",
+                },
+                {
+                    "key": "FFmpegThumbnailsConvertor",
+                    "format": "jpg",
                 },
                 {
                     "key": "FFmpegMetadata",
@@ -586,10 +591,9 @@ class Downloader:
         output_template = self._make_output_path("video")
 
         ydl_opts = {
+            **self._base_ydl_opts(),
             "format": f"(bestvideo[ext=mp4][filesize<=?{int(limit)}M]+bestaudio[ext=m4a]/best[ext=mp4][filesize<=?{int(limit)}M]/bestvideo+bestaudio/best)",
             "outtmpl": output_template,
-            "quiet": True,
-            "no_warnings": True,
             "merge_output_format": "mp4",
             "max_filesize": int(limit * 1024 * 1024),
         }
@@ -607,8 +611,6 @@ class Downloader:
         sender_jid: str | None = None,
     ) -> Path:
         """Internal download method."""
-        import yt_dlp
-
         downloaded_file = None
         dl_key = f"{chat_jid}:{sender_jid}" if chat_jid and sender_jid else None
 
@@ -665,8 +667,6 @@ class Downloader:
                     downloaded_file = filename
 
         async def _cleanup_partial():
-            import glob
-
             if base_output and base_output != "None":
                 for f in glob.glob(f"{base_output}*"):
                     try:

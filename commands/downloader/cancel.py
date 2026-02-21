@@ -30,16 +30,14 @@ class CancelCommand(Command):
             count = downloader.cancel_all_in_chat(chat_jid)
             if count > 0:
                 await ctx.client.reply(
-                    ctx.message, f"{sym.SUCCESS} Cancelled {count} active download(s)."
+                    ctx.message, f"{sym.SUCCESS} {t('downloader.cancel_all_success', count=count)}"
                 )
             else:
-                await ctx.client.reply(ctx.message, f"{sym.INFO} No active downloads in this chat.")
+                await ctx.client.reply(ctx.message, f"{sym.INFO} {t('downloader.cancel_all_none')}")
             return
 
         cancelled = downloader.cancel_download(chat_jid, sender_jid)
         if cancelled:
             await ctx.client.reply(ctx.message, f"{sym.SUCCESS} {t('downloader.cancelled')}")
         else:
-            await ctx.client.reply(
-                ctx.message, f"{sym.INFO} You don't have any active downloads in this chat."
-            )
+            await ctx.client.reply(ctx.message, f"{sym.INFO} {t('downloader.cancel_none')}")
