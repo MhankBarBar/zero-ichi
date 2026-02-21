@@ -2,6 +2,14 @@
 
 Zero Ichi includes a powerful media downloader powered by **yt-dlp**, supporting 1000+ sites including YouTube, TikTok, Instagram, Twitter/X, SoundCloud, and more.
 
+::: warning YouTube Requirement
+**[Bun](https://bun.sh)** must be installed on your server for YouTube downloads to work. yt-dlp uses it to solve YouTube's JS challenges.
+
+```bash
+curl -fsSL https://bun.sh/install | bash
+```
+:::
+
 ## Commands
 
 ### `/dl <url>` or `/dl <query>`
@@ -104,10 +112,13 @@ yt-dlp supports **1000+ sites** including:
 
 ## Troubleshooting
 
-### "Sign in to confirm you're not a bot"
+### "Sign in to confirm you're not a bot" / YouTube captcha
 
 This is common on VPS environments. To resolve it:
 
-1.  **Use Cookies**: Follow the [Cookie Setup Guide](/getting-started/configuration#youtube-cookies).
-2.  **EJS Support**: The bot automatically enables **External JS Scripts (EJS)** and tries multiple player clients (`web`, `android`, `tv`) to bypass challenges.
-3.  **Deno/Node**: Ensure you have `Deno` or `Node.js` installed on your VPS, as `yt-dlp` uses them to solve YouTube's JavaScript challenges.
+1. **Install Bun**: yt-dlp uses Bun to execute YouTube's JS challenges:
+   ```bash
+   curl -fsSL https://bun.sh/install | bash
+   ```
+2. **Use Cookies**: Follow the [Cookie Setup Guide](/getting-started/configuration#youtube-cookies) to provide browser cookies.
+3. **Verify Bun is in PATH**: After installing, make sure `bun --version` works in your shell. You may need to restart your shell or add `~/.bun/bin` to `$PATH`.

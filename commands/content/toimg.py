@@ -59,7 +59,7 @@ class ToimgCommand(Command):
                 to=ctx.message.chat_jid,
                 file=png_bytes,
                 caption="",
-                quoted=ctx.message,
+                quoted=ctx.message.event,
             )
 
         except Exception as e:

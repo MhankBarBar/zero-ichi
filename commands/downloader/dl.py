@@ -15,8 +15,6 @@ Supports YouTube, TikTok, Instagram, Twitter/X, and 1000+ sites via yt-dlp.
 
 import re
 
-import httpx
-
 from core import symbols as sym
 from core.command import Command, CommandContext
 from core.downloader import DownloadAbortedError, DownloadError, FileTooLargeError, downloader
@@ -290,15 +288,12 @@ class DlCommand(Command):
 
         if info.thumbnail:
             try:
-                async with httpx.AsyncClient(timeout=5) as http:
-                    resp = await http.get(info.thumbnail)
-                    if resp.status_code == 200 and len(resp.content) > 0:
-                        return await ctx.client.send_image(
-                            ctx.message.chat_jid,
-                            resp.content,
-                            caption=text,
-                            quoted=ctx.message.event,
-                        )
+                return await ctx.client.send_image(
+                    ctx.message.chat_jid,
+                    info.thumbnail,
+                    caption=text,
+                    quoted=ctx.message.event,
+                )
             except Exception as e:
                 log_warning(f"Failed to send thumbnail: {e}")
 

@@ -473,7 +473,10 @@
     "search_results": "Hasil untuk: {query}",
     "no_results": "Gak ketemu hasil buat *{query}*.",
     "choose_result_hint": "Balas dengan nomor untuk milih video.",
-    "cancelled": "Download dibatalkan."
+    "cancelled": "Download dibatalkan.",
+    "cancel_all_success": "{count} download aktif dibatalin.",
+    "cancel_all_none": "Gak ada download aktif di chat ini.",
+    "cancel_none": "Lu gak punya download aktif di chat ini."
   },
   "toimg": {
     "reply_to_sticker": "Reply ke stiker buat convert jadi gambar.",

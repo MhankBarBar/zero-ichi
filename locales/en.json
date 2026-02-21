@@ -473,7 +473,10 @@
     "search_results": "Results for: {query}",
     "no_results": "No results found for *{query}*.",
     "choose_result_hint": "Reply with the number to select a video.",
-    "cancelled": "Download cancelled."
+    "cancelled": "Download cancelled.",
+    "cancel_all_success": "Cancelled {count} active download(s).",
+    "cancel_all_none": "No active downloads in this chat.",
+    "cancel_none": "You don't have any active downloads in this chat."
   },
   "toimg": {
     "reply_to_sticker": "Reply to a sticker to convert it to an image.",
