@@ -290,7 +290,7 @@ class DlCommand(Command):
 
         if info.thumbnail:
             try:
-                await ctx.client.send_image(
+                return await ctx.client.send_image(
                     ctx.message.chat_jid,
                     info.thumbnail,
                     caption=text,
