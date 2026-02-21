@@ -15,8 +15,6 @@ Supports YouTube, TikTok, Instagram, Twitter/X, and 1000+ sites via yt-dlp.
 
 import re
 
-import httpx
-
 from core import symbols as sym
 from core.command import Command, CommandContext
 from core.downloader import DownloadAbortedError, DownloadError, FileTooLargeError, downloader
