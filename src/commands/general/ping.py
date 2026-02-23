@@ -13,7 +13,7 @@ class PingCommand(Command):
     """
 
     name = "ping"
-    description = "Check if bot is online or offline"
+    description = "Check if bot is online"
     usage = "ping"
 
     async def execute(self, ctx: CommandContext) -> None:

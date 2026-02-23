@@ -1,5 +1,7 @@
 """Command middleware — parse and execute bot commands."""
 
+import time
+
 from core import symbols as sym
 from core.analytics import command_analytics
 from core.command import CommandContext, command_loader
@@ -51,6 +53,7 @@ async def command_middleware(ctx, next):
 
     log_command(command_name, ctx.msg.sender_name, ctx.chat_type, prefix=used_prefix)
 
+    start = time.perf_counter()
     try:
         cmd_ctx = CommandContext(
             client=ctx.bot,
@@ -61,6 +64,7 @@ async def command_middleware(ctx, next):
             prefix=used_prefix,
         )
         await cmd.execute(cmd_ctx)
+        elapsed = (time.perf_counter() - start) * 1000
 
         log_command_execution(
             command_name,
@@ -68,6 +72,7 @@ async def command_middleware(ctx, next):
             ctx.chat_type,
             ctx.msg.chat_jid,
             success=True,
+            duration_ms=elapsed,
             prefix=used_prefix,
         )
 
@@ -81,12 +86,14 @@ async def command_middleware(ctx, next):
             },
         )
     except Exception as e:
+        elapsed = (time.perf_counter() - start) * 1000
         log_command_execution(
             command_name,
             ctx.msg.sender_name,
             ctx.chat_type,
             ctx.msg.chat_jid,
             success=False,
+            duration_ms=elapsed,
             error=str(e),
             prefix=used_prefix,
         )
