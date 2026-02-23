@@ -14,7 +14,7 @@ from neonize.proto.waE2E.WAWebProtobufsE2E_pb2 import Message
 
 from core.constants import CONTEXT_FIELDS, MEDIA_FIELDS, TEXT_SOURCES
 from core.logger import log_debug, log_warning
-from core.types import ChatType, get_chat_type_from_jid
+from core.types import ChatType
 
 if TYPE_CHECKING:
     from neonize.proto.Neonize_pb2 import MessageEv
@@ -122,12 +122,12 @@ class MessageHelper:
         Returns:
             ChatType.PRIVATE or ChatType.GROUP
         """
-        return get_chat_type_from_jid(self._event.Info.MessageSource.Chat.Server)
+        return ChatType.GROUP if self.is_group else ChatType.PRIVATE
 
     @property
     def is_group(self) -> bool:
         """Check if message is from a group chat."""
-        return self.chat_type == ChatType.GROUP
+        return "@g.us" in self.chat_jid
 
     @property
     def is_private(self) -> bool:

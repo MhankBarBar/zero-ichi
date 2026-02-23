@@ -10,10 +10,11 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from core.client import BotClient
-from core.message import MessageHelper
+if TYPE_CHECKING:
+    from core.client import BotClient
+    from core.message import MessageHelper
 
 
 @dataclass

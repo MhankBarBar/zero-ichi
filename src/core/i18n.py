@@ -10,6 +10,7 @@ from pathlib import Path
 
 from core import symbols as sym
 from core.constants import LOCALES_DIR
+from core.runtime_config import runtime_config
 
 _locales: dict[str, dict] = {}
 _default_lang: str = "en"
@@ -187,8 +188,6 @@ def init_i18n(lang: str = None) -> None:
     global _default_lang
 
     if lang is None:
-        from core.runtime_config import runtime_config
-
         lang = runtime_config.get_nested("bot", "language", default="en")
 
     _default_lang = lang

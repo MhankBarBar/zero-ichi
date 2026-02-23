@@ -14,7 +14,7 @@ from typing import Any
 
 from core import jsonc
 
-CONFIG_FILE = Path(__file__).parent.parent / "config.json"
+CONFIG_FILE = Path(__file__).parent.parent.parent / "config.json"
 
 DEFAULT_CONFIG = {
     "bot": {
@@ -202,7 +202,7 @@ class RuntimeConfig:
         try:
             base_config = jsonc.load(CONFIG_FILE)
 
-            overrides_file = Path(__file__).parent.parent / "data" / "runtime_overrides.json"
+            overrides_file = Path(__file__).parent.parent.parent / "data" / "runtime_overrides.json"
             overrides = {}
             if overrides_file.exists():
                 try:
@@ -253,7 +253,7 @@ class RuntimeConfig:
 
         overrides = self._calc_overrides(base_config, self._config)
 
-        overrides_file = Path(__file__).parent.parent / "data" / "runtime_overrides.json"
+        overrides_file = Path(__file__).parent.parent.parent / "data" / "runtime_overrides.json"
         overrides_file.parent.mkdir(parents=True, exist_ok=True)
 
         with open(overrides_file, "w", encoding="utf-8") as f:

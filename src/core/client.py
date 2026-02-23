@@ -24,6 +24,8 @@ from neonize.proto.waE2E.WAWebProtobufsE2E_pb2 import (
 from neonize.utils.enum import VoteType
 from neonize.utils.jid import build_jid
 
+from core.jid_resolver import jids_match, resolve_pair
+from core.logger import log_warning
 from core.message import MessageHelper
 
 if TYPE_CHECKING:
@@ -124,8 +126,6 @@ class BotClient:
             Dict with keys "pn" and "lid", values may be None if resolution fails
             Example: {"pn": "1234567890@s.whatsapp.net", "lid": "123456@lid"}
         """
-        from core.jid_resolver import resolve_pair
-
         return await resolve_pair(jid, self)
 
     async def match_jids(self, jid1: str, jid2: str) -> bool:
@@ -141,8 +141,6 @@ class BotClient:
         Returns:
             True if both JIDs refer to the same user
         """
-        from core.jid_resolver import jids_match
-
         return await jids_match(jid1, jid2, self)
 
     def _apply_forwarded(self, message: Message, score: int = 1) -> Message:
@@ -1292,8 +1290,6 @@ class BotClient:
 
             return result
         except Exception as e:
-            from core.logger import log_warning
-
             log_warning(f"Failed to get joined groups: {e}")
             return []
 

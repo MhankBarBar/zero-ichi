@@ -20,13 +20,12 @@ from difflib import get_close_matches
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from core.client import BotClient
-from core.message import MessageHelper
 from core.runtime_config import runtime_config
 from core.types import ChatType
 
 if TYPE_CHECKING:
-    pass
+    from core.client import BotClient
+    from core.message import MessageHelper
 
 
 @dataclass

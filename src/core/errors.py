@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 from core import symbols as sym
 from core.i18n import t_error
+from core.jid_resolver import get_user_part
 from core.logger import log_error, log_warning
 from core.runtime_config import runtime_config
 
@@ -79,8 +80,6 @@ async def _send_error_to_owner(
     Otherwise, falls back to sending to bot's own chat.
     """
     try:
-        from core.jid_resolver import get_user_part
-
         owner_jid = runtime_config.get_owner_jid()
 
         error_msg = (

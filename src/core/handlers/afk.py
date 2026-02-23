@@ -12,7 +12,7 @@ from pathlib import Path
 from core import symbols as sym
 from core.i18n import t
 
-_AFK_FILE = Path(__file__).parent.parent.parent / "data" / "afk.json"
+_AFK_FILE = Path(__file__).parent.parent.parent.parent / "data" / "afk.json"
 _AFK_FILE.parent.mkdir(exist_ok=True)
 
 

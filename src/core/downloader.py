@@ -154,7 +154,7 @@ class Downloader:
         """Inject cookiefile into ydl_opts if env var is set."""
         cookies_path_raw = os.getenv("YOUTUBE_COOKIES_PATH")
         if cookies_path_raw:
-            project_root = Path(__file__).parent.parent
+            project_root = Path(__file__).parent.parent.parent
             cookies_path = project_root / cookies_path_raw
 
             if cookies_path.exists():
@@ -165,8 +165,6 @@ class Downloader:
 
     @staticmethod
     def _base_ydl_opts() -> dict:
-        # https://github.com/yt-dlp/yt-dlp/issues/15814
-        # https://github.com/yt-dlp/yt-dlp/issues/15012
         return {
             "quiet": True,
             "no_warnings": True,

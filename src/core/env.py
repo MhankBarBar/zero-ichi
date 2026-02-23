@@ -13,7 +13,7 @@ def validate_environment():
     """
     log_step("Validating environment...")
 
-    root_dir = Path(__file__).parent.parent
+    root_dir = Path(__file__).parent.parent.parent
     data_dir = root_dir / "data"
     logs_dir = root_dir / "logs"
 

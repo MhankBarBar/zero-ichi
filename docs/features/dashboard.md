@@ -17,7 +17,7 @@ The dashboard API starts automatically with the bot if enabled in `config.json`:
 Then start the bot:
 
 ```bash
-uv run main.py
+uv run zero-ichi
 ```
 
 The API runs on `http://localhost:8000`.

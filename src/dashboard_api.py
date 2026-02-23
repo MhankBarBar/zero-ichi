@@ -234,8 +234,6 @@ async def send_media(
     file: UploadFile = File(...),
 ):
     """Send media via the bot."""
-    from core.shared import get_bot
-
     bot = get_bot()
     if not await check_bot_logged_in(bot) or bot is None:
         raise HTTPException(status_code=503, detail="Bot not connected")
@@ -254,8 +252,6 @@ async def send_media(
 @_api.get("/api/status")
 async def get_status():
     """Get bot status."""
-    from core.shared import get_bot
-
     bot = get_bot()
     is_connected = False
     if bot:
@@ -275,8 +271,6 @@ async def get_status():
 @_api.get("/api/auth/status")
 async def get_auth_status():
     """Get current authentication status."""
-    from core.shared import get_bot
-
     bot = get_bot()
 
     bot_actual_logged_in = False
@@ -564,8 +558,6 @@ async def update_group(group_id: str, settings: GroupSettings):
 @_api.get("/api/stats")
 async def get_stats():
     """Get bot statistics."""
-    from core.shared import get_bot
-
     bot = get_bot()
     active_groups = 0
 
@@ -582,8 +574,6 @@ async def get_stats():
 
     scheduled_tasks = 0
     try:
-        from core.scheduler import get_scheduler
-
         scheduler = get_scheduler()
         if scheduler:
             scheduled_tasks = scheduler.get_tasks_count()
@@ -612,7 +602,7 @@ async def get_logs(
         level: Filter by log level (info, warning, error, debug, command).
         source: Log source — 'bot' for structured bot.log, 'messages' for raw WA messages.
     """
-    logs_dir = Path(__file__).parent / "logs"
+    logs_dir = Path(__file__).parent.parent / "logs"
 
     if source == "messages":
         logs_file = logs_dir / "messages.log"

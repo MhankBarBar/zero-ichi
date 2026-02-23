@@ -11,9 +11,10 @@ async def stats_middleware(ctx, next):
     stats_storage = Storage()
     stats_storage.increment_stat("messages_total")
 
+    group_name = ""
     if ctx.msg.is_group:
         group_name = await ctx.bot.get_group_name(ctx.msg.chat_jid)
-        ctx.chat_type = f"Group ({group_name})"
+        ctx.chat_type = "Group"
 
     if LOG_MESSAGES:
         show_message(ctx.chat_type, ctx.msg.sender_name, ctx.msg.text)
@@ -24,6 +25,7 @@ async def stats_middleware(ctx, next):
             "sender": ctx.msg.sender_name,
             "chat": ctx.msg.chat_jid,
             "chat_type": ctx.chat_type,
+            "group_name": group_name,
             "text": (ctx.msg.text or "")[:100],
         },
     )

@@ -6,55 +6,63 @@ Overview of Zero Ichi's internal architecture and project structure.
 
 ```
 zero-ichi/
-├── main.py                 # Entry point, message handler
-├── config.json             # Bot configuration
-├── config.schema.json      # JSON Schema for validation
-├── dashboard_api.py        # FastAPI dashboard backend
+├── main.py                     # Entry point wrapper (delegates to src/main.py)
+├── config.json                 # Bot configuration
+├── config.schema.json          # JSON Schema for validation
+├── pyproject.toml              # Project metadata, dependencies, scripts
 │
-├── ai/                     # Agentic AI module
-│   ├── agent.py            # Main AI agent logic
-│   ├── config.py           # AI configuration
-│   ├── context.py          # Message context builder
-│   ├── memory.py           # Conversation memory
-│   ├── skills.py           # Skill management
-│   └── tools/              # AI tool definitions
+├── src/                        # Application source
+│   ├── main.py                 # Core entry point, message handler
+│   ├── dashboard_api.py        # FastAPI dashboard backend
+│   │
+│   ├── ai/                     # Agentic AI module
+│   │   ├── agent.py            # Main AI agent logic
+│   │   ├── config.py           # AI configuration
+│   │   ├── context.py          # Message context builder
+│   │   ├── memory.py           # Conversation memory
+│   │   ├── skills.py           # Skill management
+│   │   └── tools/              # AI tool definitions
+│   │
+│   ├── commands/               # Command modules (auto-discovered)
+│   │   ├── admin/
+│   │   ├── content/
+│   │   ├── downloader/
+│   │   ├── fun/
+│   │   ├── general/
+│   │   ├── group/
+│   │   ├── moderation/
+│   │   ├── owner/
+│   │   └── utility/
+│   │
+│   ├── config/                 # Configuration loading
+│   │   └── settings.py         # Static settings from config.json
+│   │
+│   ├── core/                   # Core modules
+│   │   ├── client.py           # WhatsApp client wrapper
+│   │   ├── command.py          # Command base class & loader
+│   │   ├── constants.py        # Project constants
+│   │   ├── downloader.py       # Media downloader logic
+│   │   ├── errors.py           # Error handling utilities
+│   │   ├── event_bus.py        # Event system
+│   │   ├── i18n.py             # Internationalization
+│   │   ├── jid_resolver.py     # JID / LID resolution
+│   │   ├── logger.py           # Logging utility (Rich-based)
+│   │   ├── message.py          # Message helper class
+│   │   ├── middleware.py       # Middleware base class
+│   │   ├── middlewares/        # Middleware implementations
+│   │   ├── permissions.py      # Permission checks
+│   │   ├── rate_limiter.py     # Rate limiting
+│   │   ├── runtime_config.py   # Live configuration manager
+│   │   ├── scheduler.py        # Task scheduler
+│   │   ├── storage.py          # Per-group data storage
+│   │   ├── symbols.py          # Unicode symbols
+│   │   └── handlers/           # Event handlers
+│   │
+│   └── locales/                # Translation files (en, id)
 │
-├── commands/               # Command modules
-│   ├── admin/              # Admin commands
-│   ├── content/            # Notes, filters, stickers
-│   ├── downloader/         # Media downloaders
-│   ├── fun/                # Entertainment commands
-│   ├── general/            # Help, ping, stats
-│   ├── group/              # Group management
-│   ├── moderation/         # Warnings, blacklist, anti-link
-│   ├── owner/              # Owner-only commands
-│   └── utility/            # AFK, reminders, language
-│
-├── core/                   # Core modules
-│   ├── client.py           # WhatsApp client wrapper
-│   ├── command.py          # Command base class & loader
-│   ├── constants.py        # Project constants
-│   ├── downloader.py       # Media downloader logic
-│   ├── errors.py           # Error handling utilities
-│   ├── event_bus.py        # Event system
-│   ├── i18n.py             # Internationalization
-│   ├── jid_resolver.py     # JID ↔ LID resolution
-│   ├── logger.py           # Logging utility
-│   ├── message.py          # Message helper class
-│   ├── middleware.py       # Middleware base class
-│   ├── middlewares/        # Middleware implementations
-│   ├── permissions.py      # Permission checks
-│   ├── rate_limiter.py     # Rate limiting
-│   ├── runtime_config.py   # Live configuration manager
-│   ├── scheduler.py        # Task scheduler
-│   ├── storage.py          # Per-group data storage
-│   ├── symbols.py          # Unicode symbols
-│   └── handlers/           # Event handlers
-│
-├── dashboard/              # Next.js admin dashboard
-├── locales/                # Translation files (en, id)
-├── data/                   # Per-group persistent data
-└── logs/                   # Log files
+├── dashboard/                  # Next.js admin dashboard
+├── data/                       # Per-group persistent data
+└── logs/                       # Log files
 ```
 
 ## Core Modules
@@ -62,12 +70,12 @@ zero-ichi/
 ### Message Flow
 
 ```
-WhatsApp → Neonize → main.py → Handlers → Command Loader → Command.execute()
+WhatsApp -> Neonize -> src/main.py -> Middleware Pipeline -> Command Loader -> Command.execute()
 ```
 
 1. **Neonize** receives the WhatsApp message
-2. **`main.py`** wraps it in a `MessageHelper` and runs handlers
-3. **Handlers** process features (anti-delete, anti-link, filters, etc.)
+2. **`src/main.py`** wraps it in a `MessageHelper` and passes it through the middleware pipeline
+3. **Middleware** runs in sequence (stats, group actions, mute check, blacklist, anti-link, anti-delete, self mode)
 4. **Command Loader** matches the prefix + command name
 5. **Permissions** are checked (admin, owner, bot-admin, rate limit)
 6. **Command.execute()** runs the command logic
@@ -88,17 +96,17 @@ graph LR
     H --> I[Command Execution]
 ```
 
-Each middleware can modify the message or stop processing (e.g., if a user is muted).
+Each middleware can modify the message context or stop processing (e.g., if a user is muted or blacklisted).
 
 ### Event System
 
 The bot uses an event-driven architecture for features like:
 
--   **`on_message`**: Triggered for every message.
--   **`on_group_participant_update`**: Welcome/Goodbye messages.
--   **`on_call`**: Auto-reject calls (optional).
+-   **`on_message`** — Triggered for every incoming message.
+-   **`on_group_participant_update`** — Welcome/Goodbye messages.
+-   **`on_call`** — Auto-reject calls (optional).
 
-Handlers are registered in `core/handlers/` and loaded by `main.py`.
+Handlers are registered in `src/core/handlers/` and loaded by `src/main.py`.
 
 ### Command System
 
@@ -118,7 +126,7 @@ class Command:
     cooldown: int           # Seconds between uses
 ```
 
-Commands are auto-discovered from `commands/*/` directories.
+Commands are auto-discovered from `src/commands/*/` directories.
 
 ### Storage
 
@@ -139,7 +147,6 @@ WhatsApp uses two ID formats: **PN** (phone number) and **LID** (linked ID). The
 ```python
 from core.jid_resolver import jids_match, resolve_pair
 
-# Check if two JIDs are the same user
 if await jids_match(jid1, jid2, client):
     print("Same user!")
 ```

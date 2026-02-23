@@ -7,10 +7,10 @@ to avoid duplication across modules.
 
 from pathlib import Path
 
-BASE_DIR = Path(__file__).parent.parent
+BASE_DIR = Path(__file__).parent.parent.parent
 DATA_DIR = BASE_DIR / "data"
 LOGS_DIR = BASE_DIR / "logs"
-LOCALES_DIR = BASE_DIR / "locales"
+LOCALES_DIR = Path(__file__).parent.parent / "locales"
 
 DOWNLOADS_DIR = DATA_DIR / "downloads"
 MEDIA_DIR = DATA_DIR / "media"

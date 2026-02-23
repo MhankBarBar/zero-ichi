@@ -7,7 +7,7 @@ The actual configuration is managed by core.runtime_config.
 
 from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 _runtime_config = None
 

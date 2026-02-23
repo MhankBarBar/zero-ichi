@@ -15,6 +15,7 @@ from pydantic_ai import Agent, BinaryContent, RunContext
 
 from ai.context import BotDependencies
 from ai.token_tracker import token_tracker
+from core.command import CommandContext, command_loader
 from core.logger import log_debug, log_error, log_info, log_warning
 from core.runtime_config import runtime_config
 
@@ -79,8 +80,6 @@ def _register_core_tools(agent: Agent) -> None:
     @agent.tool
     async def get_commands(ctx: RunContext[BotDependencies], category: str = "") -> str:
         """Get list of available bot commands. ALWAYS use this before telling users about commands."""
-        from core.command import command_loader
-
         grouped = command_loader.get_grouped_commands()
         result_lines = []
 
@@ -96,8 +95,6 @@ def _register_core_tools(agent: Agent) -> None:
     @agent.tool
     async def run_command(ctx: RunContext[BotDependencies], command: str, args: str = "") -> str:
         """Execute a bot command. Use this to run commands for the user."""
-        from core.command import CommandContext, command_loader
-
         cmd_name = command.lower()
         cmd = command_loader.get(cmd_name)
 
@@ -163,6 +160,7 @@ class AgenticAI:
     def __init__(self):
         """Initialize the AI agent and load saved skills."""
         self._skills: dict[str, dict] = {}
+        self._bot_ids: list[str] | None = None
         self._load_saved_skills()
 
     def _load_saved_skills(self) -> None:
@@ -252,86 +250,76 @@ class AgenticAI:
 
         return instructions
 
+    async def _get_bot_ids(self, bot: BotClient) -> list[str]:
+        """Get bot's own JID identifiers (cached)."""
+        if self._bot_ids is not None:
+            return self._bot_ids
+
+        ids = []
+        try:
+            me = await bot._client.get_me()
+            if me:
+                if me.JID and me.JID.User:
+                    ids.append(me.JID.User)
+                if hasattr(me, "LID") and me.LID and me.LID.User:
+                    ids.append(me.LID.User)
+        except Exception:
+            pass
+
+        self._bot_ids = ids
+        return ids
+
+    def _is_mentioned(self, msg: MessageHelper, bot_ids: list[str]) -> bool:
+        """Check if the bot is mentioned in a message (group only)."""
+        if msg.mentions:
+            for mention in msg.mentions:
+                user = mention.split("@")[0] if "@" in mention else mention
+                if user in bot_ids:
+                    return True
+
+        text_mentions = re.findall(r"@(\d+)", msg.text or "")
+        return any(m in bot_ids for m in text_mentions)
+
     async def should_respond(self, msg: MessageHelper, bot: BotClient = None) -> bool:
         """Check if AI should handle this message based on trigger mode."""
-        log_debug(
-            f"AI should_respond check: enabled={self.enabled}, has_key={bool(self.api_key)}, mode={self.trigger_mode}"
-        )
-
         if not self.enabled or not self.api_key:
-            log_debug(f"AI not responding: enabled={self.enabled}, has_key={bool(self.api_key)}")
             return False
 
-        if self.owner_only:
-            log_debug(f"AI owner check: sender={msg.sender_jid}")
-            if not await runtime_config.is_owner_async(msg.sender_jid, bot):
-                log_debug(f"AI not responding: owner_only and sender {msg.sender_jid} is not owner")
-                return False
+        if self.owner_only and not await runtime_config.is_owner_async(msg.sender_jid, bot):
+            log_debug(f"AI skipped: {msg.sender_jid} is not owner")
+            return False
 
         mode = self.trigger_mode
 
-        bot_identifiers = []
-        if bot:
-            try:
-                me = await bot._client.get_me()
-                if me:
-                    if me.JID and me.JID.User:
-                        bot_identifiers.append(me.JID.User)
-                        log_debug(f"AI bot JID user: {me.JID.User}")
-                    if hasattr(me, "LID") and me.LID and me.LID.User:
-                        bot_identifiers.append(me.LID.User)
-                        log_debug(f"AI bot LID user: {me.LID.User}")
-            except Exception as e:
-                log_debug(f"Error getting bot identifiers: {e}")
-
-        log_debug(f"AI bot identifiers: {bot_identifiers}")
-
         if mode == "always":
             return True
+
+        bot_ids = await self._get_bot_ids(bot) if bot else []
+        log_debug(f"AI check: mode={mode}, is_group={msg.is_group}, bot_ids={bot_ids}")
 
         if mode == "mention":
             bot_name = runtime_config.bot_name.lower()
             text = (msg.text or "").lower()
 
-            log_debug(f"AI mention check: bot_name='{bot_name}', text='{text[:50]}...'")
-
-            if bot_name in text:
+            if bot_name and bot_name in text:
                 log_debug(f"AI triggered: bot name '{bot_name}' found in text")
                 return True
 
-            if bot_identifiers and msg.mentions:
-                for mention in msg.mentions:
-                    mention_user = mention.split("@")[0] if "@" in mention else mention
-                    if mention_user in bot_identifiers:
-                        log_debug("AI triggered: bot found in mentions!")
-                        return True
-
-            if bot_identifiers:
-                mention_patterns = re.findall(r"@(\d+)", msg.text or "")
-                log_debug(f"AI text @mentions: {mention_patterns}")
-                for pattern in mention_patterns:
-                    if pattern in bot_identifiers:
-                        log_debug(f"AI triggered: @{pattern} matches bot identifier!")
-                        return True
+            if msg.is_group and bot_ids:
+                if self._is_mentioned(msg, bot_ids):
+                    log_debug("AI triggered: @mention in group")
+                    return True
 
             return False
 
         if mode == "reply":
             quoted = msg.quoted_message
-            log_debug(
-                f"AI reply mode: quoted={quoted is not None}, bot_identifiers={bot_identifiers}"
-            )
-            if quoted and bot_identifiers:
-                for bot_id in bot_identifiers:
-                    log_debug(f"AI checking if quoted from bot_id={bot_id}")
-                    if msg.is_quoted_from(bot_id):
-                        log_debug(f"AI triggered: reply to bot message (matched {bot_id})")
-                        return True
-            else:
-                if not quoted:
-                    log_debug("AI reply mode: no quoted message found")
-                if not bot_identifiers:
-                    log_debug("AI reply mode: no bot_identifiers available")
+            if quoted and bot_ids:
+                if any(msg.is_quoted_from(bid) for bid in bot_ids):
+                    log_debug("AI triggered: reply to bot message")
+                    return True
+
+            return False
 
         return False
 
@@ -361,17 +349,9 @@ class AgenticAI:
 
         sender_id = msg.sender_jid.split("@")[0] if msg.sender_jid else "unknown"
 
-        bot_jid = ""
-        bot_lid = ""
-        try:
-            me = await bot._client.get_me()
-            if me:
-                if me.JID and me.JID.User:
-                    bot_jid = me.JID.User
-                if hasattr(me, "LID") and me.LID and me.LID.User:
-                    bot_lid = me.LID.User
-        except Exception:
-            pass
+        bot_ids = await self._get_bot_ids(bot)
+        bot_jid = bot_ids[0] if bot_ids else ""
+        bot_lid = bot_ids[1] if len(bot_ids) > 1 else ""
 
         message_type = msg._detect_media_type(msg.raw_message) or "text"
 

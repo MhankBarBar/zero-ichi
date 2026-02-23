@@ -77,8 +77,6 @@ async def handle_member_join(bot, group_jid: str, member_jid: str, member_name: 
     try:
         await bot.send(group_jid, message)
     except Exception as e:
-        from core.logger import log_warning
-
         log_warning(f"Failed to send welcome message: {e}")
 
 
