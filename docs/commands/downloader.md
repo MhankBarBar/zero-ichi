@@ -1,6 +1,6 @@
 # Downloader Commands
 
-Zero Ichi includes a powerful media downloader powered by **yt-dlp**, supporting 1000+ sites including YouTube, TikTok, Instagram, Twitter/X, SoundCloud, and more.
+Zero Ichi includes a powerful media downloader powered by **yt-dlp**, supporting 1000+ sites including YouTube, TikTok, Instagram, Twitter/X, SoundCloud, and more. It also supports **Apple Music** downloads.
 
 ::: warning YouTube Requirement
 **[Bun](https://bun.sh)** must be installed on your server for YouTube downloads to work. yt-dlp uses it to solve YouTube's JS challenges.
@@ -41,10 +41,42 @@ Paste a playlist URL to list tracks:
 /dl https://youtube.com/playlist?list=...
 ```
 
-::: tip
-Reply to the search results or playlist listing with a **number** to select a video.
-:::
+---
 
+### `/am <url>`
+
+**Download from Apple Music.**
+
+**1. Single Song:**
+```
+/am https://music.apple.com/album/song-name/123?i=456
+```
+
+**2. Album:**
+Paste an album URL to list all tracks:
+```
+/am https://music.apple.com/album/album-name/123
+```
+
+---
+
+### Selection Options
+
+When the bot shows a numbered list (search results, playlists, or albums), reply with:
+
+| Format | Example | What it does |
+|--------|---------|-------------|
+| Single | `3` | Download track #3 |
+| Range | `1-5` | Download tracks 1 through 5 |
+| List | `1, 3, 5` | Download specific tracks |
+| Mixed | `1-3, 7, 9-12` | Combine ranges and numbers |
+| All | `all` or `0` | Download every track |
+
+::: tip Batch Downloads in Groups
+When downloading multiple tracks in a **group chat**, files are sent to your **DM** to avoid spamming the group. In private chats, files are sent directly.
+
+There's a **5-second cooldown** between each track to prevent rate limiting.
+:::
 
 ---
 
@@ -99,14 +131,16 @@ yt-dlp supports **1000+ sites** including:
 | Reddit | `https://reddit.com/r/sub/comments/...` |
 | Facebook | `https://facebook.com/watch?v=...` |
 | Twitch | `https://twitch.tv/videos/...` |
+| Apple Music | `https://music.apple.com/album/...` |
 
 > [!TIP]
-> For a complete list, see [yt-dlp supported sites](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md).
+> For a complete list of yt-dlp sites, see [yt-dlp supported sites](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md).
 
 ## Limits
 
 - **Max file size**: 180 MB (WhatsApp limit)
 - **Cooldown**: 10–15 seconds per user to prevent spam
+- **Batch cooldown**: 5 seconds between each track
 - **Selection expires**: 5 minutes after showing options
 - Files are automatically cleaned up after sending
 

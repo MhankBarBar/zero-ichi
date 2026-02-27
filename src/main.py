@@ -42,7 +42,7 @@ from core.client import BotClient  # noqa: E402
 from core.command import command_loader  # noqa: E402
 from core.env import validate_environment  # noqa: E402
 from core.handlers.welcome import handle_member_join, handle_member_leave  # noqa: E402
-from core.i18n import init_i18n  # noqa: E402
+from core.i18n import init_i18n, reload_locales  # noqa: E402
 from core.jid_resolver import resolve_pair  # noqa: E402
 from core.logger import (  # noqa: E402
     console,
@@ -253,11 +253,13 @@ async def start_bot() -> None:
         global bot
 
         project_dir = _src_dir
+        locales_dir = project_dir / "locales"
         watch_dirs = [
             project_dir / "commands",
             project_dir / "core",
             project_dir / "config",
             project_dir / "ai",
+            locales_dir,
         ]
         watch_files = [
             project_dir / "dashboard_api.py",
@@ -268,11 +270,20 @@ async def start_bot() -> None:
         async for changes in awatch(*watch_dirs, *watch_files):
             for _, path in changes:
                 path = Path(path)
-                if path.suffix == ".py" and not path.name.startswith("_"):
-                    rel_path = path.relative_to(project_dir)
-                    module_name = str(rel_path.with_suffix("")).replace("\\", ".").replace("/", ".")
+                try:
+                    if path.suffix == ".json" and (
+                        path.parent == locales_dir or path.parent.name == "locales"
+                    ):
+                        reload_locales()
+                        log_success(f"[b]↻ Reloaded:[/b] {path.name} (locales)")
+                        continue
 
-                    try:
+                    if path.suffix == ".py" and not path.name.startswith("_"):
+                        rel_path = path.relative_to(project_dir)
+                        module_name = (
+                            str(rel_path.with_suffix("")).replace("\\", ".").replace("/", ".")
+                        )
+
                         if module_name in sys.modules:
                             importlib.reload(sys.modules[module_name])
 
@@ -293,8 +304,8 @@ async def start_bot() -> None:
                             command_loader._commands.clear()
                             count = command_loader.load_commands()
                             log_success(f"[b]↻ Reloaded:[/b] {path.name} ({count} commands)")
-                    except Exception as e:
-                        log_error(f"Reload failed for {path.name}: {e}")
+                except Exception as e:
+                    log_error(f"Reload failed for {path.name}: {e}")
 
     if AUTO_RELOAD:
         asyncio.create_task(watch_and_reload())

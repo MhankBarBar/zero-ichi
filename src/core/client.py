@@ -1047,6 +1047,13 @@ class BotClient:
 
         return await self._client.send_message(self.to_jid(to), message)
 
+    _AUDIO_MIME_FIXES: dict[str, str] = {
+        "audio/x-m4a": "audio/mp4",
+        "audio/m4a": "audio/mp4",
+        "audio/x-aac": "audio/aac",
+        "audio/x-wav": "audio/mpeg",
+    }
+
     async def send_audio(
         self,
         to: str | JID,
@@ -1059,6 +1066,10 @@ class BotClient:
         """
         Send an audio file.
 
+        Patches MIME types that python-magic detects incorrectly for WhatsApp.
+        For example, M4A files are detected as 'audio/x-m4a' but WhatsApp
+        only accepts 'audio/mp4'.
+
         Args:
             to: Recipient JID
             file: Audio file path or bytes
@@ -1067,6 +1078,8 @@ class BotClient:
             forwarded: Whether to mark the message as forwarded
         """
         msg = await self._client.build_audio_message(file, quoted=quoted)
+        if msg.audioMessage.mimetype in self._AUDIO_MIME_FIXES:
+            msg.audioMessage.mimetype = self._AUDIO_MIME_FIXES[msg.audioMessage.mimetype]
         if forwarded:
             self._apply_forwarded(msg)
         return await self._client.send_message(self.to_jid(to), msg)

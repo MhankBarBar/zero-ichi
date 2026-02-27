@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from core.applemusic import AppleMusicTrack
     from core.downloader import MediaInfo, PlaylistEntry
 
 
@@ -58,7 +59,18 @@ class PendingPlaylist:
     created_at: float = field(default_factory=time.time)
 
 
-PendingItem = PendingDownload | PendingSearch | PendingPlaylist
+@dataclass
+class PendingAppleMusic:
+    """A pending Apple Music album awaiting user's track selection."""
+
+    tracks: list[AppleMusicTrack]
+    album_name: str
+    sender_jid: str
+    chat_jid: str
+    created_at: float = field(default_factory=time.time)
+
+
+PendingItem = PendingDownload | PendingSearch | PendingPlaylist | PendingAppleMusic
 
 
 class PendingStore:

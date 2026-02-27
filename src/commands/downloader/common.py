@@ -1,7 +1,3 @@
-"""
-Common utilities for downloader commands.
-"""
-
 import asyncio
 import time
 from collections.abc import Callable
@@ -12,11 +8,11 @@ from core.downloader import (
     DownloadAbortedError,
     DownloadError,
     FileTooLargeError,
-    _format_size,
     downloader,
 )
 from core.errors import report_error
 from core.i18n import t, t_error
+from core.progress import build_complete_bar, build_progress_text
 
 
 class BaseMediaCommand(Command):
@@ -71,22 +67,7 @@ class BaseMediaCommand(Command):
                 if not total_bytes or total_bytes <= 0:
                     return
 
-                pct = (downloaded_bytes / total_bytes) * 100
-                filled = int(pct / 5)
-                bar = "█" * filled + "░" * (20 - filled)
-
-                speed_str = _format_size(speed) + "/s" if speed else "?"
-                eta_str = f"{int(eta)}s" if eta else "?"
-                dl_str = _format_size(downloaded_bytes)
-                total_str = _format_size(total_bytes)
-
-                text = (
-                    f"{header}"
-                    f"`[{bar}]` {pct:.0f}%\n"
-                    f"{sym.BULLET} {dl_str} / {total_str}\n"
-                    f"{sym.BULLET} {speed_str} {sym.BULLET} ETA: {eta_str}"
-                )
-
+                text = build_progress_text(header, downloaded_bytes, total_bytes, speed, eta)
                 asyncio.run_coroutine_threadsafe(
                     ctx.client.edit_message(ctx.message.chat_jid, progress_msg_id, text),
                     loop,
@@ -102,7 +83,7 @@ class BaseMediaCommand(Command):
             await ctx.client.edit_message(
                 ctx.message.chat_jid,
                 progress_msg_id,
-                f"{header}`[{'█' * 20}]` 100%\n{sym.BULLET} {t('downloader.sending')}",
+                build_complete_bar(header, t("downloader.sending")),
             )
 
             caption = (
@@ -122,7 +103,7 @@ class BaseMediaCommand(Command):
             await ctx.client.edit_message(
                 ctx.message.chat_jid,
                 progress_msg_id,
-                f"{header}`[{'█' * 20}]` 100%\n{sym.BULLET} {t('downloader.done')}",
+                build_complete_bar(header, t("downloader.done")),
             )
 
         except FileTooLargeError as e:

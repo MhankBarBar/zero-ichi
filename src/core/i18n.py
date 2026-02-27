@@ -62,7 +62,7 @@ def load_locale(lang: str = "en") -> dict:
         return {}
 
 
-def get_language(chat_jid: str = None) -> str:
+def get_language(chat_jid: str | None = None) -> str:
     """Get language for a specific chat or default."""
     jid = chat_jid or get_context()
     if jid and jid in _chat_languages:
@@ -118,7 +118,7 @@ def load_chat_languages() -> None:
             _chat_languages = {}
 
 
-def t(key: str, chat_jid: str = None, **kwargs) -> str:
+def t(key: str, chat_jid: str | None = None, **kwargs) -> str:
     """
     Get translated string by key.
 
@@ -178,7 +178,7 @@ def _load_available_languages() -> None:
             _available_languages[file.stem] = file.stem
 
 
-def init_i18n(lang: str = None) -> None:
+def init_i18n(lang: str | None = None) -> None:
     """
     Initialize i18n with language from config.
 
@@ -196,26 +196,46 @@ def init_i18n(lang: str = None) -> None:
     load_chat_languages()
 
 
+def reload_locales(lang: str | None = None) -> None:
+    """
+    Reload locale data from disk.
+
+    Args:
+        lang: Optional language code to reload. If omitted, all locale
+            caches are cleared and reloaded.
+    """
+    global _locales
+
+    if lang:
+        _locales.pop(lang, None)
+        load_locale(lang)
+        return
+
+    _locales.clear()
+    _load_available_languages()
+    load_locale(_default_lang)
+
+
 def get_available_languages() -> dict[str, str]:
     """Return dict of available language codes and names."""
     return _available_languages.copy()
 
 
-def t_error(key: str, chat_jid: str = None, **kwargs) -> str:
+def t_error(key: str, chat_jid: str | None = None, **kwargs) -> str:
     """Get translated error message with error symbol."""
     return sym.error(t(key, chat_jid, **kwargs))
 
 
-def t_success(key: str, chat_jid: str = None, **kwargs) -> str:
+def t_success(key: str, chat_jid: str | None = None, **kwargs) -> str:
     """Get translated success message with success symbol."""
     return sym.success(t(key, chat_jid, **kwargs))
 
 
-def t_warning(key: str, chat_jid: str = None, **kwargs) -> str:
+def t_warning(key: str, chat_jid: str | None = None, **kwargs) -> str:
     """Get translated warning message with warning symbol."""
     return sym.warning(t(key, chat_jid, **kwargs))
 
 
-def t_info(key: str, chat_jid: str = None, **kwargs) -> str:
+def t_info(key: str, chat_jid: str | None = None, **kwargs) -> str:
     """Get translated info message with info symbol."""
     return f"{sym.INFO} {t(key, chat_jid, **kwargs)}"
