@@ -1,6 +1,6 @@
 # Contributing
 
-We love contributions! Here's how you can help make Zero Ichi better.
+Contributions are welcome. Here's how to get started.
 
 ## Getting Started
 
@@ -22,7 +22,7 @@ We love contributions! Here's how you can help make Zero Ichi better.
     ```bash
     git checkout -b feature/my-cool-feature
     ```
-2.  Make your changes.
+2.  Make your changes. All source code lives under `src/`.
 3.  **Format and Lint** your code:
     ```bash
     uv run ruff format .
@@ -31,15 +31,21 @@ We love contributions! Here's how you can help make Zero Ichi better.
     > [!IMPORTANT]
     > CI will fail if code is not formatted or has lint errors.
 
-4.  **Test** your changes locally.
+4.  **Run the bot** to test your changes:
+    ```bash
+    uv run zero-ichi
+    ```
+    The bot supports auto-reload — file changes are picked up without restarting.
 
 ## Project Structure
 
-See [Architecture](/development/architecture) for a deep dive.
+See [Architecture](/development/architecture) for a full breakdown.
 
--   `commands/`: Add new commands here.
--   `core/`: Core logic (avoid touching unless necessary).
--   `locales/`: Update these for text changes.
+-   `src/commands/` — Add new commands here.
+-   `src/core/` — Core logic (client, middleware, logger, etc.).
+-   `src/ai/` — AI agent, context, memory, and tools.
+-   `src/locales/` — Translation JSON files.
+-   `src/config/` — Static settings loaded from `config.json`.
 
 ## Pull Requests
 
@@ -48,18 +54,36 @@ See [Architecture](/development/architecture) for a deep dive.
 -   Describe what you changed and why.
 -   If you added a feature, include a screenshot or usage example.
 
+## Adding a Command
+
+Create a new file in the appropriate `src/commands/<category>/` directory:
+
+```python
+from core.command import Command
+
+class MyCommand(Command):
+    name = "mycommand"
+    description = "Does something cool"
+    usage = "/mycommand <arg>"
+
+    async def execute(self, msg, bot, args, prefix):
+        await bot.reply(msg, "Hello!")
+```
+
+Commands are auto-discovered — no registration needed.
+
 ## Adding Translations
 
-We use JSON files in `locales/` for i18n.
+Translation files live in `src/locales/`.
 
-1.  Copy `locales/en.json` to `locales/<code>.json`.
+1.  Copy `src/locales/en.json` to `src/locales/<code>.json`.
 2.  Update `_meta.label` with the language name.
 3.  Translate the values.
-4.  Submit a PR!
+4.  Submit a PR.
 
 ## Reporting Bugs
 
-Please use the [GitHub Issues](https://github.com/MhankBarBar/zero-ichi/issues) to report bugs. Include:
+Please use [GitHub Issues](https://github.com/MhankBarBar/zero-ichi/issues) to report bugs. Include:
 -   Steps to reproduce
 -   Expected vs actual behavior
 -   Logs or screenshots

@@ -94,7 +94,7 @@ features:
     <div class="step-card">
       <div class="step-number">3</div>
       <h3>Run</h3>
-      <p>Start with <code>uv run main.py</code> and scan the QR code with WhatsApp</p>
+      <p>Start with <code>uv run zero-ichi</code> and scan the QR code with WhatsApp</p>
     </div>
   </div>
 </div>

@@ -4,7 +4,7 @@ There are two ways to add custom commands to Zero Ichi.
 
 ## Method 1: Create a File
 
-Create a Python file in the appropriate `commands/<category>/` directory. The bot auto-discovers it on startup (or hot-reloads if `auto_reload` is enabled).
+Create a Python file in the appropriate `src/commands/<category>/` directory. The bot auto-discovers it on startup (or hot-reloads if `auto_reload` is enabled).
 
 ### Basic Command
 
@@ -110,7 +110,7 @@ The `ctx` object passed to `execute()` provides:
 
 To make your command translatable:
 
-1. Add keys to `locales/en.json` and `locales/id.json`
+1. Add keys to `src/locales/en.json` and `src/locales/id.json`
 2. Use `t()` in your command
 
 ```python

@@ -35,7 +35,7 @@ Because life is too short for boring bots.
 pip install uv
 git clone https://github.com/MhankBarBar/zero-ichi
 cd zero-ichi
-uv sync  # magic happens here
+uv sync
 ```
 
 ### 2. Configure
@@ -58,7 +58,7 @@ Copy the example config and make it yours:
 ### 3. Launch
 
 ```bash
-uv run main.py
+uv run zero-ichi
 ```
 
 Scan the QR code and you're in business.
@@ -80,10 +80,10 @@ Everything you need to know, neatly organized:
 
 ## Project Structure
 
-- `commands/`: Where the magic happens
-- `core/`: The brain
-- `dashboard/`: The pretty face
-- `locales/`: The dictionary
+- `src/commands/`: Where the magic happens
+- `src/core/`: The brain
+- `src/dashboard/`: The pretty face
+- `src/locales/`: The dictionary
 
 [Contributing Guide →](https://zeroichi.mhankbarbar.dev/development/contributing)
 
