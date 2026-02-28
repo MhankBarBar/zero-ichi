@@ -37,7 +37,9 @@ from pydantic import BaseModel
 sys.path.insert(0, str(Path(__file__).parent))
 
 from core.analytics import command_analytics
+from core.automations import load_rules, next_rule_id, save_rules
 from core.command import command_loader
+from core.digest import apply_digest_schedule, build_digest_message, send_digest_now
 from core.event_bus import event_bus
 from core.handlers.welcome import (
     get_goodbye_config,
@@ -46,6 +48,7 @@ from core.handlers.welcome import (
     set_welcome_config,
 )
 from core.rate_limiter import rate_limiter
+from core.reports import create_report, get_report, list_reports, update_report_status
 from core.runtime_config import runtime_config
 from core.scheduler import get_scheduler
 from core.session import session_state
@@ -211,6 +214,57 @@ class GoodbyeSettings(BaseModel):
     message: str = "Goodbye, {name}! 👋"
 
 
+class ReportCreate(BaseModel):
+    target_jid: str
+    target_name: str = ""
+    target_number: str = ""
+    target_pn: str = ""
+    target_lid: str = ""
+    reason: str = ""
+    evidence_text: str = ""
+    evidence_message_id: str = ""
+    evidence_sender_jid: str = ""
+    evidence_chat_jid: str = ""
+    evidence_media_type: str = ""
+    evidence_caption: str = ""
+    reporter_jid: str = "dashboard@system"
+    reporter_name: str = "Dashboard"
+    reporter_number: str = ""
+    reporter_pn: str = ""
+    reporter_lid: str = ""
+
+
+class ReportStatusUpdate(BaseModel):
+    status: str
+    resolution: str = ""
+    resolved_by: str = "dashboard@system"
+
+
+class DigestUpdate(BaseModel):
+    enabled: bool = False
+    period: str = "daily"
+    time: str = "20:00"
+    day: str = "sun"
+
+
+class AutomationRuleCreate(BaseModel):
+    name: str = ""
+    trigger_type: str
+    trigger_value: str = ""
+    action_type: str
+    action_value: str = ""
+    enabled: bool = True
+
+
+class AutomationRuleUpdate(BaseModel):
+    name: str | None = None
+    trigger_type: str | None = None
+    trigger_value: str | None = None
+    action_type: str | None = None
+    action_value: str | None = None
+    enabled: bool | None = None
+
+
 @_api.post("/api/send-message")
 async def send_message(req: MessageRequest):
     """Send a message via the bot."""
@@ -304,7 +358,7 @@ async def get_qr():
 @_api.post("/api/auth/pair")
 async def start_pairing(req: PairRequest):
     """Start pairing with phone number."""
-    runtime_config.set_nested("bot", "login_method", "pair_code")
+    runtime_config.set_nested("bot", "login_method", "PAIR_CODE")
     runtime_config.set_nested("bot", "phone_number", req.phone)
     runtime_config._save()
 
@@ -334,6 +388,9 @@ async def get_config():
             "filters": runtime_config.get_nested("features", "filters", default=True),
             "blacklist": runtime_config.get_nested("features", "blacklist", default=True),
             "warnings": runtime_config.get_nested("features", "warnings", default=True),
+            "automation_rules": runtime_config.get_nested(
+                "features", "automation_rules", default=True
+            ),
         },
         "logging": {
             "log_messages": runtime_config.get_nested("logging", "log_messages", default=True),
@@ -507,7 +564,9 @@ async def bulk_update_groups(
         try:
             group_storage = GroupData(gid)
             if action == "antilink":
-                group_storage.set_anti_link(value)
+                current = group_storage.anti_link
+                current["enabled"] = value
+                group_storage.save_anti_link(current)
             elif action == "welcome":
                 current = group_storage.load("welcome", {"enabled": True, "message": "Welcome!"})
                 current["enabled"] = value
@@ -1166,6 +1225,186 @@ async def remove_blacklist_word(group_id: str, word: str):
     group_storage.save_blacklist(words)
 
     return {"success": True, "message": f"Word '{word}' removed from blacklist"}
+
+
+@_api.get("/api/groups/{group_id}/reports")
+async def get_group_reports(group_id: str, status: str = Query("")):
+    """Get moderation reports for a group."""
+    reports = list_reports(group_id, status=status)
+    return {"reports": reports, "count": len(reports), "status": status}
+
+
+@_api.get("/api/groups/{group_id}/reports/{report_id}")
+async def get_group_report(group_id: str, report_id: str):
+    """Get one moderation report by ID."""
+    report = get_report(group_id, report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    return report
+
+
+@_api.post("/api/groups/{group_id}/reports")
+async def create_group_report(group_id: str, payload: ReportCreate):
+    """Create a moderation report from dashboard."""
+    report = create_report(
+        group_id,
+        reporter_jid=payload.reporter_jid,
+        reporter_name=payload.reporter_name,
+        reporter_number=payload.reporter_number,
+        reporter_pn=payload.reporter_pn,
+        reporter_lid=payload.reporter_lid,
+        target_jid=payload.target_jid,
+        target_name=payload.target_name,
+        target_number=payload.target_number,
+        target_pn=payload.target_pn,
+        target_lid=payload.target_lid,
+        reason=payload.reason or "No reason provided",
+        evidence_text=payload.evidence_text,
+        evidence_message_id=payload.evidence_message_id,
+        evidence_sender_jid=payload.evidence_sender_jid,
+        evidence_chat_jid=payload.evidence_chat_jid,
+        evidence_media_type=payload.evidence_media_type,
+        evidence_caption=payload.evidence_caption,
+    )
+    await event_bus.emit("report_update", {"action": "created", "group_id": group_id})
+    return {"success": True, "report": report}
+
+
+@_api.put("/api/groups/{group_id}/reports/{report_id}")
+async def update_group_report(group_id: str, report_id: str, payload: ReportStatusUpdate):
+    """Update moderation report status."""
+    status = payload.status.lower().strip()
+    if status not in {"open", "resolved", "dismissed"}:
+        raise HTTPException(status_code=400, detail="Invalid status")
+
+    updated = update_report_status(
+        group_id,
+        report_id,
+        status=status,
+        resolved_by=payload.resolved_by,
+        resolution=payload.resolution,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    await event_bus.emit(
+        "report_update",
+        {
+            "action": "updated",
+            "group_id": group_id,
+            "report_id": updated.get("id", report_id),
+            "status": updated.get("status", status),
+        },
+    )
+    return {"success": True, "report": updated}
+
+
+@_api.get("/api/groups/{group_id}/digest")
+async def get_group_digest(group_id: str):
+    """Get digest settings and preview for a group."""
+    cfg = GroupData(group_id).digest
+    preview = build_digest_message(group_id, period=str(cfg.get("period", "daily")))
+    return {"config": cfg, "preview": preview}
+
+
+@_api.put("/api/groups/{group_id}/digest")
+async def update_group_digest(group_id: str, payload: DigestUpdate):
+    """Update digest settings for a group."""
+    data = GroupData(group_id)
+    cfg = data.digest
+    cfg["enabled"] = payload.enabled
+    cfg["period"] = payload.period.lower().strip()
+    cfg["time"] = payload.time
+    cfg["day"] = payload.day.lower().strip()[:3]
+    data.save_digest(cfg)
+    cfg = apply_digest_schedule(group_id, creator_jid="dashboard@system")
+    await event_bus.emit("digest_update", {"group_id": group_id, "config": cfg})
+    return {"success": True, "config": cfg}
+
+
+@_api.post("/api/groups/{group_id}/digest/now")
+async def trigger_group_digest_now(group_id: str):
+    """Send digest now for a group."""
+    cfg = GroupData(group_id).digest
+    period = str(cfg.get("period", "daily"))
+    if not send_digest_now(group_id, period=period):
+        raise HTTPException(status_code=500, detail="Scheduler is unavailable")
+    await event_bus.emit("digest_update", {"group_id": group_id, "action": "sent_now"})
+    return {"success": True}
+
+
+@_api.get("/api/groups/{group_id}/automations")
+async def get_group_automations(group_id: str):
+    """Get automation rules for a group."""
+    rules = load_rules(group_id)
+    return {"rules": rules, "count": len(rules)}
+
+
+@_api.post("/api/groups/{group_id}/automations")
+async def create_group_automation(group_id: str, payload: AutomationRuleCreate):
+    """Create automation rule."""
+    rules = load_rules(group_id)
+    rid = next_rule_id(rules)
+    rule = {
+        "id": rid,
+        "name": payload.name.strip() or f"Rule {rid}",
+        "enabled": payload.enabled,
+        "trigger_type": payload.trigger_type.lower().strip(),
+        "trigger_value": payload.trigger_value,
+        "action_type": payload.action_type.lower().strip(),
+        "action_value": payload.action_value,
+    }
+    rules.append(rule)
+    save_rules(group_id, rules)
+    await event_bus.emit("automation_update", {"group_id": group_id, "action": "created"})
+    return {"success": True, "rule": rule}
+
+
+@_api.put("/api/groups/{group_id}/automations/{rule_id}")
+async def update_group_automation(group_id: str, rule_id: str, payload: AutomationRuleUpdate):
+    """Update one automation rule."""
+    rules = load_rules(group_id)
+    rid = rule_id.upper().strip()
+
+    updated = None
+    for rule in rules:
+        if str(rule.get("id", "")).upper() != rid:
+            continue
+        if payload.name is not None:
+            rule["name"] = payload.name
+        if payload.trigger_type is not None:
+            rule["trigger_type"] = payload.trigger_type.lower().strip()
+        if payload.trigger_value is not None:
+            rule["trigger_value"] = payload.trigger_value
+        if payload.action_type is not None:
+            rule["action_type"] = payload.action_type.lower().strip()
+        if payload.action_value is not None:
+            rule["action_value"] = payload.action_value
+        if payload.enabled is not None:
+            rule["enabled"] = payload.enabled
+        updated = rule
+        break
+
+    if not updated:
+        raise HTTPException(status_code=404, detail="Automation rule not found")
+
+    save_rules(group_id, rules)
+    await event_bus.emit("automation_update", {"group_id": group_id, "action": "updated"})
+    return {"success": True, "rule": updated}
+
+
+@_api.delete("/api/groups/{group_id}/automations/{rule_id}")
+async def delete_group_automation(group_id: str, rule_id: str):
+    """Delete one automation rule."""
+    rules = load_rules(group_id)
+    rid = rule_id.upper().strip()
+    new_rules = [r for r in rules if str(r.get("id", "")).upper() != rid]
+    if len(new_rules) == len(rules):
+        raise HTTPException(status_code=404, detail="Automation rule not found")
+
+    save_rules(group_id, new_rules)
+    await event_bus.emit("automation_update", {"group_id": group_id, "action": "deleted"})
+    return {"success": True}
 
 
 @app.websocket("/ws")

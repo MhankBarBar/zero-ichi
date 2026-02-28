@@ -54,7 +54,9 @@ class AntilinkCommand(Command):
         """Show current anti-link status."""
         config = data.anti_link
         enabled = config.get("enabled", False)
-        action = config.get("action", "warn")
+        action = str(config.get("action", "warn")).lower()
+        if action in {"ban", "mute"}:
+            action = "kick"
         whitelist = config.get("whitelist", [])
         p = ctx.prefix
 
@@ -81,7 +83,7 @@ class AntilinkCommand(Command):
             [
                 f"`{p}antilink on` - Enable for this group",
                 f"`{p}antilink off` - Disable for this group",
-                f"`{p}antilink action <type>` - Set action (warn/delete/kick/ban)",
+                f"`{p}antilink action <type>` - Set action (warn/delete/kick)",
                 f"`{p}antilink whitelist add <domain>` - Allow a domain",
                 f"`{p}antilink whitelist remove <domain>` - Remove from whitelist",
                 f"`{p}antilink whitelist list` - Show whitelist",
@@ -91,14 +93,13 @@ class AntilinkCommand(Command):
                 "`warn` - Warn the user",
                 "`delete` - Delete the message only",
                 "`kick` - Delete + kick user",
-                "`ban` - Delete + ban user",
             ],
         )
         await ctx.client.reply(ctx.message, msg)
 
     async def _handle_action(self, ctx: CommandContext, data: GroupData, args: list[str]) -> None:
         """Handle action setting."""
-        valid_actions = ["warn", "delete", "kick", "ban"]
+        valid_actions = ["warn", "delete", "kick"]
 
         if not args:
             config = data.anti_link
@@ -111,6 +112,9 @@ class AntilinkCommand(Command):
             return
 
         new_action = args[0].lower()
+        if new_action in {"ban", "mute"}:
+            new_action = "kick"
+
         if new_action not in valid_actions:
             await ctx.client.reply(
                 ctx.message,

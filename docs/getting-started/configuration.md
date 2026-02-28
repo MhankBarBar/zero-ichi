@@ -2,19 +2,17 @@
 
 The bot is configured through `config.json` with [JSON Schema](https://json-schema.org/) validation — your editor will provide autocomplete and inline docs automatically.
 
+Runtime changes from WhatsApp commands or Dashboard are persisted back into `config.json` (single source of truth).
+
 ## Quick Start
 
-```json
-{
-  "$schema": "./config.schema.json",
-  "bot": {
-    "name": "my_bot",
-    "prefix": "/",
-    "login_method": "QR",
-    "owner_jid": ""
-  }
-}
+```bash
+cp config.json.example config.json
 ```
+
+Then edit `config.json`.
+
+`config.json.example` is committed to git; `config.json` is local-only.
 
 ::: tip Editor Autocomplete
 The `$schema` reference gives you full autocomplete and validation in VS Code, WebStorm, and other JSON-aware editors.
@@ -29,14 +27,14 @@ Core bot identity and behavior.
 | Property | Type | Default | Required | Description |
 |----------|------|---------|:--------:|-------------|
 | `name` | `string` | `zero_ichi_bot` | ✅ | Session identifier — creates `<name>.session` database file |
-| `prefix` | `string` | `(!\|/\|.)` | ✅ | Command prefix. Supports regex for multiple prefixes (e.g. `!`, `/`, or `.`) |
+| `prefix` | `string` | `/` | ✅ | Command prefix. Supports regex for multiple prefixes (e.g. `!`, `/`, or `.`) |
 | `login_method` | `string` | `QR` | ✅ | Login method: `QR` or `PAIR_CODE` |
 | `owner_jid` | `string` | — | ✅ | Bot owner's JID (e.g. `628xxx@s.whatsapp.net` or `4089xxx@lid`) |
 | `phone_number` | `string` | — | | Phone number in international format without `+` (for `PAIR_CODE` login) |
 | `auto_read` | `boolean` | `false` | | Automatically mark incoming messages as read |
 | `auto_react` | `boolean` | `false` | | Automatically react to incoming messages |
-| `auto_react_emoji` | `string` | `❤️` | | Emoji to use for auto-react |
-| `auto_reload` | `boolean` | `false` | | Hot-reload commands when files change (for development) |
+| `auto_react_emoji` | `string` | `""` | | Emoji to use for auto-react |
+| `auto_reload` | `boolean` | `true` | | Hot-reload commands and locale files when files change (for development) |
 | `ignore_self_messages` | `boolean` | `true` | | Ignore messages sent by the bot itself |
 
 ### Prefix Examples
@@ -73,7 +71,7 @@ Control console and file logging output.
 | `log_messages` | `boolean` | `true` | Log incoming/outgoing messages to console |
 | `level` | `string` | `INFO` | Log level: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
 | `file_logging` | `boolean` | `true` | Write logs to `logs/` directory |
-| `verbose` | `boolean` | `true` | Enable verbose/detailed logging output |
+| `verbose` | `boolean` | `false` | Enable verbose/detailed logging output |
 
 ```json
 {
@@ -104,11 +102,11 @@ Configure the AI assistant. See [Agentic AI](/features/ai) for full usage guide.
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `enabled` | `boolean` | `true` | Enable AI-powered responses |
+| `enabled` | `boolean` | `false` | Enable AI-powered responses |
 | `provider` | `string` | `openai` | AI provider: `openai`, `anthropic`, `google` |
 | `api_key` | `string` | `""` | API key (falls back to `AI_API_KEY` env var if empty) |
-| `model` | `string` | `gpt-5-mini` | Model name for the selected provider |
-| `trigger_mode` | `string` | `reply` | When AI responds: `always`, `mention`, `reply` |
+| `model` | `string` | `gpt-4o-mini` | Model name for the selected provider |
+| `trigger_mode` | `string` | `mention` | When AI responds: `always`, `mention`, `reply` |
 | `allowed_actions` | `string[]` | `[]` | Allowed command actions for AI (empty = all non-blocked) |
 | `blocked_actions` | `string[]` | `["aeval", "eval", ...]` | Commands blocked from AI use (security) |
 | `owner_only` | `boolean` | `true` | Restrict AI to bot owner only |
@@ -146,6 +144,7 @@ Enable or disable built-in features globally.
 | `filters` | `boolean` | `true` | Enable auto-reply filters (`/filter`) |
 | `blacklist` | `boolean` | `true` | Enable word blacklist filtering |
 | `warnings` | `boolean` | `true` | Enable user warning system |
+| `automation_rules` | `boolean` | `true` | Enable no-code automation rule engine |
 
 ```json
 {
@@ -156,7 +155,8 @@ Enable or disable built-in features globally.
     "notes": true,
     "filters": true,
     "blacklist": true,
-    "warnings": true
+    "warnings": true,
+    "automation_rules": true
   }
 }
 ```
@@ -189,7 +189,7 @@ Configure link detection behavior in groups.
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `action` | `string` | `warn` | Action on link detection: `warn`, `kick`, `ban` |
+| `action` | `string` | `warn` | Action on link detection: `warn`, `delete`, `kick` |
 | `whitelist` | `string[]` | `[]` | Domains allowed to bypass anti-link |
 
 ```json
@@ -210,7 +210,7 @@ Configure the user warning system.
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
 | `limit` | `integer` | `3` | Warnings before action is taken (min: `1`) |
-| `action` | `string` | `kick` | Action at limit: `warn`, `kick`, `ban` |
+| `action` | `string` | `kick` | Action at limit: `kick` |
 
 ```json
 {
@@ -229,16 +229,62 @@ Configure the media downloader used by `/dl`, `/audio`, and `/video` commands.
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `max_file_size_mb` | `number` | `180` | Maximum file size in MB for downloaded media |
+| `max_file_size_mb` | `number` | `50` | Maximum file size in MB for downloaded media |
+
+### `downloader.auto_link_download`
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `enabled` | `boolean` | `false` | Enable automatic link downloads |
+| `mode` | `string` | `auto` | Download mode: `auto`, `audio`, `video` |
+| `cooldown_seconds` | `integer` | `30` | Per-user cooldown to prevent spam |
+| `max_links_per_message` | `integer` | `1` | Maximum links processed per message |
+| `group_only` | `boolean` | `true` | Restrict auto-download to groups only |
 
 ::: tip
-WhatsApp supports up to **180 MB** for media (images, videos, audio) and up to **2 GB** for documents. The default of 180 MB matches WhatsApp's media limit.
+WhatsApp supports up to **180 MB** for media (images, videos, audio) and up to **2 GB** for documents.
+The default limit is conservative (`50 MB`) to reduce failures on slower devices/networks.
 :::
 
 ```json
 {
   "downloader": {
-    "max_file_size_mb": 180
+    "max_file_size_mb": 50,
+    "auto_link_download": {
+      "enabled": false,
+      "mode": "auto",
+      "cooldown_seconds": 30,
+      "max_links_per_message": 1,
+      "group_only": true
+    }
+  }
+}
+```
+
+---
+
+## `call_guard` — Incoming Call Guard {#call-guard}
+
+Handle incoming WhatsApp calls automatically.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `enabled` | `boolean` | `false` | Enable incoming call guard |
+| `action` | `string` | `block` | Action mode: `off` or `block` |
+| `delay_seconds` | `integer` | `3` | Delay before blocking caller (0-60) |
+| `notify_caller` | `boolean` | `true` | Send DM warning to caller before block |
+| `notify_owner` | `boolean` | `true` | Notify owner when a caller is blocked |
+| `whitelist` | `string[]` | `[]` | Caller JIDs exempt from call guard |
+
+```json
+{
+  "call_guard": {
+    "enabled": false,
+    "action": "block",
+    "delay_seconds": 3,
+    "notify_caller": true,
+    "notify_owner": true,
+    "whitelist": []
   }
 }
 ```
@@ -348,7 +394,8 @@ A complete `config.json` with all sections:
     "notes": true,
     "filters": true,
     "blacklist": true,
-    "warnings": true
+    "warnings": true,
+    "automation_rules": true
   },
   "anti_delete": {
     "forward_to": "628xxxx@s.whatsapp.net",
@@ -363,7 +410,22 @@ A complete `config.json` with all sections:
     "action": "kick"
   },
   "downloader": {
-    "max_file_size_mb": 180
+    "max_file_size_mb": 50,
+    "auto_link_download": {
+      "enabled": false,
+      "mode": "auto",
+      "cooldown_seconds": 30,
+      "max_links_per_message": 1,
+      "group_only": true
+    }
+  },
+  "call_guard": {
+    "enabled": false,
+    "action": "block",
+    "delay_seconds": 3,
+    "notify_caller": true,
+    "notify_owner": true,
+    "whitelist": []
   },
   "disabled_commands": [],
   "dashboard": {

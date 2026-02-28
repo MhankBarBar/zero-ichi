@@ -40,6 +40,9 @@ Open `http://localhost:3000` in your browser.
 - **Configuration** — manage bot settings from the web
 - **Command management** — enable/disable commands
 - **Group overview** — see all groups the bot is in
+- **Reports Center** — inspect and resolve/dismiss moderation reports
+- **Digest Manager** — configure daily/weekly group digests with preview + send-now
+- **Automation Rules** — create no-code trigger/action moderation rules
 - **Statistics** — message counts, command usage, and more
 
 ## API
@@ -53,4 +56,13 @@ The dashboard communicates with the bot through a REST API:
 | `POST /api/config` | Update configuration |
 | `GET /api/commands` | List all commands |
 | `GET /api/groups` | List joined groups |
+| `GET /api/groups/{group_id}/reports` | List report queue for a group |
+| `PUT /api/groups/{group_id}/reports/{report_id}` | Update report status |
+| `GET /api/groups/{group_id}/digest` | Get digest config + preview |
+| `PUT /api/groups/{group_id}/digest` | Update digest schedule |
+| `POST /api/groups/{group_id}/digest/now` | Trigger immediate digest |
+| `GET /api/groups/{group_id}/automations` | List automation rules |
+| `POST /api/groups/{group_id}/automations` | Create automation rule |
+| `PUT /api/groups/{group_id}/automations/{rule_id}` | Update automation rule |
+| `DELETE /api/groups/{group_id}/automations/{rule_id}` | Delete automation rule |
 | `GET /api/stats` | Usage statistics |

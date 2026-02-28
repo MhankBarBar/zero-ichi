@@ -24,7 +24,9 @@ class WarnCommand(Command):
         data = GroupData(group_jid)
         warn_config = data.warnings_config
         warn_limit = warn_config.get("limit", 3)
-        warn_action = warn_config.get("action", "kick")
+        warn_action = str(warn_config.get("action", "kick")).lower()
+        if warn_action != "kick":
+            warn_action = "kick"
 
         target_jid = parse_single_target(ctx)
         reason = extract_reason(ctx, skip_first=not ctx.message.mentions) or t("warn.no_reason")
@@ -51,7 +53,7 @@ class WarnCommand(Command):
         )
 
         if warn_count >= warn_limit:
-            if await check_bot_admin(ctx.client, group_jid):
+            if warn_action == "kick" and await check_bot_admin(ctx.client, group_jid):
                 try:
                     await ctx.client._client.update_group_participants(
                         ctx.client.to_jid(group_jid),
@@ -117,13 +119,16 @@ class WarnConfigCommand(Command):
         """Show current warnings config."""
         config = data.warnings_config
         enabled = config.get("enabled", True)
+        action = str(config.get("action", "kick")).lower()
+        if action != "kick":
+            action = "kick"
 
         msg = sym.box(
             t("headers.settings"),
             [
                 f"{t('common.enabled')}: {sym.ON if enabled else sym.OFF} {t('common.yes') if enabled else t('common.no')}",
                 f"{t('warn.limit_label')}: {config.get('limit', 3)}",
-                f"{t('warn.action_label')}: `{config.get('action', 'kick')}`",
+                f"{t('warn.action_label')}: `{action}`",
             ],
         )
         await ctx.client.reply(ctx.message, msg)
@@ -146,16 +151,27 @@ class WarnConfigCommand(Command):
 
     async def _set_action(self, ctx: CommandContext, data: GroupData, args: list[str]) -> None:
         """Set warning action."""
-        valid = ["kick", "ban", "mute"]
+        valid = ["kick"]
 
-        if not args or args[0].lower() not in valid:
+        if not args:
             await ctx.client.reply(
                 ctx.message,
                 t_error("errors.invalid_action", options=", ".join(f"`{a}`" for a in valid)),
             )
             return
 
-        action = args[0].lower()
+        requested_action = args[0].lower()
+        if requested_action in {"ban", "mute"}:
+            requested_action = "kick"
+
+        if requested_action not in valid:
+            await ctx.client.reply(
+                ctx.message,
+                t_error("errors.invalid_action", options=", ".join(f"`{a}`" for a in valid)),
+            )
+            return
+
+        action = requested_action
         config = data.warnings_config
         config["action"] = action
         data.save_warnings_config(config)

@@ -10,6 +10,8 @@ from .ai import ai_middleware
 from .antidelete import antidelete_middleware
 from .antilink import antilink_middleware
 from .auto_actions import auto_actions_middleware
+from .auto_download import auto_download_middleware
+from .automations import automations_middleware
 from .blacklist import blacklist_middleware
 from .command import command_middleware
 from .download_reply import download_reply_middleware
@@ -30,6 +32,8 @@ def build_pipeline() -> MiddlewarePipeline:
     pipeline.use("antilink", antilink_middleware)
     pipeline.use("mute", mute_middleware)
     pipeline.use("features", features_middleware)
+    pipeline.use("automations", automations_middleware)
+    pipeline.use("auto_download", auto_download_middleware)
     pipeline.use("download_reply", download_reply_middleware)
     pipeline.use("ai", ai_middleware)
     pipeline.use("command", command_middleware)

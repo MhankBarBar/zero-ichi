@@ -1,0 +1,81 @@
+{
+  "$schema": "./config.schema.json",
+  "bot": {
+    "name": "zero_ichi_bot",
+    "prefix": "/",
+    "login_method": "QR",
+    "phone_number": "",
+    "owner_jid": "",
+    "auto_read": false,
+    "auto_reload": true,
+    "auto_react": false,
+    "auto_react_emoji": "",
+    "ignore_self_messages": true,
+    "self_mode": false
+  },
+  "logging": {
+    "log_messages": true,
+    "verbose": false,
+    "level": "INFO",
+    "file_logging": true
+  },
+  "features": {
+    "anti_delete": true,
+    "anti_link": true,
+    "welcome": true,
+    "notes": true,
+    "filters": true,
+    "blacklist": true,
+    "warnings": true,
+    "automation_rules": true
+  },
+  "anti_delete": {
+    "forward_to": "",
+    "cache_ttl": 60
+  },
+  "anti_link": {
+    "action": "warn",
+    "whitelist": []
+  },
+  "warnings": {
+    "limit": 3,
+    "action": "kick"
+  },
+  "downloader": {
+    "max_file_size_mb": 50,
+    "auto_link_download": {
+      "enabled": false,
+      "mode": "auto",
+      "cooldown_seconds": 30,
+      "max_links_per_message": 1,
+      "group_only": true
+    }
+  },
+  "call_guard": {
+    "enabled": false,
+    "action": "block",
+    "delay_seconds": 3,
+    "notify_caller": true,
+    "notify_owner": true,
+    "whitelist": []
+  },
+  "agentic_ai": {
+    "enabled": false,
+    "provider": "openai",
+    "api_key": "",
+    "model": "gpt-4o-mini",
+    "trigger_mode": "mention",
+    "allowed_actions": [],
+    "blocked_actions": [
+      "eval",
+      "aeval",
+      "addcommand",
+      "delcommand"
+    ],
+    "owner_only": true
+  },
+  "disabled_commands": [],
+  "dashboard": {
+    "enabled": false
+  }
+}

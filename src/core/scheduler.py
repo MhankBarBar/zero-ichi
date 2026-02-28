@@ -33,6 +33,7 @@ class TaskType:
     REMINDER = "reminder"
     AUTO_MESSAGE = "auto_message"
     RECURRING = "recurring"
+    DIGEST = "digest"
 
 
 class ScheduledTask:
@@ -172,7 +173,13 @@ class Scheduler:
         log_info(f"Executing scheduled task: {task_id}")
 
         try:
-            if task.forward_message_data:
+            if task.task_type == TaskType.DIGEST:
+                from core.digest import build_digest_message
+
+                period = str(task.metadata.get("period", "daily"))
+                text = build_digest_message(task.chat_jid, period=period)
+                await self.bot.send(task.chat_jid, text)
+            elif task.forward_message_data:
                 msg_bytes = base64.b64decode(task.forward_message_data)
                 forward_msg = Message()
                 forward_msg.ParseFromString(msg_bytes)
@@ -302,6 +309,16 @@ class Scheduler:
                 )
                 return True
 
+            elif task.task_type == TaskType.DIGEST and task.cron_expression:
+                self._scheduler.add_job(
+                    self._execute_task,
+                    trigger=CronTrigger.from_crontab(task.cron_expression),
+                    args=[task.task_id],
+                    id=task.task_id,
+                    replace_existing=True,
+                )
+                return True
+
             elif task.task_type == TaskType.AUTO_MESSAGE and task.interval_minutes:
                 self._scheduler.add_job(
                     self._execute_task,
@@ -409,6 +426,30 @@ class Scheduler:
         if forward_message is not None:
             msg_bytes = forward_message.SerializeToString()
             task.forward_message_data = base64.b64encode(msg_bytes).decode("utf-8")
+        self._tasks[task_id] = task
+        if self._started:
+            self._schedule_task(task)
+        self._save_tasks()
+        return task
+
+    def add_digest(
+        self,
+        chat_jid: str,
+        cron_expression: str,
+        period: str = "daily",
+        creator_jid: str | None = None,
+    ) -> ScheduledTask:
+        """Add a recurring digest task."""
+        task_id = self._generate_task_id()
+        task = ScheduledTask(
+            task_id=task_id,
+            task_type=TaskType.DIGEST,
+            chat_jid=chat_jid,
+            message="",
+            cron_expression=cron_expression,
+            creator_jid=creator_jid,
+            metadata={"period": period},
+        )
         self._tasks[task_id] = task
         if self._started:
             self._schedule_task(task)

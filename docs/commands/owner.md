@@ -22,6 +22,43 @@ Manage bot configuration live from WhatsApp.
 /config ai provider <name>   # Change AI provider
 ```
 
+## /autodl
+
+Configure automatic link download behavior (owner-only).
+
+```
+/autodl status
+/autodl on
+/autodl off
+/autodl mode <auto|audio|video>
+/autodl cooldown <seconds>
+/autodl maxlinks <count>
+```
+
+::: tip
+`/autodl` works with `downloader.auto_link_download` config values and uses the same downloader pipeline as `/dl`.
+:::
+
+## /callguard
+
+Configure incoming call handling (owner-only).
+
+```
+/callguard status
+/callguard on
+/callguard off
+/callguard delay <seconds>
+/callguard notify <on|off>
+/callguard ownernotify <on|off>
+/callguard whitelist list
+/callguard whitelist add <jid_or_number>
+/callguard whitelist remove <jid_or_number>
+```
+
+::: tip
+`/callguard` uses `call_guard` config values. Current action is `block` (with optional delay and notifications).
+:::
+
 ## /eval
 
 Execute Python code directly.

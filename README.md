@@ -18,7 +18,7 @@ Because life is too short for boring bots.
 
 - **Agentic AI**: A smart assistant that remembers context, executes commands, and might just be your new best friend.
 - **Universal Downloader**: Grab videos from YouTube, TikTok, Instagram, and 1000+ other sites. Yes, even that one.
-- **The Ban Hammer**: Keep your groups clean with anti-link, anti-delete, warnings, and blacklists.
+- **Mod Toolkit**: Keep your groups clean with anti-link, anti-delete, warnings, reports, and blacklists.
 - **Time Travel**: Okay, not really, but our **Scheduler** lets you send messages in the future (cron supported!).
 - **Polyglot**: Speaks English and Indonesian fluently. Add your own language if you're feeling adventurous.
 - **Shiny Dashboard**: A web interface to manage everything because terminals are scary sometimes.
@@ -42,16 +42,11 @@ uv sync
 
 Copy the example config and make it yours:
 
-```json
-{
-  "$schema": "./config.schema.json",
-  "bot": {
-    "name": "my_super_bot",
-    "prefix": "/",
-    "login_method": "qr"
-  }
-}
+```bash
+cp config.json.example config.json
 ```
+
+Then edit `config.json` (keep the `$schema` key at the top for editor IntelliSense).
 
 (Check the [Config Guide](https://zeroichi.mhankbarbar.dev/getting-started/configuration) for the nerdy details)
 

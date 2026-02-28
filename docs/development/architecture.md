@@ -104,7 +104,7 @@ The bot uses an event-driven architecture for features like:
 
 -   **`on_message`** — Triggered for every incoming message.
 -   **`on_group_participant_update`** — Welcome/Goodbye messages.
--   **`on_call`** — Auto-reject calls (optional).
+-   **`on_call`** — Auto-block incoming callers (optional).
 
 Handlers are registered in `src/core/handlers/` and loaded by `src/main.py`.
 

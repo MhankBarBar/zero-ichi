@@ -225,6 +225,11 @@
                     "type": "boolean",
                     "description": "Enable user warning system",
                     "default": true
+                },
+                "automation_rules": {
+                    "type": "boolean",
+                    "description": "Enable no-code automation rules",
+                    "default": true
                 }
             }
         },
@@ -252,8 +257,8 @@
                     "type": "string",
                     "enum": [
                         "warn",
-                        "kick",
-                        "ban"
+                        "delete",
+                        "kick"
                     ],
                     "description": "Action to take when a link is detected",
                     "default": "warn"
@@ -281,9 +286,7 @@
                 "action": {
                     "type": "string",
                     "enum": [
-                        "warn",
-                        "kick",
-                        "ban"
+                        "kick"
                     ],
                     "description": "Action to take when warning limit is reached",
                     "default": "kick"
@@ -299,6 +302,84 @@
                     "minimum": 1,
                     "description": "Maximum file size in MB for media downloads. WhatsApp allows up to 2GB for documents, 180MB for other media",
                     "default": 50
+                },
+                "auto_link_download": {
+                    "type": "object",
+                    "description": "Automatic link download settings",
+                    "properties": {
+                        "enabled": {
+                            "type": "boolean",
+                            "default": false
+                        },
+                        "mode": {
+                            "type": "string",
+                            "enum": [
+                                "auto",
+                                "audio",
+                                "video"
+                            ],
+                            "default": "auto"
+                        },
+                        "cooldown_seconds": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "default": 30
+                        },
+                        "max_links_per_message": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "default": 1
+                        },
+                        "group_only": {
+                            "type": "boolean",
+                            "default": true
+                        }
+                    }
+                }
+            }
+        },
+        "call_guard": {
+            "type": "object",
+            "description": "Incoming call handling settings",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Enable incoming call guard behavior",
+                    "default": false
+                },
+                "action": {
+                    "type": "string",
+                    "enum": [
+                        "off",
+                        "block"
+                    ],
+                    "description": "Call action. `block` optionally sends a warning then blocks after delay",
+                    "default": "block"
+                },
+                "delay_seconds": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 60,
+                    "description": "Delay before blocking when action is `block`",
+                    "default": 3
+                },
+                "notify_caller": {
+                    "type": "boolean",
+                    "description": "Send private message to caller before action",
+                    "default": true
+                },
+                "notify_owner": {
+                    "type": "boolean",
+                    "description": "Notify owner when call guard takes action",
+                    "default": true
+                },
+                "whitelist": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "List of user JIDs exempt from call guard",
+                    "default": []
                 }
             }
         },

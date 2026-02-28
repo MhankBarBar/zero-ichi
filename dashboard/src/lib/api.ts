@@ -53,6 +53,7 @@ export interface Config {
         filters: boolean;
         blacklist: boolean;
         warnings: boolean;
+        automation_rules?: boolean;
     };
     logging: {
         log_messages: boolean;
@@ -136,6 +137,51 @@ export interface Note {
 export interface Filter {
     trigger: string;
     response: string;
+}
+
+export interface ReportItem {
+    id: string;
+    status: "open" | "resolved" | "dismissed";
+    group_jid: string;
+    reporter_jid: string;
+    reporter_name: string;
+    reporter_number?: string;
+    reporter_pn?: string;
+    reporter_lid?: string;
+    target_jid: string;
+    target_name?: string;
+    target_number?: string;
+    target_pn?: string;
+    target_lid?: string;
+    reason: string;
+    evidence_text: string;
+    evidence_message_id: string;
+    evidence_sender_jid?: string;
+    evidence_chat_jid?: string;
+    evidence_media_type?: string;
+    evidence_caption?: string;
+    created_at: string;
+    resolved_at?: string | null;
+    resolved_by?: string | null;
+    resolution?: string | null;
+}
+
+export interface DigestConfig {
+    enabled: boolean;
+    period: "daily" | "weekly";
+    time: string;
+    day: string;
+    task_id?: string;
+}
+
+export interface AutomationRule {
+    id: string;
+    name: string;
+    enabled: boolean;
+    trigger_type: "contains" | "regex" | "link";
+    trigger_value: string;
+    action_type: "reply" | "warn" | "delete" | "kick" | "mute";
+    action_value: string;
 }
 
 async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> {
@@ -396,6 +442,73 @@ export const api = {
     removeBlacklistWord: (groupId: string, word: string) =>
         fetchAPI(
             `/api/groups/${encodeURIComponent(groupId)}/blacklist/${encodeURIComponent(word)}`,
+            {
+                method: "DELETE",
+            },
+        ),
+
+    getReports: (groupId: string, status = "") =>
+        fetchAPI<{ reports: ReportItem[]; count: number }>(
+            `/api/groups/${encodeURIComponent(groupId)}/reports${status ? `?status=${encodeURIComponent(status)}` : ""}`,
+        ),
+    getReport: (groupId: string, reportId: string) =>
+        fetchAPI<ReportItem>(
+            `/api/groups/${encodeURIComponent(groupId)}/reports/${encodeURIComponent(reportId)}`,
+        ),
+    updateReportStatus: (
+        groupId: string,
+        reportId: string,
+        status: "open" | "resolved" | "dismissed",
+        resolution = "",
+    ) =>
+        fetchAPI(
+            `/api/groups/${encodeURIComponent(groupId)}/reports/${encodeURIComponent(reportId)}`,
+            {
+                method: "PUT",
+                body: JSON.stringify({ status, resolution, resolved_by: "dashboard@system" }),
+            },
+        ),
+
+    getDigest: (groupId: string) =>
+        fetchAPI<{ config: DigestConfig; preview: string }>(
+            `/api/groups/${encodeURIComponent(groupId)}/digest`,
+        ),
+    updateDigest: (groupId: string, config: DigestConfig) =>
+        fetchAPI<{ success: boolean; config: DigestConfig }>(
+            `/api/groups/${encodeURIComponent(groupId)}/digest`,
+            {
+                method: "PUT",
+                body: JSON.stringify(config),
+            },
+        ),
+    sendDigestNow: (groupId: string) =>
+        fetchAPI<{ success: boolean }>(`/api/groups/${encodeURIComponent(groupId)}/digest/now`, {
+            method: "POST",
+        }),
+
+    getAutomations: (groupId: string) =>
+        fetchAPI<{ rules: AutomationRule[]; count: number }>(
+            `/api/groups/${encodeURIComponent(groupId)}/automations`,
+        ),
+    createAutomation: (groupId: string, rule: Omit<AutomationRule, "id">) =>
+        fetchAPI<{ success: boolean; rule: AutomationRule }>(
+            `/api/groups/${encodeURIComponent(groupId)}/automations`,
+            {
+                method: "POST",
+                body: JSON.stringify(rule),
+            },
+        ),
+    updateAutomation: (groupId: string, ruleId: string, patch: Partial<AutomationRule>) =>
+        fetchAPI<{ success: boolean; rule: AutomationRule }>(
+            `/api/groups/${encodeURIComponent(groupId)}/automations/${encodeURIComponent(ruleId)}`,
+            {
+                method: "PUT",
+                body: JSON.stringify(patch),
+            },
+        ),
+    deleteAutomation: (groupId: string, ruleId: string) =>
+        fetchAPI<{ success: boolean }>(
+            `/api/groups/${encodeURIComponent(groupId)}/automations/${encodeURIComponent(ruleId)}`,
             {
                 method: "DELETE",
             },

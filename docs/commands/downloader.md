@@ -117,6 +117,26 @@ Cancelled downloads are automatically cleaned up — no partial `.part` files ar
 
 ---
 
+### Auto Link Download (Owner Config)
+
+You can enable automatic link download (without sending `/dl`) using owner config command:
+
+```
+/autodl on
+/autodl mode auto
+/autodl cooldown 30
+/autodl maxlinks 1
+```
+
+Behavior notes:
+
+- Uses the same downloader engine and size limits as manual `/dl` flow.
+- Apple Music links are auto-routed to the Apple Music downloader pipeline (not yt-dlp).
+- Supports `auto`, `audio`, or `video` selection mode.
+- In group moderation setups, anti-link rules run first.
+
+---
+
 ## Supported Sites
 
 yt-dlp supports **1000+ sites** including:
