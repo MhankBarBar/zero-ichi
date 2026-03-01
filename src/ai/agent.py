@@ -51,7 +51,7 @@ CRITICAL RULES:
 def _create_agent() -> Agent:
     """Create and configure the Pydantic AI agent with all tools."""
     agent = Agent(
-        "openai:gpt-4o-mini",
+        "openai:gpt-5-mini",
         deps_type=BotDependencies,
         output_type=str,
         instructions=BASE_INSTRUCTIONS,
@@ -198,7 +198,7 @@ class AgenticAI:
     @property
     def model(self) -> str:
         """Get the AI model."""
-        return runtime_config.get_nested("agentic_ai", "model", default="gpt-4o-mini")
+        return runtime_config.get_nested("agentic_ai", "model", default="gpt-5-mini")
 
     @property
     def trigger_mode(self) -> str:

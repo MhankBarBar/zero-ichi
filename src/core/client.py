@@ -869,6 +869,29 @@ class BotClient:
             self._apply_forwarded(msg)
         return await self._client.send_message(self.to_jid(to), msg)
 
+    async def send_album(
+        self,
+        to: str | JID,
+        files: list[str | bytes],
+        caption: str = "",
+        quoted: any = None,
+    ) -> list:
+        """
+        Send an album of images/videos.
+
+        Args:
+            to: Recipient JID
+            files: List of image/video file paths, URLs, or bytes
+            caption: Optional caption for the first media
+            quoted: Optional message to quote
+        """
+        return await self._client.send_album(
+            self.to_jid(to),
+            files,
+            caption=caption,
+            quoted=quoted,
+        )
+
     async def send_sticker(
         self,
         to: str | JID,

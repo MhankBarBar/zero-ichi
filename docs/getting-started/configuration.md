@@ -105,7 +105,7 @@ Configure the AI assistant. See [Agentic AI](/features/ai) for full usage guide.
 | `enabled` | `boolean` | `false` | Enable AI-powered responses |
 | `provider` | `string` | `openai` | AI provider: `openai`, `anthropic`, `google` |
 | `api_key` | `string` | `""` | API key (falls back to `AI_API_KEY` env var if empty) |
-| `model` | `string` | `gpt-4o-mini` | Model name for the selected provider |
+| `model` | `string` | `gpt-5-mini` | Model name for the selected provider |
 | `trigger_mode` | `string` | `mention` | When AI responds: `always`, `mention`, `reply` |
 | `allowed_actions` | `string[]` | `[]` | Allowed command actions for AI (empty = all non-blocked) |
 | `blocked_actions` | `string[]` | `["aeval", "eval", ...]` | Commands blocked from AI use (security) |
@@ -116,7 +116,7 @@ Configure the AI assistant. See [Agentic AI](/features/ai) for full usage guide.
   "agentic_ai": {
     "enabled": true,
     "provider": "openai",
-    "model": "gpt-4o-mini",
+    "model": "gpt-5-mini",
     "trigger_mode": "mention",
     "allowed_actions": [],
     "blocked_actions": ["aeval", "eval", "addcommand", "delcommand", "shutdown"],
@@ -231,15 +231,50 @@ Configure the media downloader used by `/dl`, `/audio`, and `/video` commands.
 |----------|------|---------|-------------|
 | `max_file_size_mb` | `number` | `50` | Maximum file size in MB for downloaded media |
 
+### `downloader.gallery_dl`
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `config_file` | `string` | `""` | Optional path to gallery-dl config file |
+| `config` | `object` | `{}` | Optional inline gallery-dl configuration object |
+| `cookies_file` | `string` | `""` | Optional Netscape cookies file path (`--cookies`) |
+| `cookies_from_browser` | `string` | `""` | Optional browser source (`--cookies-from-browser`) |
+| `extra_args` | `string[]` | `[]` | Extra CLI args passed to gallery-dl |
+
+You can use either `config_file` or inline `config` (or both). The inline `config` follows gallery-dl's official JSON structure (for example `extractor.*`, `downloader.*`, `output.*`).
+
+```json
+{
+  "downloader": {
+    "gallery_dl": {
+      "config": {
+        "extractor": {
+          "instagram": {
+            "cookies": "data/gallery-cookies.txt"
+          }
+        }
+      }
+    }
+  }
+}
+```
+
 ### `downloader.auto_link_download`
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
 | `enabled` | `boolean` | `false` | Enable automatic link downloads |
-| `mode` | `string` | `auto` | Download mode: `auto`, `audio`, `video` |
+| `mode` | `string` | `auto` | Download mode: `auto`, `audio`, `video`, `photo` |
 | `cooldown_seconds` | `integer` | `30` | Per-user cooldown to prevent spam |
 | `max_links_per_message` | `integer` | `1` | Maximum links processed per message |
 | `group_only` | `boolean` | `true` | Restrict auto-download to groups only |
+
+### `downloader.auto_link_download.photo`
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `max_images_per_link` | `integer` | `20` | Max images extracted from one URL |
+| `max_images_per_album` | `integer` | `10` | Max images sent per album batch |
 
 ::: tip
 WhatsApp supports up to **180 MB** for media (images, videos, audio) and up to **2 GB** for documents.
@@ -250,12 +285,23 @@ The default limit is conservative (`50 MB`) to reduce failures on slower devices
 {
   "downloader": {
     "max_file_size_mb": 50,
+    "gallery_dl": {
+      "config_file": "",
+      "config": {},
+      "cookies_file": "",
+      "cookies_from_browser": "",
+      "extra_args": []
+    },
     "auto_link_download": {
       "enabled": false,
       "mode": "auto",
       "cooldown_seconds": 30,
       "max_links_per_message": 1,
-      "group_only": true
+      "group_only": true,
+      "photo": {
+        "max_images_per_link": 20,
+        "max_images_per_album": 10
+      }
     }
   }
 }
@@ -337,6 +383,9 @@ Store sensitive values in `.env` (never commit this file):
 ```bash
 AI_API_KEY=your_api_key_here
 YOUTUBE_COOKIES_PATH=data/cookies.txt
+GALLERY_DL_CONFIG_FILE=data/gallery-dl.conf
+GALLERY_DL_COOKIES_FILE=data/gallery-cookies.txt
+GALLERY_DL_COOKIES_FROM_BROWSER=firefox
 ```
 
 ### YouTube Cookies
@@ -346,7 +395,17 @@ If you are running the bot on a VPS, YouTube may block your requests with "Sign 
 1.  Export your cookies from a logged-in browser (using an extension like [Get cookies.txt LOCALLY](https://chrome.google.com/webstore/detail/get-cookiestxt-locally/ccmgnabipihkhmhnoicpbihnkhnleogp)).
 2.  Save them to `data/cookies.txt` (or whatever path you set in `.env`).
 3.  Set the environment variable: `YOUTUBE_COOKIES_PATH=data/cookies.txt`.
-```
+
+### gallery-dl Cookies / Config
+
+Use `downloader.gallery_dl` in `config.json`, or override with env vars above.
+
+Examples:
+
+- `downloader.gallery_dl.cookies_file`: pass Netscape cookies file via `--cookies`
+- `downloader.gallery_dl.cookies_from_browser`: pass browser source via `--cookies-from-browser`
+- `downloader.gallery_dl.config_file`: pass full gallery-dl config file via `--config`
+- `downloader.gallery_dl.extra_args`: pass extra runtime arguments (array)
 
 Copy the example file to get started:
 
@@ -382,7 +441,7 @@ A complete `config.json` with all sections:
   "agentic_ai": {
     "enabled": true,
     "provider": "openai",
-    "model": "gpt-4o-mini",
+    "model": "gpt-5-mini",
     "trigger_mode": "mention",
     "blocked_actions": ["eval", "aeval", "addcommand", "delcommand"],
     "owner_only": true
@@ -411,12 +470,23 @@ A complete `config.json` with all sections:
   },
   "downloader": {
     "max_file_size_mb": 50,
+    "gallery_dl": {
+      "config_file": "",
+      "config": {},
+      "cookies_file": "",
+      "cookies_from_browser": "",
+      "extra_args": []
+    },
     "auto_link_download": {
       "enabled": false,
       "mode": "auto",
       "cooldown_seconds": 30,
       "max_links_per_message": 1,
-      "group_only": true
+      "group_only": true,
+      "photo": {
+        "max_images_per_link": 20,
+        "max_images_per_album": 10
+      }
     }
   },
   "call_guard": {

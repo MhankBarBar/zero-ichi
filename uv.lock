@@ -897,6 +897,18 @@ wheels = [
 ]
 
 [[package]]
+name = "gallery-dl"
+version = "1.31.7"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "requests" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5f/ff/0282bff875ccdcad0cc751f64a38ecf8de29da728e2ca3ae8a501fc74490/gallery_dl-1.31.7.tar.gz", hash = "sha256:d599cbe22326fdb74c4b398f83bbd3a37855be79efaf54a05f450deab3ad1d90", size = 664615, upload-time = "2026-02-24T13:47:06.986Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/71/65/b9cd70a2ec82a45cf2e88d18a2e57135a0a28a76ae5e80deaa32fd7b5cc1/gallery_dl-1.31.7-py3-none-any.whl", hash = "sha256:546168a1ea8fac5bdf702dd32efc9cb1a9c084a47eef3bd0be74c5e60d0c5b38", size = 824079, upload-time = "2026-02-24T13:47:03.01Z" },
+]
+
+[[package]]
 name = "genai-prices"
 version = "0.0.52"
 source = { registry = "https://pypi.org/simple" }
@@ -3658,11 +3670,11 @@ wheels = [
 
 [[package]]
 name = "yt-dlp"
-version = "2026.2.4"
+version = "2026.2.21"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/16/be/8e099f3f34bac6851490525fb1a8b62d525a95fcb5af082e8c52ba884fb5/yt_dlp-2026.2.4.tar.gz", hash = "sha256:24733ef081116f29d8ee6eae7a48127101e6c56eb7aa228dd604a60654760022", size = 3100305, upload-time = "2026-02-04T00:49:27.043Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/58/d9/55ffff25204733e94a507552ad984d5a8a8e4f9d1f0d91763e6b1a41c79b/yt_dlp-2026.2.21.tar.gz", hash = "sha256:4407dfc1a71fec0dee5ef916a8d4b66057812939b509ae45451fa8fb4376b539", size = 3116630, upload-time = "2026-02-21T20:40:53.522Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/96/38/b17cbeaf6712a4c1b97f7f9ec3a55f3a8ddee678cc88742af47dca0315b7/yt_dlp-2026.2.4-py3-none-any.whl", hash = "sha256:d6ea83257e8127a0097b1d37ee36201f99a292067e4616b2e5d51ab153b3dbb9", size = 3299165, upload-time = "2026-02-04T00:49:25.31Z" },
+    { url = "https://files.pythonhosted.org/packages/5a/40/664c99ee36d80d84ce7a96cd98aebcb3d16c19e6c3ad3461d2cf5424040e/yt_dlp-2026.2.21-py3-none-any.whl", hash = "sha256:0d8408f5b6d20487f5caeb946dfd04f9bcd2f1a3a125b744a0a982b590e449f7", size = 3313392, upload-time = "2026-02-21T20:40:51.514Z" },
 ]
 
 [[package]]
@@ -3672,7 +3684,9 @@ source = { editable = "." }
 dependencies = [
     { name = "apscheduler" },
     { name = "fastapi" },
+    { name = "gallery-dl" },
     { name = "neonize" },
+    { name = "pillow" },
     { name = "pydantic-ai" },
     { name = "python-dotenv" },
     { name = "qrcode" },
@@ -3691,14 +3705,16 @@ dev = [
 requires-dist = [
     { name = "apscheduler", specifier = ">=3.10.0" },
     { name = "fastapi", specifier = ">=0.115.0" },
+    { name = "gallery-dl", specifier = ">=1.31.7" },
     { name = "neonize", specifier = ">=0.3.14.post0" },
+    { name = "pillow", specifier = ">=10.0.0" },
     { name = "pydantic-ai", specifier = ">=1.48.0" },
     { name = "python-dotenv", specifier = ">=1.2.1" },
     { name = "qrcode", specifier = ">=7.4" },
     { name = "rich", specifier = ">=13.0" },
     { name = "uvicorn", specifier = ">=0.34.0" },
     { name = "watchfiles", specifier = ">=1.1.1" },
-    { name = "yt-dlp", specifier = ">=2026.2.4" },
+    { name = "yt-dlp", specifier = ">=2026.2.21" },
 ]
 
 [package.metadata.requires-dev]

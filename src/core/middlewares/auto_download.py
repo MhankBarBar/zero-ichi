@@ -11,6 +11,12 @@ from core.downloader import DownloadError, downloader
 from core.event_bus import event_bus
 from core.i18n import t
 from core.logger import log_info, log_warning
+from core.photo_downloader import (
+    PhotoDownloadError,
+    build_photo_caption,
+    photo_downloader,
+    send_photo_items,
+)
 from core.runtime_config import runtime_config
 
 URL_PATTERN = re.compile(r'https?://[^\s<>"{}|\\^`\[\]]+', re.IGNORECASE)
@@ -65,6 +71,48 @@ async def _handle_apple_music_url(ctx, url: str) -> bool:
         applemusic_client.cleanup(filepath)
 
 
+async def _handle_photo_url(ctx, url: str, cfg: dict) -> bool:
+    """Handle photo URL using gallery-dl + album sending."""
+    photo_cfg = cfg.get("photo", {})
+    if not isinstance(photo_cfg, dict):
+        photo_cfg = {}
+
+    max_per_link = max(1, min(int(photo_cfg.get("max_images_per_link", 20) or 20), 100))
+    max_per_album = max(2, min(int(photo_cfg.get("max_images_per_album", 10) or 10), 30))
+
+    result = await photo_downloader.fetch(url, max_items=max_per_link)
+    caption = build_photo_caption(
+        result,
+        title_fallback=t("autodl.photo_title"),
+        likes_label=t("photo.likes_label"),
+        images_label=t("photo.images_label"),
+        unknown_user=t("photo.unknown_user"),
+    )
+    sent = await send_photo_items(
+        ctx.bot,
+        ctx.msg.chat_jid,
+        result.items,
+        caption=caption,
+        quoted=ctx.msg.event,
+        max_images_per_album=max_per_album,
+    )
+    return sent > 0
+
+
+async def _try_photo_fallback(ctx, url: str, cfg: dict, reason: str) -> bool:
+    """Try photo pipeline as fallback for auto mode links."""
+    try:
+        sent = await _handle_photo_url(ctx, url, cfg)
+        if sent:
+            log_info(f"[AUTO-DL] Sent photo media fallback for {url} ({reason})")
+            return True
+    except PhotoDownloadError as e:
+        log_warning(f"[AUTO-DL] Photo fallback skipped for {url}: {e}")
+    except Exception as e:
+        log_warning(f"[AUTO-DL] Photo fallback failed for {url}: {e}")
+    return False
+
+
 async def auto_download_middleware(ctx, next):
     """Auto-download supported media links when enabled."""
     cfg = runtime_config.get_nested("downloader", "auto_link_download", default={})
@@ -93,7 +141,7 @@ async def auto_download_middleware(ctx, next):
     max_links = max(1, int(cfg.get("max_links_per_message", 1) or 1))
     links = links[:max_links]
     mode = str(cfg.get("mode", "auto")).lower()
-    if mode not in {"auto", "audio", "video"}:
+    if mode not in {"auto", "audio", "video", "photo"}:
         mode = "auto"
 
     cooldown = max(0, int(cfg.get("cooldown_seconds", 30) or 0))
@@ -105,6 +153,20 @@ async def auto_download_middleware(ctx, next):
 
     sent_any = False
     for url in links:
+        if mode == "photo":
+            try:
+                sent = await _handle_photo_url(ctx, url, cfg)
+                if sent:
+                    sent_any = True
+                    log_info(f"[AUTO-DL] Sent photo media for {url}")
+                continue
+            except PhotoDownloadError as e:
+                log_warning(f"[AUTO-DL] Photo extraction error for {url}: {e}")
+                continue
+            except Exception as e:
+                log_warning(f"[AUTO-DL] Photo handling failed for {url}: {e}")
+                continue
+
         if APPLE_MUSIC_URL_PATTERN.search(url):
             try:
                 sent = await _handle_apple_music_url(ctx, url)
@@ -123,6 +185,9 @@ async def auto_download_middleware(ctx, next):
             info = await downloader.get_info(url)
             fmt = _pick_format(info, mode)
             if not fmt:
+                if mode == "auto":
+                    if await _try_photo_fallback(ctx, url, cfg, "no-matching-format"):
+                        sent_any = True
                 continue
 
             filepath = await downloader.download_format(
@@ -146,6 +211,10 @@ async def auto_download_middleware(ctx, next):
             sent_any = True
             log_info(f"[AUTO-DL] Sent {media_type} for {url}")
         except DownloadError as e:
+            if mode == "auto":
+                if await _try_photo_fallback(ctx, url, cfg, f"downloader-error: {e}"):
+                    sent_any = True
+                    continue
             log_warning(f"[AUTO-DL] Download error for {url}: {e}")
         except Exception as e:
             log_warning(f"[AUTO-DL] Failed for {url}: {e}")

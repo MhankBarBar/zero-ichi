@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 
+from core import symbols as sym
 from core.command import Command, CommandContext
 from core.digest import apply_digest_schedule, send_digest_now
 from core.i18n import t, t_error, t_success
@@ -16,7 +17,7 @@ TIME_RE = re.compile(r"^(?:[01]?\d|2[0-3]):[0-5]\d$")
 class DigestCommand(Command):
     name = "digest"
     description = "Configure and send daily/weekly group digests"
-    usage = "digest [status|now|off|on daily HH:MM|on weekly <day> HH:MM]"
+    usage = "digest [status | now | off | on daily <HH:MM> | on weekly <day> <HH:MM>]"
     group_only = True
     admin_only = True
 
@@ -32,15 +33,22 @@ class DigestCommand(Command):
 
         if not args or args[0].lower() == "status":
             cfg = data.digest
+            status_text = "\n".join(
+                [
+                    sym.header(t("digest.title")),
+                    "",
+                    sym.status_line(
+                        t("digest.enabled_label"),
+                        t("common.on") if cfg.get("enabled") else t("common.off"),
+                    ),
+                    sym.status_line(t("digest.period_label"), str(cfg.get("period", "daily"))),
+                    sym.status_line(t("digest.day_label"), str(cfg.get("day", "sun"))),
+                    sym.status_line(t("digest.time_label"), str(cfg.get("time", "20:00"))),
+                ]
+            )
             await ctx.client.reply(
                 ctx.message,
-                t(
-                    "digest.status",
-                    enabled=t("common.on") if cfg.get("enabled") else t("common.off"),
-                    period=cfg.get("period", "daily"),
-                    day=cfg.get("day", "sun"),
-                    time=cfg.get("time", "20:00"),
-                ),
+                status_text,
             )
             return
 

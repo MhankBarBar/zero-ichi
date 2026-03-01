@@ -43,12 +43,23 @@
   },
   "downloader": {
     "max_file_size_mb": 50,
+    "gallery_dl": {
+      "config_file": "",
+      "config": {},
+      "cookies_file": "",
+      "cookies_from_browser": "",
+      "extra_args": []
+    },
     "auto_link_download": {
       "enabled": false,
       "mode": "auto",
       "cooldown_seconds": 30,
       "max_links_per_message": 1,
-      "group_only": true
+      "group_only": true,
+      "photo": {
+        "max_images_per_link": 20,
+        "max_images_per_album": 10
+      }
     }
   },
   "call_guard": {
@@ -63,7 +74,7 @@
     "enabled": false,
     "provider": "openai",
     "api_key": "",
-    "model": "gpt-4o-mini",
+    "model": "gpt-5-mini",
     "trigger_mode": "mention",
     "allowed_actions": [],
     "blocked_actions": [

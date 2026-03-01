@@ -66,12 +66,23 @@ DEFAULT_CONFIG = {
     },
     "downloader": {
         "max_file_size_mb": 50,
+        "gallery_dl": {
+            "config_file": "",
+            "config": {},
+            "cookies_file": "",
+            "cookies_from_browser": "",
+            "extra_args": [],
+        },
         "auto_link_download": {
             "enabled": False,
             "mode": "auto",
             "cooldown_seconds": 30,
             "max_links_per_message": 1,
             "group_only": True,
+            "photo": {
+                "max_images_per_link": 20,
+                "max_images_per_album": 10,
+            },
         },
     },
     "call_guard": {
@@ -86,7 +97,7 @@ DEFAULT_CONFIG = {
         "enabled": False,
         "provider": "openai",
         "api_key": "",
-        "model": "gpt-4o-mini",
+        "model": "gpt-5-mini",
         "trigger_mode": "mention",
         "allowed_actions": [],
         "blocked_actions": ["eval", "aeval", "addcommand", "delcommand"],
@@ -169,6 +180,82 @@ class RuntimeConfig:
             if action != "kick":
                 warnings["action"] = "kick"
                 changed = True
+
+        agentic_ai = config.get("agentic_ai")
+        if isinstance(agentic_ai, dict):
+            model = str(agentic_ai.get("model", "")).strip().lower()
+            if model == "gpt-4o-mini":
+                agentic_ai["model"] = "gpt-5-mini"
+                changed = True
+
+        downloader_cfg = config.get("downloader")
+        if isinstance(downloader_cfg, dict):
+            gallery_cfg = downloader_cfg.get("gallery_dl")
+            if not isinstance(gallery_cfg, dict):
+                downloader_cfg["gallery_dl"] = {
+                    "config_file": "",
+                    "config": {},
+                    "cookies_file": "",
+                    "cookies_from_browser": "",
+                    "extra_args": [],
+                }
+                gallery_cfg = downloader_cfg["gallery_dl"]
+                changed = True
+
+            for key in ["config_file", "cookies_file", "cookies_from_browser"]:
+                value = gallery_cfg.get(key, "")
+                if not isinstance(value, str):
+                    gallery_cfg[key] = ""
+                    changed = True
+
+            inline_cfg = gallery_cfg.get("config", {})
+            if not isinstance(inline_cfg, dict):
+                gallery_cfg["config"] = {}
+                changed = True
+
+            extra_args = gallery_cfg.get("extra_args", [])
+            if not isinstance(extra_args, list):
+                gallery_cfg["extra_args"] = []
+                changed = True
+            else:
+                cleaned_args = [str(arg) for arg in extra_args if str(arg).strip()]
+                if cleaned_args != extra_args:
+                    gallery_cfg["extra_args"] = cleaned_args
+                    changed = True
+
+            auto_dl_cfg = downloader_cfg.get("auto_link_download")
+            if isinstance(auto_dl_cfg, dict):
+                mode = str(auto_dl_cfg.get("mode", "auto")).lower()
+                if mode not in {"auto", "audio", "video", "photo"}:
+                    auto_dl_cfg["mode"] = "auto"
+                    changed = True
+
+                photo_cfg = auto_dl_cfg.get("photo")
+                if not isinstance(photo_cfg, dict):
+                    auto_dl_cfg["photo"] = {
+                        "max_images_per_link": 20,
+                        "max_images_per_album": 10,
+                    }
+                    photo_cfg = auto_dl_cfg["photo"]
+                    changed = True
+
+                try:
+                    max_per_link = int(photo_cfg.get("max_images_per_link", 20))
+                except (TypeError, ValueError):
+                    max_per_link = 20
+                max_per_link = max(1, min(max_per_link, 100))
+                if photo_cfg.get("max_images_per_link") != max_per_link:
+                    photo_cfg["max_images_per_link"] = max_per_link
+                    changed = True
+
+                try:
+                    max_per_album = int(photo_cfg.get("max_images_per_album", 10))
+                except (TypeError, ValueError):
+                    max_per_album = 10
+                max_per_album = max(2, min(max_per_album, 30))
+                if photo_cfg.get("max_images_per_album") != max_per_album:
+                    photo_cfg["max_images_per_album"] = max_per_album
+                    changed = True
 
         call_guard = config.get("call_guard")
         if isinstance(call_guard, dict):

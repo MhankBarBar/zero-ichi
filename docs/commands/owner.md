@@ -30,9 +30,11 @@ Configure automatic link download behavior (owner-only).
 /autodl status
 /autodl on
 /autodl off
-/autodl mode <auto|audio|video>
+/autodl mode <auto|audio|video|photo>
 /autodl cooldown <seconds>
 /autodl maxlinks <count>
+/autodl album <count>
+/autodl photolimit <count>
 ```
 
 ::: tip

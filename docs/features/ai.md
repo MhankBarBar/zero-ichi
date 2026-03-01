@@ -37,7 +37,7 @@ Or in `config.json`:
   "agentic_ai": {
     "enabled": true,
     "provider": "openai",
-    "model": "gpt-4o-mini"
+    "model": "gpt-5-mini"
   }
 }
 ```
@@ -62,7 +62,7 @@ The bot supports multiple AI providers:
 
 | Provider | Config Value | Example Models |
 |----------|-------------|---------------|
-| OpenAI | `openai` | `gpt-4o`, `gpt-4o-mini` |
+| OpenAI | `openai` | `gpt-5-mini`, `gpt-5` |
 | Google | `google` | `gemini-2.0-flash` |
 | Groq | `groq` | `llama-3.3-70b` |
 

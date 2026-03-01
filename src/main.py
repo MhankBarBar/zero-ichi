@@ -414,7 +414,6 @@ async def call_terminate_handler(c: NewAClient, event: CallTerminateEv) -> None:
                 f"Call terminated: caller={caller_display or '-'} id={call_id or '-'} reason={reason or '-'}"
             )
 
-        # Fallback: some clients only emit terminate, not offer/offer_notice.
         await _handle_call_offer(event, source="terminate_fallback")
     except Exception:
         pass

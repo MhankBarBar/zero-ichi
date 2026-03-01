@@ -303,6 +303,40 @@
                     "description": "Maximum file size in MB for media downloads. WhatsApp allows up to 2GB for documents, 180MB for other media",
                     "default": 50
                 },
+                "gallery_dl": {
+                    "type": "object",
+                    "description": "gallery-dl extractor runtime options (used by /photo and autodl photo mode)",
+                    "properties": {
+                        "config_file": {
+                            "type": "string",
+                            "description": "Optional path to gallery-dl config file",
+                            "default": ""
+                        },
+                        "config": {
+                            "type": "object",
+                            "description": "Optional inline gallery-dl configuration object",
+                            "default": {}
+                        },
+                        "cookies_file": {
+                            "type": "string",
+                            "description": "Optional cookies file path passed as --cookies",
+                            "default": ""
+                        },
+                        "cookies_from_browser": {
+                            "type": "string",
+                            "description": "Optional browser source passed as --cookies-from-browser (e.g. firefox, chrome)",
+                            "default": ""
+                        },
+                        "extra_args": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "Extra gallery-dl CLI arguments",
+                            "default": []
+                        }
+                    }
+                },
                 "auto_link_download": {
                     "type": "object",
                     "description": "Automatic link download settings",
@@ -316,7 +350,8 @@
                             "enum": [
                                 "auto",
                                 "audio",
-                                "video"
+                                "video",
+                                "photo"
                             ],
                             "default": "auto"
                         },
@@ -333,6 +368,24 @@
                         "group_only": {
                             "type": "boolean",
                             "default": true
+                        },
+                        "photo": {
+                            "type": "object",
+                            "description": "Photo downloader behavior (gallery-dl)",
+                            "properties": {
+                                "max_images_per_link": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 100,
+                                    "default": 20
+                                },
+                                "max_images_per_album": {
+                                    "type": "integer",
+                                    "minimum": 2,
+                                    "maximum": 30,
+                                    "default": 10
+                                }
+                            }
                         }
                     }
                 }

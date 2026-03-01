@@ -2,12 +2,42 @@
 
 Zero Ichi includes a powerful media downloader powered by **yt-dlp**, supporting 1000+ sites including YouTube, TikTok, Instagram, Twitter/X, SoundCloud, and more. It also supports **Apple Music** downloads.
 
+For image-post extraction (`/photo`), Zero Ichi uses **gallery-dl**.
+
 ::: warning YouTube Requirement
 **[Bun](https://bun.sh)** must be installed on your server for YouTube downloads to work. yt-dlp uses it to solve YouTube's JS challenges.
 
 ```bash
 curl -fsSL https://bun.sh/install | bash
 ```
+:::
+
+::: warning Photo Requirement
+Install **gallery-dl** for `/photo` and `/autodl mode photo`:
+
+```bash
+pip install gallery-dl
+```
+
+If your target site requires login/session cookies, configure `downloader.gallery_dl` in `config.json`:
+
+```json
+{
+  "downloader": {
+    "gallery_dl": {
+      "config_file": "",
+      "config": {},
+      "cookies_file": "data/gallery-cookies.txt",
+      "cookies_from_browser": "",
+      "extra_args": []
+    }
+  }
+}
+```
+
+You can also put full gallery-dl options in `downloader.gallery_dl.config` (same JSON structure as the official gallery-dl configuration docs).
+
+This maps to gallery-dl runtime flags such as `--config`, `--cookies`, and `--cookies-from-browser`.
 :::
 
 ## Commands
@@ -56,6 +86,21 @@ Paste a playlist URL to list tracks:
 Paste an album URL to list all tracks:
 ```
 /am https://music.apple.com/album/album-name/123
+```
+
+---
+
+### `/photo <url>`
+
+**Download image posts/albums from supported sites (gallery-dl).**
+
+- If 1 image is found, the bot sends a single image.
+- If multiple images are found, the bot sends them as a **media album**.
+- WEBP images are automatically converted before sending for better WhatsApp compatibility.
+- Caption includes post details when available (description, username, likes).
+
+```
+/photo https://www.instagram.com/p/xxxxxxxxx/
 ```
 
 ---
@@ -124,15 +169,19 @@ You can enable automatic link download (without sending `/dl`) using owner confi
 ```
 /autodl on
 /autodl mode auto
+/autodl mode photo
 /autodl cooldown 30
 /autodl maxlinks 1
+/autodl album 10
+/autodl photolimit 20
 ```
 
 Behavior notes:
 
 - Uses the same downloader engine and size limits as manual `/dl` flow.
 - Apple Music links are auto-routed to the Apple Music downloader pipeline (not yt-dlp).
-- Supports `auto`, `audio`, or `video` selection mode.
+- Supports `auto`, `audio`, `video`, or `photo` selection mode.
+- Photo mode uses gallery-dl and sends multi-image results as albums.
 - In group moderation setups, anti-link rules run first.
 
 ---

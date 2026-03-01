@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from core import symbols as sym
 from core.command import Command, CommandContext
 from core.i18n import t, t_error, t_success
 from core.runtime_config import runtime_config
@@ -10,7 +11,10 @@ from core.runtime_config import runtime_config
 class CallGuardCommand(Command):
     name = "callguard"
     description = "Configure incoming call handling"
-    usage = "callguard [status|on|off|delay|notify|ownernotify|whitelist]"
+    usage = (
+        "callguard [status | on | off | delay <seconds> | notify <on|off> | "
+        "ownernotify <on|off> | whitelist <list|add|remove> [jid]]"
+    )
     owner_only = True
 
     async def execute(self, ctx: CommandContext) -> None:
@@ -103,14 +107,29 @@ class CallGuardCommand(Command):
         if not isinstance(whitelist, list):
             whitelist = []
 
-        text = t(
-            "callguard.status",
-            enabled=t("common.on") if cfg.get("enabled") else t("common.off"),
-            action=cfg.get("action", "block"),
-            delay=cfg.get("delay_seconds", 3),
-            notify_caller=t("common.on") if cfg.get("notify_caller", True) else t("common.off"),
-            notify_owner=t("common.on") if cfg.get("notify_owner", True) else t("common.off"),
-            whitelist=len(whitelist),
+        text = "\n".join(
+            [
+                sym.header(t("callguard.title")),
+                "",
+                sym.status_line(
+                    t("callguard.enabled_label"),
+                    t("common.on") if cfg.get("enabled") else t("common.off"),
+                ),
+                sym.status_line(t("callguard.action_label"), str(cfg.get("action", "block"))),
+                sym.status_line(
+                    t("callguard.delay_label"),
+                    t("callguard.seconds_value", seconds=cfg.get("delay_seconds", 3)),
+                ),
+                sym.status_line(
+                    t("callguard.notify_caller_label"),
+                    t("common.on") if cfg.get("notify_caller", True) else t("common.off"),
+                ),
+                sym.status_line(
+                    t("callguard.notify_owner_label"),
+                    t("common.on") if cfg.get("notify_owner", True) else t("common.off"),
+                ),
+                sym.status_line(t("callguard.whitelist_count_label"), str(len(whitelist))),
+            ]
         )
 
         if whitelist:

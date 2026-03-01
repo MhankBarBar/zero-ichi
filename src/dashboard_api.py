@@ -1451,7 +1451,7 @@ class AIConfigUpdate(BaseModel):
 
     enabled: bool = False
     provider: str = "openai"
-    model: str = "gpt-4o-mini"
+    model: str = "gpt-5-mini"
     trigger_mode: str = "mention"
     owner_only: bool = True
 
@@ -1462,7 +1462,7 @@ async def get_ai_config():
     return {
         "enabled": runtime_config.get_nested("agentic_ai", "enabled", default=False),
         "provider": runtime_config.get_nested("agentic_ai", "provider", default="openai"),
-        "model": runtime_config.get_nested("agentic_ai", "model", default="gpt-4o-mini"),
+        "model": runtime_config.get_nested("agentic_ai", "model", default="gpt-5-mini"),
         "trigger_mode": runtime_config.get_nested("agentic_ai", "trigger_mode", default="mention"),
         "owner_only": runtime_config.get_nested("agentic_ai", "owner_only", default=True),
         "has_api_key": bool(
