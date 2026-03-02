@@ -689,6 +689,7 @@
     "images_label": "gambar",
     "unknown_user": "unknown",
     "sent": "Berhasil kirim `{sent}` gambar. Ketemu: `{found}`. WEBP di-convert: `{converted}`.",
+    "auth_required": "Link ini butuh cookies login. Set `downloader.gallery_dl.cookies_from_browser` atau `downloader.gallery_dl.cookies_file`, lalu coba lagi.",
     "failed": "Download foto gagal: {error}"
   },
   "leave": {

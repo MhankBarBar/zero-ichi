@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import re
 import time
+from urllib.parse import urlparse
 
 from core.applemusic import AppleMusicError, applemusic_client
 from core.command import command_loader
+from core.constants import AUTO_DL_PHOTO_FIRST_HOSTS
 from core.downloader import DownloadError, downloader
 from core.event_bus import event_bus
 from core.i18n import t
@@ -47,6 +49,15 @@ def _safe_apple_filename(name: str) -> str:
     """Build a safe filename for Apple Music track downloads."""
     safe = re.sub(r"[^\w\s-]", "", name).strip()[:50] or "track"
     return f"am_{safe.replace(' ', '_')}"
+
+
+def _is_photo_first_url(url: str) -> bool:
+    """Return True for hosts that should use photo pipeline first."""
+    try:
+        host = (urlparse(url).hostname or "").lower()
+    except Exception:
+        return False
+    return host in AUTO_DL_PHOTO_FIRST_HOSTS
 
 
 async def _handle_apple_music_url(ctx, url: str) -> bool:
@@ -153,6 +164,20 @@ async def auto_download_middleware(ctx, next):
 
     sent_any = False
     for url in links:
+        if mode == "auto" and _is_photo_first_url(url):
+            try:
+                sent = await _handle_photo_url(ctx, url, cfg)
+                if sent:
+                    sent_any = True
+                    log_info(f"[AUTO-DL] Sent photo media (photo-first) for {url}")
+                continue
+            except PhotoDownloadError as e:
+                log_warning(f"[AUTO-DL] Photo-first extraction error for {url}: {e}")
+                continue
+            except Exception as e:
+                log_warning(f"[AUTO-DL] Photo-first handling failed for {url}: {e}")
+                continue
+
         if mode == "photo":
             try:
                 sent = await _handle_photo_url(ctx, url, cfg)

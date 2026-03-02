@@ -688,6 +688,7 @@
     "images_label": "images",
     "unknown_user": "unknown",
     "sent": "Sent `{sent}` image(s). Found: `{found}`. Converted WEBP: `{converted}`.",
+    "auth_required": "This link requires login cookies. Set `downloader.gallery_dl.cookies_from_browser` or `downloader.gallery_dl.cookies_file`, then try again.",
     "failed": "Photo download failed: {error}"
   },
   "leave": {

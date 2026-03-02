@@ -9,6 +9,7 @@ from core.i18n import t, t_error
 from core.photo_downloader import (
     PhotoDownloadError,
     build_photo_caption,
+    is_auth_required_error,
     photo_downloader,
     send_photo_items,
 )
@@ -78,10 +79,16 @@ class PhotoCommand(Command):
 
         except PhotoDownloadError as e:
             await ctx.client.send_reaction(ctx.message, "❌")
+            error_text = str(e)
+            message = (
+                t("photo.auth_required")
+                if is_auth_required_error(error_text)
+                else t_error("photo.failed", error=error_text)
+            )
             await ctx.client.edit_message(
                 ctx.message.chat_jid,
                 progress.ID,
-                t_error("photo.failed", error=str(e)),
+                message,
             )
         except Exception as e:
             await ctx.client.send_reaction(ctx.message, "❌")
