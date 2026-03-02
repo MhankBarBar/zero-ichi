@@ -75,7 +75,11 @@ async def handle_anti_link(bot: BotClient, msg: MessageHelper) -> bool:
     if await is_admin(bot, msg.chat_jid, msg.sender_jid):
         return False
 
-    action = config.get("action", "warn")
+    action = str(config.get("action", "warn")).lower()
+    if action in {"ban", "mute"}:
+        action = "kick"
+    elif action not in {"warn", "delete", "kick"}:
+        action = "warn"
 
     log_info(f"[ANTI-LINK] Link detected from {msg.sender_name}: {blocked_domains}")
 

@@ -35,10 +35,10 @@ def validate_environment():
             sys.exit(1)
 
     login_method = runtime_config.login_method
-    if login_method == "pair_code":
+    if login_method == "PAIR_CODE":
         phone = runtime_config.phone_number
         if not phone:
-            log_error("PHONE_NUMBER is required for 'pair_code' login method!")
+            log_error("PHONE_NUMBER is required for 'PAIR_CODE' login method!")
             log_bullet("Please update config.json.")
             sys.exit(1)
         if not phone.isdigit():

@@ -33,31 +33,35 @@ async def execute_moderation_action(
     user_key: str = "user",
 ) -> None:
     """
-    Execute a moderation action (warn, delete, kick, ban).
+    Execute a moderation action (warn, delete, kick).
 
     Args:
         bot: BotClient instance
         msg: MessageHelper instance
-        action: Action to perform (warn, delete, kick, ban)
+        action: Action to perform (warn, delete, kick)
         reason_key: I18n key prefix for messages (e.g. 'antilink', 'blacklist')
         user_key: I18n key for the user placeholder (default: 'user')
     """
+    normalized_action = action.lower()
+    if normalized_action in {"ban", "mute"}:
+        normalized_action = "kick"
+
     user_id = msg.sender_jid.split("@")[0]
     chat_jid_obj = bot.to_jid(msg.chat_jid)
     sender_jid_obj = bot.to_jid(msg.sender_jid)
     message_id = msg.event.Info.ID
 
-    if action == "warn":
+    if normalized_action == "warn":
         await bot.send(
             msg.chat_jid,
             t_warning(f"{reason_key}.warn_message", **{user_key: user_id}),
         )
 
-    elif action == "delete":
+    elif normalized_action == "delete":
         await bot.raw.revoke_message(chat_jid_obj, sender_jid_obj, message_id)
         log_info(f"[{reason_key.upper()}] Deleted message from {msg.sender_name}")
 
-    elif action == "kick":
+    elif normalized_action == "kick":
         await bot.raw.revoke_message(chat_jid_obj, sender_jid_obj, message_id)
         await bot.raw.update_group_participants(
             chat_jid_obj, [sender_jid_obj], ParticipantChange.REMOVE
@@ -68,14 +72,3 @@ async def execute_moderation_action(
             f"{sym.KICK} {t(f'{reason_key}.kicked', **{user_key: user_id})}",
         )
         log_info(f"[{reason_key.upper()}] Kicked {msg.sender_name}")
-
-    elif action == "ban":
-        await bot.raw.revoke_message(chat_jid_obj, sender_jid_obj, message_id)
-        await bot.raw.update_group_participants(
-            chat_jid_obj, [sender_jid_obj], ParticipantChange.REMOVE
-        )
-
-        await bot.send(
-            msg.chat_jid, f"{sym.BAN} {t(f'{reason_key}.banned', **{user_key: user_id})}"
-        )
-        log_info(f"[{reason_key.upper()}] Banned {msg.sender_name}")

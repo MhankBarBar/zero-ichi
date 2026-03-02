@@ -44,7 +44,7 @@ def _init_values():
         return {
             "BOT_NAME": "Zero Ichi",
             "PREFIX": "/",
-            "LOGIN_METHOD": "qr",
+            "LOGIN_METHOD": "QR",
             "PHONE_NUMBER": "",
             "OWNER_JID": "",
             "IGNORE_SELF_MESSAGES": True,

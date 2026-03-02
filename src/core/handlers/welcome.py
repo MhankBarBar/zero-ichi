@@ -33,7 +33,7 @@ async def _resolve_placeholders(
 
     if "{count}" in message:
         try:
-            group_info = await bot._client.GetGroupInfo(bot._parse_jid(group_jid))
+            group_info = await bot.raw.get_group_info(bot.to_jid(group_jid))
             count = len(group_info.Participants) if group_info and group_info.Participants else "?"
             message = message.replace("{count}", str(count))
         except Exception:
@@ -124,7 +124,9 @@ def get_welcome_config(group_jid: str) -> dict:
     )
 
 
-def set_welcome_config(group_jid: str, enabled: bool = None, message: str = None) -> None:
+def set_welcome_config(
+    group_jid: str, enabled: bool | None = None, message: str | None = None
+) -> None:
     """Update welcome configuration for a group."""
     storage = GroupStorage(group_jid)
     config = get_welcome_config(group_jid)
@@ -149,7 +151,9 @@ def get_goodbye_config(group_jid: str) -> dict:
     )
 
 
-def set_goodbye_config(group_jid: str, enabled: bool = None, message: str = None) -> None:
+def set_goodbye_config(
+    group_jid: str, enabled: bool | None = None, message: str | None = None
+) -> None:
     """Update goodbye configuration for a group."""
     storage = GroupStorage(group_jid)
     config = get_goodbye_config(group_jid)
@@ -166,7 +170,7 @@ async def handle_welcome_goodbye_config(
     ctx: "CommandContext",
     config_type: str,
     get_config_func: Callable[[str], dict],
-    set_config_func: Callable[[str, bool, str], None],
+    set_config_func: Callable[..., None],
     placeholders_help: str,
 ) -> None:
     """

@@ -48,6 +48,9 @@ data/
 .env.local
 .env.*.local
 
+# Local runtime config
+config.json
+
 # OS generated files
 .DS_Store
 Thumbs.db

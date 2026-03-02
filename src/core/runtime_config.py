@@ -9,23 +9,31 @@ See config.schema.json for the schema definition.
 
 import json
 import re
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
 from core import jsonc
 
 CONFIG_FILE = Path(__file__).parent.parent.parent / "config.json"
+OVERRIDES_FILE = Path(__file__).parent.parent.parent / "data" / "runtime_overrides.json"
+OVERRIDES_MIGRATION_MARKER = (
+    Path(__file__).parent.parent.parent / "data" / ".runtime_overrides_migrated"
+)
+DEFAULT_SCHEMA_PATH = "./config.schema.json"
 
 DEFAULT_CONFIG = {
     "bot": {
         "name": "Zero Ichi",
         "prefix": "/",
-        "login_method": "qr",
+        "login_method": "QR",
         "phone_number": "",
         "owner_jid": "",
         "auto_read": False,
+        "auto_reload": True,
         "auto_react": False,
         "auto_react_emoji": "",
+        "ignore_self_messages": True,
         "self_mode": False,
     },
     "logging": {
@@ -42,6 +50,7 @@ DEFAULT_CONFIG = {
         "filters": True,
         "blacklist": True,
         "warnings": True,
+        "automation_rules": True,
     },
     "anti_delete": {
         "forward_to": "",
@@ -55,11 +64,40 @@ DEFAULT_CONFIG = {
         "limit": 3,
         "action": "kick",
     },
+    "downloader": {
+        "max_file_size_mb": 50,
+        "gallery_dl": {
+            "config_file": "",
+            "config": {},
+            "cookies_file": "",
+            "cookies_from_browser": "",
+            "extra_args": [],
+        },
+        "auto_link_download": {
+            "enabled": False,
+            "mode": "auto",
+            "cooldown_seconds": 30,
+            "max_links_per_message": 1,
+            "group_only": True,
+            "photo": {
+                "max_images_per_link": 20,
+                "max_images_per_album": 10,
+            },
+        },
+    },
+    "call_guard": {
+        "enabled": False,
+        "action": "block",
+        "delay_seconds": 3,
+        "notify_caller": True,
+        "notify_owner": True,
+        "whitelist": [],
+    },
     "agentic_ai": {
         "enabled": False,
         "provider": "openai",
         "api_key": "",
-        "model": "gpt-4o-mini",
+        "model": "gpt-5-mini",
         "trigger_mode": "mention",
         "allowed_actions": [],
         "blocked_actions": ["eval", "aeval", "addcommand", "delcommand"],
@@ -101,126 +139,188 @@ class RuntimeConfig:
             self._write_default_config()
 
     def _write_default_config(self) -> None:
-        """Write default config with comments."""
-        config_content = """{
-  // Bot Configuration
-  // This file uses JSONC format - comments are supported!
+        """Write default config file."""
+        default_config = self._ensure_schema_key(deepcopy(DEFAULT_CONFIG))
+        jsonc.dump(default_config, CONFIG_FILE, indent=2)
 
-  "bot": {
-    // Bot session name (used for database file)
-    "name": "Zero Ichi",
+    def _ensure_schema_key(self, config: dict[str, Any]) -> dict[str, Any]:
+        """Ensure config keeps top-level $schema key as the first field."""
+        schema = config.get("$schema") or DEFAULT_SCHEMA_PATH
+        rest = {k: v for k, v in config.items() if k != "$schema"}
+        return {"$schema": schema, **rest}
 
-    // Command prefix (can be a single character or regex pattern)
-    "prefix": "/",
+    def _normalize_legacy_actions(self, config: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+        """Normalize legacy moderation action values to supported ones."""
+        changed = False
 
-    // Login method: "qr" or "pair_code"
-    "login_method": "qr",
+        bot = config.get("bot")
+        if isinstance(bot, dict):
+            login_method = str(bot.get("login_method", "QR")).upper()
+            if login_method in {"PAIR_CODE", "QR"}:
+                if bot.get("login_method") != login_method:
+                    bot["login_method"] = login_method
+                    changed = True
+            else:
+                bot["login_method"] = "QR"
+                changed = True
 
-    // Phone number for pair_code login (with country code, e.g., "628123456789")
-    "phone_number": "",
+        anti_link = config.get("anti_link")
+        if isinstance(anti_link, dict):
+            action = str(anti_link.get("action", "warn")).lower()
+            if action in {"ban", "mute"}:
+                anti_link["action"] = "kick"
+                changed = True
+            elif action not in {"warn", "delete", "kick"}:
+                anti_link["action"] = "warn"
+                changed = True
 
-    // Bot owner JID (set via /config owner me, or manually here)
-    // Format: "123456@lid" or "1234567890@s.whatsapp.net"
-    "owner_jid": ""
-  },
+        warnings = config.get("warnings")
+        if isinstance(warnings, dict):
+            action = str(warnings.get("action", "kick")).lower()
+            if action != "kick":
+                warnings["action"] = "kick"
+                changed = True
 
-  "logging": {
-    // Log incoming messages to console
-    "log_messages": true,
+        agentic_ai = config.get("agentic_ai")
+        if isinstance(agentic_ai, dict):
+            model = str(agentic_ai.get("model", "")).strip().lower()
+            if model == "gpt-4o-mini":
+                agentic_ai["model"] = "gpt-5-mini"
+                changed = True
 
-    // Verbose debug logging
-    "verbose": false,
+        downloader_cfg = config.get("downloader")
+        if isinstance(downloader_cfg, dict):
+            gallery_cfg = downloader_cfg.get("gallery_dl")
+            if not isinstance(gallery_cfg, dict):
+                downloader_cfg["gallery_dl"] = {
+                    "config_file": "",
+                    "config": {},
+                    "cookies_file": "",
+                    "cookies_from_browser": "",
+                    "extra_args": [],
+                }
+                gallery_cfg = downloader_cfg["gallery_dl"]
+                changed = True
 
-    // Log level: DEBUG, INFO, WARNING, ERROR
-    "level": "INFO",
+            for key in ["config_file", "cookies_file", "cookies_from_browser"]:
+                value = gallery_cfg.get(key, "")
+                if not isinstance(value, str):
+                    gallery_cfg[key] = ""
+                    changed = True
 
-    // Enable file logging to logs/ directory
-    "file_logging": true
-  },
+            inline_cfg = gallery_cfg.get("config", {})
+            if not isinstance(inline_cfg, dict):
+                gallery_cfg["config"] = {}
+                changed = True
 
-  "features": {
-    // Anti-delete: reveal deleted messages
-    "anti_delete": true,
+            extra_args = gallery_cfg.get("extra_args", [])
+            if not isinstance(extra_args, list):
+                gallery_cfg["extra_args"] = []
+                changed = True
+            else:
+                cleaned_args = [str(arg) for arg in extra_args if str(arg).strip()]
+                if cleaned_args != extra_args:
+                    gallery_cfg["extra_args"] = cleaned_args
+                    changed = True
 
-    // Anti-link: detect and handle links in groups
-    "anti_link": false,
+            auto_dl_cfg = downloader_cfg.get("auto_link_download")
+            if isinstance(auto_dl_cfg, dict):
+                mode = str(auto_dl_cfg.get("mode", "auto")).lower()
+                if mode not in {"auto", "audio", "video", "photo"}:
+                    auto_dl_cfg["mode"] = "auto"
+                    changed = True
 
-    // Welcome messages for new group members
-    "welcome": true,
+                photo_cfg = auto_dl_cfg.get("photo")
+                if not isinstance(photo_cfg, dict):
+                    auto_dl_cfg["photo"] = {
+                        "max_images_per_link": 20,
+                        "max_images_per_album": 10,
+                    }
+                    photo_cfg = auto_dl_cfg["photo"]
+                    changed = True
 
-    // Notes system (
-    "notes": true,
+                try:
+                    max_per_link = int(photo_cfg.get("max_images_per_link", 20))
+                except (TypeError, ValueError):
+                    max_per_link = 20
+                max_per_link = max(1, min(max_per_link, 100))
+                if photo_cfg.get("max_images_per_link") != max_per_link:
+                    photo_cfg["max_images_per_link"] = max_per_link
+                    changed = True
 
-    // Auto-reply filters
-    "filters": true,
+                try:
+                    max_per_album = int(photo_cfg.get("max_images_per_album", 10))
+                except (TypeError, ValueError):
+                    max_per_album = 10
+                max_per_album = max(2, min(max_per_album, 30))
+                if photo_cfg.get("max_images_per_album") != max_per_album:
+                    photo_cfg["max_images_per_album"] = max_per_album
+                    changed = True
 
-    // Word blacklist with auto-delete
-    "blacklist": true,
+        call_guard = config.get("call_guard")
+        if isinstance(call_guard, dict):
+            action = str(call_guard.get("action", "block")).lower()
+            if action not in {"off", "block"}:
+                call_guard["action"] = "block"
+                changed = True
 
-    // Warning system
-    "warnings": true
-  },
+            try:
+                delay = int(call_guard.get("delay_seconds", 3))
+            except (TypeError, ValueError):
+                delay = 3
+            delay = max(0, min(delay, 60))
+            if call_guard.get("delay_seconds") != delay:
+                call_guard["delay_seconds"] = delay
+                changed = True
 
-  "anti_delete": {
-    // JID to forward deleted messages to (leave empty to reply in-place)
-    "forward_to": "",
+        return config, changed
 
-    // How long to cache messages (minutes)
-    "cache_ttl": 60
-  },
+    def _migrate_runtime_overrides(self, config: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+        """One-time migration from data/runtime_overrides.json into config.json."""
+        if not OVERRIDES_FILE.exists() or OVERRIDES_MIGRATION_MARKER.exists():
+            return config, False
 
-  "anti_link": {
-    // Action when link detected: "warn", "delete", "kick", "ban"
-    "action": "warn",
+        changed = False
+        try:
+            with open(OVERRIDES_FILE, encoding="utf-8") as f:
+                overrides = json.load(f)
+            if isinstance(overrides, dict) and overrides:
+                config = self._deep_merge(config, overrides)
+                changed = True
+        except Exception:
+            pass
 
-    // Whitelisted domains (e.g., ["youtube.com", "github.com"])
-    "whitelist": []
-  },
-
-  "warnings": {
-    // Max warnings before action
-    "limit": 3,
-
-    // Action at limit: "kick", "ban", "mute"
-    "action": "kick"
-  },
-
-  // Commands disabled at runtime (managed via /config cmd disable)
-  "disabled_commands": []
-}"""
-        CONFIG_FILE.write_text(config_content, encoding="utf-8")
+        OVERRIDES_MIGRATION_MARKER.parent.mkdir(parents=True, exist_ok=True)
+        OVERRIDES_MIGRATION_MARKER.write_text("migrated", encoding="utf-8")
+        return config, changed
 
     def _load(self) -> None:
-        """
-        Load configuration from JSON file + runtime overrides.
-
-        - config.json: Base config with JSON Schema (user edits this)
-        - data/runtime_overrides.json: Runtime changes (bot edits this)
-        """
+        """Load configuration from config.json and apply compatibility normalization."""
         self._ensure_config_file()
 
         try:
-            base_config = jsonc.load(CONFIG_FILE)
+            loaded = jsonc.load(CONFIG_FILE)
+            if not isinstance(loaded, dict):
+                loaded = {}
 
-            overrides_file = Path(__file__).parent.parent.parent / "data" / "runtime_overrides.json"
-            overrides = {}
-            if overrides_file.exists():
-                try:
-                    with open(overrides_file, encoding="utf-8") as f:
-                        overrides = json.load(f)
-                except Exception:
-                    pass
+            config = self._merge_defaults(loaded, DEFAULT_CONFIG)
+            config, migrated = self._migrate_runtime_overrides(config)
+            config, normalized = self._normalize_legacy_actions(config)
+            config = self._ensure_schema_key(config)
 
-            self._config = self._merge_defaults(base_config, DEFAULT_CONFIG)
-            self._config = self._deep_merge(self._config, overrides)
+            self._config = config
+
+            if migrated or normalized or "$schema" not in loaded:
+                self._save()
 
         except Exception as e:
             print(f"[CONFIG] Error loading config: {e}")
-            self._config = DEFAULT_CONFIG.copy()
+            self._config = self._ensure_schema_key(deepcopy(DEFAULT_CONFIG))
+            self._save()
 
     def _merge_defaults(self, config: dict, defaults: dict) -> dict:
         """Recursively merge defaults into config for missing keys."""
-        result = defaults.copy()
+        result = deepcopy(defaults)
         for key, value in config.items():
             if key in result and isinstance(result[key], dict) and isinstance(value, dict):
                 result[key] = self._merge_defaults(value, result[key])
@@ -230,7 +330,7 @@ class RuntimeConfig:
 
     def _deep_merge(self, base: dict, overrides: dict) -> dict:
         """Deep merge overrides into base config."""
-        result = base.copy()
+        result = deepcopy(base)
         for key, value in overrides.items():
             if key in result and isinstance(result[key], dict) and isinstance(value, dict):
                 result[key] = self._deep_merge(result[key], value)
@@ -239,41 +339,9 @@ class RuntimeConfig:
         return result
 
     def _save(self) -> None:
-        """
-        Save runtime overrides to a separate file.
-
-        This keeps config.json clean by only saving
-        the differences (overrides) to a separate JSON file.
-        """
-        try:
-            base_config = jsonc.load(CONFIG_FILE)
-            base_config = self._merge_defaults(base_config, DEFAULT_CONFIG)
-        except Exception:
-            base_config = DEFAULT_CONFIG.copy()
-
-        overrides = self._calc_overrides(base_config, self._config)
-
-        overrides_file = Path(__file__).parent.parent.parent / "data" / "runtime_overrides.json"
-        overrides_file.parent.mkdir(parents=True, exist_ok=True)
-
-        with open(overrides_file, "w", encoding="utf-8") as f:
-            json.dump(overrides, f, indent=2, ensure_ascii=False)
-
-    def _calc_overrides(self, base: dict, current: dict) -> dict:
-        """Calculate the differences between base and current config."""
-        overrides = {}
-
-        for key, value in current.items():
-            if key not in base:
-                overrides[key] = value
-            elif isinstance(value, dict) and isinstance(base.get(key), dict):
-                nested = self._calc_overrides(base[key], value)
-                if nested:
-                    overrides[key] = nested
-            elif value != base.get(key):
-                overrides[key] = value
-
-        return overrides
+        """Persist full runtime config into config.json."""
+        self._config = self._ensure_schema_key(self._config)
+        jsonc.dump(self._config, CONFIG_FILE, indent=2)
 
     def reload(self) -> None:
         """Reload configuration from file."""
@@ -352,7 +420,7 @@ class RuntimeConfig:
 
     @property
     def login_method(self) -> str:
-        return self._config.get("bot", {}).get("login_method", "qr")
+        return str(self._config.get("bot", {}).get("login_method", "QR")).upper()
 
     @property
     def phone_number(self) -> str:

@@ -37,7 +37,68 @@ Configure warning behavior.
 
 ```
 /warnconfig limit <number>    # Max warnings before action (default: 3)
-/warnconfig action <action>   # Action on limit: kick, mute (default: kick)
+/warnconfig action <action>   # Action on limit: kick (default: kick)
+```
+
+## /report and /reports
+
+Create and manage member reports.
+
+### Member flow
+
+Reply to a message (or mention a user) and report it:
+
+```
+/report <reason>
+```
+
+When submitted, the bot forwards report context to group admins via DM.
+
+### Admin flow (group)
+
+```
+/reports open
+/reports all
+/report info <id>
+/report resolve <id> [note]
+/report dismiss <id> [note]
+/report warn <id> [note]
+/report kick <id> [note]
+```
+
+### Admin flow (DM)
+
+Admins can inspect and act from private chat using report ID:
+
+```
+/report info <id>
+/report resolve <id>
+/report dismiss <id>
+/report warn <id>
+/report kick <id>
+```
+
+::: tip
+`/report info <id>` includes the original quoted message context (text/media caption), plus target/reporter PN and LID identities.
+:::
+
+## /automation
+
+No-code moderation automation rules.
+
+```
+/automation list
+/automation add <contains|regex|link> <trigger> => <reply|warn|delete|kick|mute> [response]
+/automation toggle <rule_id>
+/automation remove <rule_id>
+```
+
+**Example:**
+
+```
+/automation add contains discord.gg => warn
+/automation add regex (?i)free\s+money => delete
+/automation add link x.com => reply External links are reviewed by admins.
 ```
 
 ## /blacklist

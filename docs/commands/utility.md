@@ -92,3 +92,23 @@ Manage scheduled messages and reminders.
 /schedule toggle <id>                # Pause/Resume a task
 /schedule info <id>                  # View task details
 ```
+
+## /digest
+
+Configure periodic group summaries (daily/weekly), or send one immediately.
+
+```
+/digest status
+/digest now
+/digest off
+/digest on daily <HH:MM>
+/digest on weekly <day> <HH:MM>
+```
+
+**Examples:**
+
+```
+/digest on daily 20:00
+/digest on weekly sun 20:00
+/digest now
+```

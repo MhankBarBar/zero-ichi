@@ -49,7 +49,7 @@ def build_progress_text(
     if eta:
         extras.append(f"ETA: {int(eta)}s")
     if extras:
-        lines.append(f"{sym.BULLET} {' {sym.BULLET} '.join(extras)}")
+        lines.append(f"{sym.BULLET} {f' {sym.BULLET} '.join(extras)}")
 
     return "\n".join(lines)
 

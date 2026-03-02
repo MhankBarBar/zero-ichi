@@ -123,7 +123,19 @@ class Command(ABC):
         """Get usage string with the given prefix prepended."""
         if not self.usage:
             return f"{prefix}{self.name}"
-        parts = [f"{prefix}{p.strip()}" for p in self.usage.split("|")]
+
+        def _prefix_segment(segment: str) -> str:
+            seg = segment.strip()
+            if not seg or not prefix:
+                return seg
+
+            if seg.startswith(f"/{self.name}"):
+                return f"{prefix}{seg[1:]}"
+            if seg.startswith(self.name):
+                return f"{prefix}{seg}"
+            return seg
+
+        parts = [_prefix_segment(p) for p in self.usage.split("|")]
         return " | ".join(parts)
 
     def __repr__(self) -> str:

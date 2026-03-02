@@ -17,7 +17,7 @@ class AIConfig:
 
     enabled: bool = False
     provider: str = "openai"
-    model: str = "gpt-4o-mini"
+    model: str = "gpt-5-mini"
     trigger_mode: TriggerMode = "mention"
     owner_only: bool = False
     _api_key: str = field(default="", repr=False)
@@ -34,7 +34,7 @@ class AIConfig:
 
     @property
     def full_model_name(self) -> str:
-        """Get full model name for pydantic-ai (e.g., 'openai:gpt-4o-mini')."""
+        """Get full model name for pydantic-ai (e.g., 'openai:gpt-5-mini')."""
         return f"{self.provider}:{self.model}"
 
     def is_configured(self) -> bool:

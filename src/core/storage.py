@@ -125,7 +125,7 @@ class GroupData:
     @property
     def anti_link(self) -> dict:
         """Get anti-link settings for this group."""
-        return self.load(
+        config = self.load(
             "anti_link",
             {
                 "enabled": False,
@@ -133,6 +133,12 @@ class GroupData:
                 "whitelist": [],
             },
         )
+        action = str(config.get("action", "warn")).lower()
+        if action in {"ban", "mute"}:
+            config["action"] = "kick"
+        elif action not in {"warn", "delete", "kick"}:
+            config["action"] = "warn"
+        return config
 
     def save_anti_link(self, config: dict) -> None:
         """Save anti-link settings."""
@@ -141,7 +147,7 @@ class GroupData:
     @property
     def warnings_config(self) -> dict:
         """Get warnings configuration for this group."""
-        return self.load(
+        config = self.load(
             "warnings_config",
             {
                 "enabled": True,
@@ -149,10 +155,50 @@ class GroupData:
                 "action": "kick",
             },
         )
+        if str(config.get("action", "kick")).lower() != "kick":
+            config["action"] = "kick"
+        return config
 
     def save_warnings_config(self, config: dict) -> None:
         """Save warnings configuration."""
         self.save("warnings_config", config)
+
+    @property
+    def reports(self) -> dict:
+        """Get moderation reports payload."""
+        return self.load("reports", {"counter": 0, "items": []})
+
+    def save_reports(self, payload: dict) -> None:
+        """Save moderation reports payload."""
+        self.save("reports", payload)
+
+    @property
+    def digest(self) -> dict:
+        """Get digest settings for this group."""
+        return self.load(
+            "digest",
+            {
+                "enabled": False,
+                "period": "daily",
+                "time": "20:00",
+                "day": "sun",
+                "task_id": "",
+            },
+        )
+
+    def save_digest(self, config: dict) -> None:
+        """Save digest settings."""
+        self.save("digest", config)
+
+    @property
+    def automations(self) -> list:
+        """Get automation rules for this group."""
+        rules = self.load("automations", [])
+        return rules if isinstance(rules, list) else []
+
+    def save_automations(self, rules: list) -> None:
+        """Save automation rules for this group."""
+        self.save("automations", rules)
 
     @property
     def muted(self) -> list:
