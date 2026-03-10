@@ -61,57 +61,66 @@ features:
     linkText: Read guide
 ---
 
+<div class="terminal-window" data-title="system_stats.sh">
 <div class="stats-section">
-  <div class="stat-item">
-    <div class="stat-number">60+</div>
-    <div class="stat-label">Commands</div>
-  </div>
-  <div class="stat-item">
-    <div class="stat-number">9</div>
-    <div class="stat-label">Categories</div>
-  </div>
-  <div class="stat-item">
-    <div class="stat-number">2</div>
-    <div class="stat-label">Languages</div>
-  </div>
+<div class="stat-item">
+<div class="stat-number">60+</div>
+<div class="stat-label">Commands</div>
+</div>
+<div class="stat-item">
+<div class="stat-number">9</div>
+<div class="stat-label">Categories</div>
+</div>
+<div class="stat-item">
+<div class="stat-number">2</div>
+<div class="stat-label">Languages</div>
+</div>
+</div>
 </div>
 
 <div class="home-section">
-  <h2>Quick Start</h2>
-  <p class="subtitle">Get your bot running in 3 steps</p>
+<div class="terminal-window" data-title="install.sh">
+<h2>Quick Start</h2>
+<p class="subtitle">$ echo "Get your bot running in under a minute"</p>
 
-  <div class="quick-steps">
-    <div class="step-card">
-      <div class="step-number">1</div>
-      <h3>Install</h3>
-      <p>Clone the repo and install dependencies with <code>uv sync</code></p>
-    </div>
-    <div class="step-card">
-      <div class="step-number">2</div>
-      <h3>Configure</h3>
-      <p>Edit <code>config.json</code> and set your prefix, owner number, and API keys</p>
-    </div>
-    <div class="step-card">
-      <div class="step-number">3</div>
-      <h3>Run</h3>
-      <p>Start with <code>uv run zero-ichi</code> and scan the QR code with WhatsApp</p>
-    </div>
-  </div>
+<h3>Linux / macOS</h3>
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/MhankBarBar/zero-ichi/master/install.sh | bash
+```
+
+<h3>Windows (PowerShell)</h3>
+
+```powershell
+irm https://raw.githubusercontent.com/MhankBarBar/zero-ichi/master/install.ps1 | iex
+```
+
+<p>Then start the bot:</p>
+
+```bash
+uv run zero-ichi
+```
+
+<a href="/getting-started/installation" class="step-link">See full installation guide →</a>
+</div>
 </div>
 
 <div class="home-section">
-  <h2>Command Categories</h2>
-  <p class="subtitle">Everything you need, organized neatly</p>
-
-  <div class="categories-grid">
-    <a class="category-chip" href="/commands/general">General</a>
-    <a class="category-chip" href="/commands/admin">Admin</a>
-    <a class="category-chip" href="/commands/group">Group</a>
-    <a class="category-chip" href="/commands/content">Content</a>
-    <a class="category-chip" href="/commands/downloader">Downloader</a>
-    <a class="category-chip" href="/commands/moderation">Moderation</a>
-    <a class="category-chip" href="/commands/fun">Fun</a>
-    <a class="category-chip" href="/commands/utility">Utility</a>
-    <a class="category-chip" href="/commands/owner">Owner</a>
-  </div>
+<div class="terminal-window" data-title="ls commands/">
+<h2>Command Categories</h2>
+<p class="subtitle">$ ls -la commands/</p>
+<div class="categories-grid">
+<a class="category-chip" href="/commands/general">general/</a>
+<a class="category-chip" href="/commands/admin">admin/</a>
+<a class="category-chip" href="/commands/group">group/</a>
+<a class="category-chip" href="/commands/content">content/</a>
+<a class="category-chip" href="/commands/downloader">downloader/</a>
+<a class="category-chip" href="/commands/moderation">moderation/</a>
+<a class="category-chip" href="/commands/fun">fun/</a>
+<a class="category-chip" href="/commands/utility">utility/</a>
+<a class="category-chip" href="/commands/owner">owner/</a>
 </div>
+</div>
+</div>
+
+

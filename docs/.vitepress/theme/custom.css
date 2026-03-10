@@ -1,170 +1,319 @@
 /**
  * Custom theme overrides for Zero Ichi docs.
- * Aesthetic: Tech Heavy (WhatsApp Green Edition)
+ * Aesthetic: Retro / CRT Terminal
  */
 
 /* ── Fonts & Colors ──────────────────────────────────────── */
 :root {
-    --vp-font-family-base: 'Inter', sans-serif;
-    --vp-font-family-mono: 'JetBrains Mono', monospace;
+    --vp-font-family-base: 'VT323', 'IBM Plex Mono', monospace;
+    --vp-font-family-mono: 'IBM Plex Mono', 'VT323', monospace;
+    --retro-heading: 'Press Start 2P', 'VT323', monospace;
 
-    /* Common Brand Colors */
-    --vp-c-brand-1: #25d366;
-    /* WhatsApp Green */
-    --vp-c-brand-2: #128c7e;
-    /* Teal Green */
-    --vp-c-brand-3: #075e54;
-    /* Dark Teal */
-    --vp-c-brand-soft: rgba(37, 211, 102, 0.1);
+    /* Retro Amber Palette */
+    --vp-c-brand-1: #ffb000;
+    --vp-c-brand-2: #cc8d00;
+    --vp-c-brand-3: #ff6600;
+    --vp-c-brand-soft: rgba(255, 176, 0, 0.08);
 
-    /* Light Mode Defaults */
-    --vp-c-bg: #ffffff;
-    --vp-c-bg-alt: #f0f2f5;
-    /* WhatsApp Chat BG-ish */
-    --vp-c-bg-soft: #f8f9fa;
+    /* Light Mode — still retro-tinted */
+    --vp-c-bg: #1a1a2e;
+    --vp-c-bg-alt: #16213e;
+    --vp-c-bg-soft: #0f3460;
 
-    --vp-c-text-1: #111827;
-    --vp-c-text-2: #4b5563;
+    --vp-c-text-1: #e0e0e0;
+    --vp-c-text-2: #a0a0a0;
 
-    --vp-c-border: #e5e7eb;
-    --vp-c-divider: #e5e7eb;
+    --vp-c-border: #33415c;
+    --vp-c-divider: #33415c;
 
-    --tech-grid-color: rgba(0, 0, 0, 0.05);
+    --retro-glow: #ffb000;
+    --retro-glow-soft: rgba(255, 176, 0, 0.3);
+    --retro-green: #33ff33;
+    --retro-scanline: rgba(0, 0, 0, 0.08);
 }
 
 .dark {
-    /* Dark Mode Overrides */
-    --vp-c-bg: #09090b;
-    --vp-c-bg-alt: #121215;
-    --vp-c-bg-soft: #18181b;
+    --vp-c-bg: #0a0a0f;
+    --vp-c-bg-alt: #0f0f18;
+    --vp-c-bg-soft: #141420;
 
-    --vp-c-text-1: #fafafa;
-    --vp-c-text-2: #a1a1aa;
+    --vp-c-text-1: #e8e8e8;
+    --vp-c-text-2: #888;
 
-    --vp-c-border: #27272a;
-    --vp-c-divider: #27272a;
+    --vp-c-border: #222233;
+    --vp-c-divider: #222233;
 
-    --tech-grid-color: rgba(37, 211, 102, 0.05);
+    --retro-scanline: rgba(0, 0, 0, 0.12);
 }
 
-/* ── Global Tech Grid Background ─────────────────────────── */
+/* ── CRT Scanline Overlay ────────────────────────────────── */
+body::after {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 9999;
+    background: repeating-linear-gradient(0deg,
+            var(--retro-scanline) 0px,
+            var(--retro-scanline) 1px,
+            transparent 1px,
+            transparent 3px);
+    opacity: 0.4;
+}
+
+/* ── Global Background ───────────────────────────────────── */
 body {
     background-color: var(--vp-c-bg);
     background-image:
-        linear-gradient(var(--tech-grid-color) 1px, transparent 1px),
-        linear-gradient(90deg, var(--tech-grid-color) 1px, transparent 1px);
-    background-size: 40px 40px;
+        radial-gradient(circle at 20% 50%, rgba(255, 176, 0, 0.03) 0%, transparent 50%),
+        radial-gradient(circle at 80% 50%, rgba(51, 255, 51, 0.02) 0%, transparent 50%);
+}
+
+/* ── Keyframe Animations ─────────────────────────────────── */
+@keyframes blink-cursor {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0;
+    }
+}
+
+@keyframes glow-pulse {
+
+    0%,
+    100% {
+        text-shadow: 0 0 4px var(--retro-glow-soft);
+    }
+
+    50% {
+        text-shadow: 0 0 12px var(--retro-glow), 0 0 24px var(--retro-glow-soft);
+    }
+}
+
+@keyframes subtle-flicker {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    92% {
+        opacity: 1;
+    }
+
+    93% {
+        opacity: 0.8;
+    }
+
+    94% {
+        opacity: 1;
+    }
+
+    96% {
+        opacity: 0.9;
+    }
+
+    97% {
+        opacity: 1;
+    }
+}
+
+@keyframes border-glow {
+
+    0%,
+    100% {
+        border-color: var(--vp-c-border);
+    }
+
+    50% {
+        border-color: var(--retro-glow);
+    }
 }
 
 /* ── Hero Section ────────────────────────────────────────── */
 .VPHero .name {
-    font-family: var(--vp-font-family-mono);
-    font-weight: 800;
-    letter-spacing: -0.03em;
-    background: linear-gradient(120deg, var(--vp-c-brand-3) 0%, var(--vp-c-brand-1) 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
+    font-family: var(--retro-heading) !important;
+    font-weight: 400;
+    letter-spacing: 0.02em;
+    color: var(--retro-glow) !important;
+    background: none !important;
+    -webkit-text-fill-color: var(--retro-glow) !important;
+    text-shadow:
+        0 0 7px var(--retro-glow),
+        0 0 20px var(--retro-glow-soft),
+        0 0 42px rgba(255, 176, 0, 0.15);
+    animation: subtle-flicker 8s infinite;
+}
+
+.VPHero .clip {
+    -webkit-text-fill-color: var(--retro-glow) !important;
+    background: none !important;
 }
 
 .dark .VPHero .name {
-    background: linear-gradient(120deg, #fff 0%, #a1a1aa 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
+    color: var(--retro-glow) !important;
+    -webkit-text-fill-color: var(--retro-glow) !important;
+    background: none !important;
+    text-shadow:
+        0 0 10px var(--retro-glow),
+        0 0 30px var(--retro-glow-soft),
+        0 0 60px rgba(255, 176, 0, 0.1);
 }
 
 .VPHero .text {
-    font-size: 2.5rem !important;
-    color: var(--vp-c-brand-1);
-    font-family: var(--vp-font-family-mono);
-    opacity: 0.9;
+    font-size: 2rem !important;
+    color: var(--retro-green) !important;
+    font-family: var(--retro-heading) !important;
+    text-shadow: 0 0 8px rgba(51, 255, 51, 0.5);
+    opacity: 0.95;
 }
 
 .VPHero .tagline {
     font-family: var(--vp-font-family-base);
     color: var(--vp-c-text-2);
+    font-size: 1.3rem;
+    line-height: 1.6;
+}
+
+.VPHero .tagline::after {
+    content: '█';
+    animation: blink-cursor 1s step-end infinite;
+    color: var(--retro-glow);
+    margin-left: 4px;
+}
+
+.VPHero .image-container {
+    position: relative;
 }
 
 .VPHero .image-container::after {
-    /* Technical glow behind logo */
     content: '';
     position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 200px;
-    height: 200px;
-    background: var(--vp-c-brand-1);
-    filter: blur(80px);
-    opacity: 0.15;
+    width: 240px;
+    height: 240px;
+    background: var(--retro-glow);
+    filter: blur(100px);
+    opacity: 0.12;
     z-index: -1;
+    border-radius: 50%;
 }
 
-/* ── Feature Cards (Industrial Look) ─────────────────────── */
+/* ── Feature Cards (Retro Boxy) ──────────────────────────── */
 .VPFeature {
     background: var(--vp-c-bg-alt) !important;
     border: 1px solid var(--vp-c-border) !important;
-    border-radius: 4px !important;
-    /* Sharper corners */
-    transition: all 0.2s ease !important;
+    border-radius: 0 !important;
+    transition: all 0.25s ease !important;
     position: relative;
     overflow: hidden;
 }
 
 .VPFeature:hover {
-    border-color: var(--vp-c-brand-1) !important;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 20px -10px rgba(37, 211, 102, 0.2);
+    border-color: var(--retro-glow) !important;
+    transform: none;
+    box-shadow:
+        0 0 8px rgba(255, 176, 0, 0.15),
+        inset 0 0 20px rgba(255, 176, 0, 0.03);
 }
 
-/* Tech accent line */
+/* Retro accent — top border lights up */
 .VPFeature::before {
     content: '';
     position: absolute;
     top: 0;
     left: 0;
-    width: 2px;
-    height: 0;
-    background: var(--vp-c-brand-1);
-    transition: height 0.3s ease;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--retro-glow), transparent);
+    opacity: 0;
+    transition: opacity 0.3s ease;
 }
 
 .VPFeature:hover::before {
-    height: 100%;
+    opacity: 1;
 }
 
 .VPFeature .title {
+    font-family: var(--retro-heading) !important;
+    font-size: 0.7rem !important;
+    letter-spacing: 0.02em;
+    line-height: 1.6 !important;
+    color: var(--retro-glow);
+}
+
+.VPFeature .details {
+    font-family: var(--vp-font-family-base);
+    font-size: 1.1rem;
+    line-height: 1.5;
+}
+
+.VPFeature .link-text {
     font-family: var(--vp-font-family-mono);
-    letter-spacing: -0.02em;
+    font-size: 0.95rem;
+    color: var(--retro-glow) !important;
+}
+
+.VPFeature .link-text::before {
+    content: '> ';
+    color: var(--retro-green);
 }
 
 /* ── Code Blocks (Terminal Style) ────────────────────────── */
 .vp-doc div[class*='language-'] {
-    border-radius: 4px;
+    border-radius: 0;
     border: 1px solid var(--vp-c-border);
-    background-color: var(--vp-c-bg-alt) !important;
+    background-color: #0a0a0a !important;
+}
+
+.vp-doc div[class*='language-'] pre,
+.vp-doc div[class*='language-'] code {
+    color: #e8e8e8 !important;
+}
+
+.vp-doc div[class*='language-']::before {
+    font-family: var(--retro-heading) !important;
+    font-size: 0.5rem;
 }
 
 .dark .vp-doc div[class*='language-'] {
-    background-color: #0d0d0d !important;
+    background-color: #060608 !important;
+    border-color: #1a1a2a;
 }
 
 .vp-doc code {
     font-family: var(--vp-font-family-mono) !important;
-    font-size: 0.9em;
+    font-size: 0.95em;
+}
+
+.vp-doc :not(pre)>code {
+    background-color: rgba(255, 176, 0, 0.1) !important;
+    color: var(--retro-glow) !important;
+    border-radius: 0;
+    padding: 2px 6px;
+    border: 1px solid rgba(255, 176, 0, 0.2);
 }
 
 /* ── Stats Section ───────────────────────────────────────── */
 .stats-section {
     display: flex;
     justify-content: center;
-    gap: 2rem;
+    gap: 3rem;
     padding: 4rem 1rem;
-    border-top: 1px solid var(--vp-c-divider);
-    border-bottom: 1px solid var(--vp-c-divider);
+    border-top: 1px dashed var(--retro-glow);
+    border-bottom: 1px dashed var(--retro-glow);
     background: var(--vp-c-bg-alt);
     margin: 4rem 0;
+    position: relative;
 }
 
 .stat-item {
@@ -172,71 +321,158 @@ body {
 }
 
 .stat-number {
-    font-family: var(--vp-font-family-mono);
-    font-size: 2.5rem;
-    font-weight: 700;
-    color: var(--vp-c-brand-1);
+    font-family: var(--retro-heading);
+    font-size: 1.8rem;
+    font-weight: 400;
+    color: var(--retro-glow);
+    text-shadow: 0 0 10px var(--retro-glow-soft);
+    animation: glow-pulse 3s ease-in-out infinite;
 }
 
 .stat-label {
     text-transform: uppercase;
-    font-size: 0.75rem;
-    letter-spacing: 0.1em;
+    font-family: var(--retro-heading);
+    font-size: 0.5rem;
+    letter-spacing: 0.15em;
     color: var(--vp-c-text-2);
-    margin-top: 0.5rem;
+    margin-top: 0.75rem;
 }
 
 /* ── Buttons ─────────────────────────────────────────────── */
 .VPButton.brand {
-    border-radius: 4px !important;
-    background-color: var(--vp-c-brand-1) !important;
-    border: 1px solid var(--vp-c-brand-1) !important;
-    font-family: var(--vp-font-family-mono);
-    font-weight: 600;
+    border-radius: 0 !important;
+    background-color: transparent !important;
+    border: 2px solid var(--retro-glow) !important;
+    font-family: var(--retro-heading);
+    font-weight: 400;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    font-size: 0.9rem;
+    font-size: 0.65rem;
+    color: var(--retro-glow) !important;
+    padding: 12px 24px !important;
+    transition: all 0.2s ease;
 }
 
 .VPButton.brand:hover {
-    background-color: transparent !important;
-    color: var(--vp-c-brand-1) !important;
+    background-color: var(--retro-glow) !important;
+    color: #0a0a0f !important;
+    box-shadow: 0 0 15px var(--retro-glow-soft), 0 0 30px rgba(255, 176, 0, 0.1);
 }
 
 .VPButton.alt {
-    border-radius: 4px !important;
-    border-color: var(--vp-c-border) !important;
-    font-family: var(--vp-font-family-mono);
-    font-size: 0.9rem;
+    border-radius: 0 !important;
+    border: 2px solid var(--vp-c-text-2) !important;
+    font-family: var(--retro-heading);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 12px 24px !important;
+    transition: all 0.2s ease;
+    color: var(--vp-c-text-1) !important;
+    background-color: transparent !important;
 }
 
 .VPButton.alt:hover {
-    border-color: var(--vp-c-text-1) !important;
+    border-color: var(--retro-green) !important;
+    color: var(--retro-green) !important;
+    box-shadow: 0 0 10px rgba(51, 255, 51, 0.15);
 }
 
 /* ── Sidebar & Nav ───────────────────────────────────────── */
 .VPSidebar {
     border-right: 1px solid var(--vp-c-border) !important;
     background-color: var(--vp-c-bg) !important;
+    font-family: var(--vp-font-family-base);
+}
+
+.VPSidebar .group .text {
+    font-family: var(--retro-heading) !important;
+    font-size: 0.55rem !important;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
 }
 
 .VPNavBar {
     background-color: var(--vp-c-bg) !important;
-    /* Glass effect base */
     border-bottom: 1px solid var(--vp-c-border) !important;
-    backdrop-filter: blur(10px);
-    opacity: 0.95;
+    backdrop-filter: none;
+}
+
+.VPNavBar .title {
+    font-family: var(--retro-heading) !important;
+    font-size: 0.6rem !important;
 }
 
 .dark .VPNavBar {
-    background-color: rgba(9, 9, 11, 0.8) !important;
+    background-color: rgba(10, 10, 15, 0.95) !important;
+    border-bottom-color: #222233 !important;
 }
 
-/* ── Step Cards (Process) ────────────────────────────────── */
+/* Active sidebar item glow */
+.VPSidebar a.active {
+    color: var(--retro-glow) !important;
+    text-shadow: 0 0 6px var(--retro-glow-soft);
+}
+
+/* Nav links */
+.VPNavBar .VPNavBarMenuLink .VPLink,
+.VPNavBar a {
+    font-family: var(--vp-font-family-base);
+    font-size: 1.1rem;
+}
+
+/* ── Content Typography ──────────────────────────────────── */
+.vp-doc h1 {
+    font-family: var(--retro-heading) !important;
+    font-size: 1.2rem !important;
+    color: var(--retro-glow);
+    text-shadow: 0 0 6px var(--retro-glow-soft);
+    line-height: 1.8 !important;
+    border-bottom: 1px dashed var(--vp-c-border);
+    padding-bottom: 1rem;
+}
+
+.vp-doc h2 {
+    font-family: var(--retro-heading) !important;
+    font-size: 0.85rem !important;
+    color: var(--retro-glow);
+    border-top: 1px dashed var(--vp-c-border);
+    padding-top: 1.5rem;
+    line-height: 1.8 !important;
+}
+
+.vp-doc h3 {
+    font-family: var(--retro-heading) !important;
+    font-size: 0.7rem !important;
+    color: var(--retro-green);
+    line-height: 1.8 !important;
+}
+
+.vp-doc p,
+.vp-doc li {
+    font-family: var(--vp-font-family-base);
+    font-size: 1.15rem;
+    line-height: 1.7;
+}
+
+/* ── Step Cards (Retro Process) ──────────────────────────── */
 .home-section {
     max-width: 960px;
     margin: 0 auto;
     padding: 0 1.5rem 4rem;
+}
+
+.home-section h2 {
+    font-family: var(--retro-heading) !important;
+    font-size: 0.85rem;
+    color: var(--retro-glow);
+    text-shadow: 0 0 8px var(--retro-glow-soft);
+}
+
+.home-section .subtitle {
+    font-family: var(--vp-font-family-base);
+    color: var(--vp-c-text-2);
+    font-size: 1.15rem;
 }
 
 .quick-steps {
@@ -249,34 +485,64 @@ body {
 .step-card {
     background: var(--vp-c-bg-alt);
     border: 1px solid var(--vp-c-border);
+    border-radius: 0;
     padding: 1.5rem;
-    transition: all 0.2s;
+    transition: all 0.25s;
+    position: relative;
 }
 
 .step-card:hover {
-    border-color: var(--vp-c-text-2);
+    border-color: var(--retro-glow);
+    box-shadow: 0 0 8px rgba(255, 176, 0, 0.1);
+}
+
+.step-card::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--retro-glow), transparent);
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.step-card:hover::after {
+    opacity: 1;
 }
 
 .step-number {
-    font-family: var(--vp-font-family-mono);
-    color: var(--vp-c-brand-1);
-    font-size: 1.25rem;
-    font-weight: 700;
-    margin-bottom: 0.5rem;
+    font-family: var(--retro-heading);
+    color: var(--retro-glow);
+    font-size: 0.8rem;
+    font-weight: 400;
+    margin-bottom: 0.75rem;
     display: block;
+    text-shadow: 0 0 6px var(--retro-glow-soft);
+}
+
+.step-number::before {
+    content: '// ';
+    color: var(--vp-c-text-2);
 }
 
 .step-card h3 {
     margin: 0;
-    font-size: 1rem;
-    font-weight: 600;
+    font-family: var(--retro-heading) !important;
+    font-size: 0.6rem;
+    font-weight: 400;
     color: var(--vp-c-text-1);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    line-height: 1.6;
 }
 
 .step-card p {
     color: var(--vp-c-text-2);
-    font-size: 0.9rem;
+    font-size: 1.05rem;
     line-height: 1.5;
+    font-family: var(--vp-font-family-base);
 }
 
 /* ── Command Categories ──────────────────────────────────── */
@@ -290,28 +556,36 @@ body {
 .category-chip {
     display: inline-flex;
     align-items: center;
-    padding: 0.5rem 1rem;
-    background: var(--vp-c-bg-alt);
+    padding: 0.6rem 1.2rem;
+    background: transparent;
     border: 1px solid var(--vp-c-border);
-    border-radius: 4px;
-    font-family: var(--vp-font-family-mono);
-    font-size: 0.85rem;
+    border-radius: 0;
+    font-family: var(--retro-heading);
+    font-size: 0.5rem;
     color: var(--vp-c-text-2) !important;
     text-decoration: none !important;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
     transition: all 0.2s;
 }
 
 .category-chip:hover {
-    color: var(--vp-c-brand-1) !important;
-    border-color: var(--vp-c-brand-1);
-    background: var(--vp-c-brand-soft);
-    transform: translateY(-1px);
+    color: var(--retro-glow) !important;
+    border-color: var(--retro-glow);
+    background: rgba(255, 176, 0, 0.05);
+    box-shadow: 0 0 8px rgba(255, 176, 0, 0.1);
+}
+
+/* ── Footer ──────────────────────────────────────────────── */
+.VPFooter {
+    border-top: 1px dashed var(--vp-c-border) !important;
+    font-family: var(--vp-font-family-base);
 }
 
 /* ── Scrollbars ──────────────────────────────────────────── */
 ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -320,9 +594,352 @@ body {
 
 ::-webkit-scrollbar-thumb {
     background: var(--vp-c-border);
-    border-radius: 4px;
+    border-radius: 0;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: var(--vp-c-text-2);
+    background: var(--retro-glow);
+}
+
+/* ── Tables (Retro) ──────────────────────────────────────── */
+.vp-doc table {
+    border-collapse: collapse;
+    border: 1px solid var(--vp-c-border);
+}
+
+.vp-doc th {
+    font-family: var(--retro-heading);
+    font-size: 0.55rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background: var(--vp-c-bg-alt);
+    color: var(--retro-glow);
+}
+
+.vp-doc td {
+    border: 1px solid var(--vp-c-border);
+    font-family: var(--vp-font-family-base);
+}
+
+/* ── Blockquotes / Tips / Warnings ───────────────────────── */
+.vp-doc .custom-block {
+    border-radius: 0;
+    border-left: 3px solid var(--retro-glow);
+}
+
+.vp-doc .custom-block.tip {
+    border-left-color: var(--retro-green);
+}
+
+.vp-doc .custom-block .custom-block-title {
+    font-family: var(--retro-heading);
+    font-size: 0.55rem;
+    letter-spacing: 0.05em;
+}
+
+/* ── Search ──────────────────────────────────────────────── */
+.VPLocalSearchBox .shell {
+    border-radius: 0 !important;
+    border: 1px solid var(--retro-glow) !important;
+}
+
+/* ── Misc Overrides ──────────────────────────────────────── */
+.VPDoc .container .content {
+    font-family: var(--vp-font-family-base);
+}
+
+/* ── Terminal Window Frames (CSS-only) ───────────────────── */
+.terminal-window {
+    border: 1px solid var(--vp-c-border);
+    background: var(--vp-c-bg-alt);
+    margin: 2rem auto;
+    max-width: 960px;
+    overflow: hidden;
+    position: relative;
+    padding: 52px 1.5rem 1.5rem;
+}
+
+/* Titlebar via ::before */
+.terminal-window::before {
+    content: '● ● ●  ' attr(data-title);
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 8px 14px;
+    background: rgba(0, 0, 0, 0.3);
+    border-bottom: 1px solid var(--vp-c-border);
+    font-family: var(--vp-font-family-mono);
+    font-size: 0.85rem;
+    color: var(--vp-c-text-2);
+}
+
+/* Stats inside terminal: remove old borders */
+.terminal-window .stats-section {
+    border: none;
+    margin: 0;
+    padding: 1rem 0;
+    background: transparent;
+}
+
+/* Subtitle as terminal prompt */
+.terminal-window .subtitle {
+    font-family: var(--vp-font-family-mono);
+    color: var(--retro-green);
+    font-size: 1rem;
+    margin: 0.25rem 0 1rem;
+}
+
+/* Terminal window headings */
+.terminal-window h2 {
+    font-family: var(--retro-heading) !important;
+    font-size: 0.8rem;
+    color: var(--retro-glow);
+    text-shadow: 0 0 8px var(--retro-glow-soft);
+    margin: 0 0 0.5rem;
+    border: none;
+    padding: 0;
+}
+
+/* Category chips as directory listings */
+.terminal-window .category-chip {
+    color: var(--retro-green) !important;
+    border-color: transparent;
+    background: transparent;
+    padding: 0.4rem 0.8rem;
+}
+
+.terminal-window .category-chip:hover {
+    color: var(--retro-glow) !important;
+    border-color: var(--retro-glow);
+    background: rgba(255, 176, 0, 0.05);
+}
+
+/* ── Light Mode (Retro Amber Terminal) ───────────────────── */
+html:not(.dark) {
+    --vp-c-bg: #fdf6e3;
+    --vp-c-bg-alt: #f5eedc;
+    --vp-c-bg-soft: #eee8d5;
+
+    --vp-c-text-1: #3c3836;
+    --vp-c-text-2: #665c54;
+
+    --vp-c-border: #d5c4a1;
+    --vp-c-divider: #d5c4a1;
+
+    --retro-glow: #b57614;
+    --retro-glow-soft: rgba(181, 118, 20, 0.3);
+    --retro-green: #427b58;
+    --retro-scanline: rgba(0, 0, 0, 0.03);
+}
+
+/* Light mode hero overrides */
+html:not(.dark) .VPHero .name {
+    color: #b57614 !important;
+    -webkit-text-fill-color: #b57614 !important;
+    text-shadow: none;
+}
+
+html:not(.dark) .VPHero .text {
+    color: #427b58 !important;
+    text-shadow: none;
+}
+
+html:not(.dark) .VPButton.brand {
+    border-color: #b57614 !important;
+    color: #b57614 !important;
+}
+
+html:not(.dark) .VPButton.brand:hover {
+    background-color: #b57614 !important;
+    color: #fdf6e3 !important;
+}
+
+html:not(.dark) .VPButton.alt {
+    border-color: #665c54 !important;
+    color: #3c3836 !important;
+}
+
+html:not(.dark) .VPButton.alt:hover {
+    border-color: #427b58 !important;
+    color: #427b58 !important;
+}
+
+html:not(.dark) .stat-number {
+    color: #b57614;
+    text-shadow: none;
+}
+
+html:not(.dark) .VPFeature .title {
+    color: #b57614;
+}
+
+html:not(.dark) .VPFeature:hover {
+    border-color: #b57614 !important;
+    box-shadow: 0 0 8px rgba(181, 118, 20, 0.1);
+}
+
+html:not(.dark) .vp-doc :not(pre)>code {
+    background-color: rgba(181, 118, 20, 0.1) !important;
+    color: #b57614 !important;
+    border-color: rgba(181, 118, 20, 0.2);
+}
+
+html:not(.dark) .vp-doc h1,
+html:not(.dark) .vp-doc h2 {
+    color: #b57614;
+    text-shadow: none;
+}
+
+html:not(.dark) .vp-doc h3 {
+    color: #427b58;
+}
+
+html:not(.dark) .terminal-window::before {
+    background: rgba(0, 0, 0, 0.06);
+}
+
+html:not(.dark) .terminal-window .subtitle {
+    color: #427b58;
+}
+
+html:not(.dark) body::after {
+    opacity: 0.15;
+}
+
+html:not(.dark) body {
+    background-image: none;
+}
+
+/* Light mode code blocks — warm sepia terminal */
+html:not(.dark) .vp-doc div[class*='language-'] {
+    background-color: #2d2418 !important;
+    border: 1px solid #5c4a32 !important;
+}
+
+/* Code block language label */
+html:not(.dark) .vp-doc div[class*='language-']::before {
+    color: #a08060 !important;
+}
+
+/* Line numbers in light mode */
+html:not(.dark) .vp-doc div[class*='language-'] .line-numbers {
+    color: #7a6545;
+    border-right-color: #5c4a32;
+}
+
+/* ── Mobile Responsive ───────────────────────────────────── */
+@media (max-width: 768px) {
+
+    /* Hero title scaling */
+    .VPHero .name {
+        font-size: 1.8rem !important;
+    }
+
+    .VPHero .text {
+        font-size: 1.4rem !important;
+    }
+
+    .VPHero .tagline {
+        font-size: 1rem !important;
+    }
+
+    /* Terminal windows — tighter padding on mobile */
+    .terminal-window {
+        margin: 1rem 0.5rem;
+        padding: 44px 1rem 1rem;
+    }
+
+    .terminal-window::before {
+        padding: 6px 10px;
+        font-size: 0.75rem;
+    }
+
+    /* Terminal headings smaller on mobile */
+    .terminal-window h2 {
+        font-size: 0.65rem;
+    }
+
+    .terminal-window .subtitle {
+        font-size: 0.9rem;
+    }
+
+    /* Stats — keep 3-col but smaller fonts */
+    .stats-section {
+        gap: 0.5rem !important;
+        padding: 1rem 0 !important;
+    }
+
+    .stat-number {
+        font-size: 2rem !important;
+    }
+
+    .stat-label {
+        font-size: 0.7rem !important;
+    }
+
+    /* Step cards — stack vertically */
+    .quick-steps {
+        grid-template-columns: 1fr !important;
+        gap: 0.75rem !important;
+    }
+
+    .step-card {
+        padding: 1rem !important;
+    }
+
+    .step-card h3 {
+        font-size: 0.6rem !important;
+    }
+
+    /* Category chips — wrap properly */
+    .categories-grid {
+        gap: 0.5rem !important;
+    }
+
+    .category-chip {
+        font-size: 0.6rem !important;
+        padding: 0.3rem 0.5rem !important;
+    }
+
+    /* Home sections — less margin */
+    .home-section {
+        margin: 1rem 0;
+        padding: 0;
+    }
+
+    /* Feature cards */
+    .VPFeature .title {
+        font-size: 0.6rem !important;
+    }
+
+    /* Buttons */
+    .VPButton {
+        font-size: 0.6rem !important;
+        padding: 0.6rem 1.2rem !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .VPHero .name {
+        font-size: 1.4rem !important;
+    }
+
+    .VPHero .text {
+        font-size: 1.1rem !important;
+    }
+
+    .terminal-window {
+        margin: 0.75rem 0;
+        padding: 40px 0.75rem 0.75rem;
+    }
+
+    .stat-number {
+        font-size: 1.6rem !important;
+    }
+
+    .categories-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
 }
