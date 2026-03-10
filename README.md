@@ -29,28 +29,29 @@ Because life is too short for boring bots.
 
 ## Get Started
 
-### 1. Install via pip & git
+### One-Line Install
+
+**Linux / macOS:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/MhankBarBar/zero-ichi/master/install.sh | bash
+```
+
+**Windows (PowerShell):**
+```powershell
+irm https://raw.githubusercontent.com/MhankBarBar/zero-ichi/master/install.ps1 | iex
+```
+
+### Manual Install
 
 ```bash
 pip install uv
 git clone https://github.com/MhankBarBar/zero-ichi
 cd zero-ichi
 uv sync
+cp .env.example .env
 ```
 
-### 2. Configure
-
-Copy the example config and make it yours:
-
-```bash
-cp config.json.example config.json
-```
-
-Then edit `config.json` (keep the `$schema` key at the top for editor IntelliSense).
-
-(Check the [Config Guide](https://zeroichi.mhankbarbar.dev/getting-started/configuration) for the nerdy details)
-
-### 3. Launch
+### Launch
 
 ```bash
 uv run zero-ichi

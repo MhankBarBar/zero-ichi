@@ -1,5 +1,28 @@
 # Installation
 
+## One-Line Install
+
+The fastest way to get started. This auto-installs all dependencies, clones the repo, and sets up your environment.
+
+**Linux / macOS:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/MhankBarBar/zero-ichi/master/install.sh | bash
+```
+
+**Windows (PowerShell):**
+```powershell
+irm https://raw.githubusercontent.com/MhankBarBar/zero-ichi/master/install.ps1 | iex
+```
+
+::: tip Custom Install Directory
+Set `INSTALL_DIR` to change the install location (defaults to `~/zero-ichi`):
+```bash
+INSTALL_DIR=/opt/zero-ichi curl -fsSL https://raw.githubusercontent.com/MhankBarBar/zero-ichi/master/install.sh | bash
+```
+:::
+
+---
+
 ## Requirements
 
 - **Python 3.11+**
@@ -8,7 +31,7 @@
 - **[Bun](https://bun.sh)** — required for YouTube JS challenge solving (yt-dlp)
 - **Node.js 20+** — for the web dashboard (optional)
 
-## Quick Start
+## Manual Install
 
 ```bash
 # Install uv (if not already installed)
