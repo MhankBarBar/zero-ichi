@@ -16,7 +16,7 @@ Write-Host ""
 
 $InstallDir = if ($env:INSTALL_DIR) { $env:INSTALL_DIR } else { Join-Path $HOME "zero-ichi" }
 $RepoUrl = "https://github.com/MhankBarBar/zero-ichi.git"
-$Branch = if ($env:BRANCH) { $env:BRANCH } else { "main" }
+$Branch = if ($env:BRANCH) { $env:BRANCH } else { "master" }
 
 function Test-Command { param($Name) return [bool](Get-Command $Name -ErrorAction SilentlyContinue) }
 
