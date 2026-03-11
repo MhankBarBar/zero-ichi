@@ -1,5 +1,5 @@
 {
-  "$schema": "./config.schema.json",
+  "$schema": "https://github.com/MhankBarBar/zero-ichi/raw/refs/heads/master/config.schema.json",
   "bot": {
     "name": "zero_ichi_bot",
     "prefix": "/",

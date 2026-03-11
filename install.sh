@@ -22,7 +22,7 @@ echo ""
 
 INSTALL_DIR="${INSTALL_DIR:-$HOME/zero-ichi}"
 REPO_URL="https://github.com/MhankBarBar/zero-ichi.git"
-BRANCH="${BRANCH:-main}"
+BRANCH="${BRANCH:-master}"
 
 OS="$(uname -s)"
 case "$OS" in
