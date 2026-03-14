@@ -1,6 +1,6 @@
 "use client";
 
-import { WS_BASE } from "@/lib/api";
+import { api, WS_BASE } from "@/lib/api";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 export interface WsEvent {
@@ -24,34 +24,53 @@ export function useWebSocket(maxEvents = 50) {
     useEffect(() => {
         if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
-        const ws = new WebSocket(`${WS_BASE}/ws`);
-        wsRef.current = ws;
+        let cancelled = false;
 
-        ws.onopen = () => setConnected(true);
-
-        ws.onmessage = (e) => {
+        const connect = async () => {
             try {
-                const event: WsEvent = JSON.parse(e.data);
-                setEvents((prev) => [event, ...prev].slice(0, maxEvents));
+                const { token } = await api.getWsToken();
+                if (cancelled) {
+                    return;
+                }
+
+                const ws = new WebSocket(`${WS_BASE}/ws?token=${encodeURIComponent(token)}`);
+                wsRef.current = ws;
+
+                ws.onopen = () => setConnected(true);
+
+                ws.onmessage = (e) => {
+                    try {
+                        const event: WsEvent = JSON.parse(e.data);
+                        setEvents((prev) => [event, ...prev].slice(0, maxEvents));
+                    } catch {
+                        // Ignore parse errors
+                    }
+                };
+
+                ws.onclose = () => {
+                    setConnected(false);
+                    reconnectTimer.current = setTimeout(() => {
+                        setReconnectTrigger((prev) => prev + 1);
+                    }, 3000);
+                };
+
+                ws.onerror = () => {
+                    ws.close();
+                };
             } catch {
-                // Ignore parse errors
+                setConnected(false);
+                reconnectTimer.current = setTimeout(() => {
+                    setReconnectTrigger((prev) => prev + 1);
+                }, 3000);
             }
         };
 
-        ws.onclose = () => {
-            setConnected(false);
-            reconnectTimer.current = setTimeout(() => {
-                setReconnectTrigger((prev) => prev + 1);
-            }, 3000);
-        };
-
-        ws.onerror = () => {
-            ws.close();
-        };
+        void connect();
 
         return () => {
+            cancelled = true;
             clearTimeout(reconnectTimer.current);
-            ws.close();
+            wsRef.current?.close();
         };
     }, [maxEvents, reconnectTrigger]);
 

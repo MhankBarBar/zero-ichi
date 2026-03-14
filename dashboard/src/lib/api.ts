@@ -184,6 +184,13 @@ export interface AutomationRule {
     action_value: string;
 }
 
+function getStoredAuth(): string | null {
+    if (typeof window === "undefined") {
+        return null;
+    }
+    return localStorage.getItem("dashboard_auth");
+}
+
 async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
@@ -197,11 +204,9 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> 
         Object.assign(headers, customHeaders);
     }
 
-    if (typeof window !== "undefined") {
-        const auth = localStorage.getItem("dashboard_auth");
-        if (auth) {
-            headers["Authorization"] = `Basic ${auth}`;
-        }
+    const auth = getStoredAuth();
+    if (auth) {
+        headers["Authorization"] = `Basic ${auth}`;
     }
 
     try {
@@ -287,7 +292,7 @@ export const api = {
         formData.append("caption", caption);
         formData.append("file", file);
 
-        const auth = typeof window !== "undefined" ? localStorage.getItem("dashboard_auth") : null;
+        const auth = getStoredAuth();
         const headers: Record<string, string> = {};
         if (auth) {
             headers["Authorization"] = `Basic ${auth}`;
@@ -335,6 +340,9 @@ export const api = {
             method: "PUT",
             body: JSON.stringify(config),
         }),
+    getWsToken: () => fetchAPI<{ token: string; expires_in: number }>("/api/ws-token", {
+        method: "POST",
+    }),
 
     getWelcome: (groupId: string) => fetchAPI<WelcomeConfig>(`/api/groups/${groupId}/welcome`),
     updateWelcome: (groupId: string, config: WelcomeConfig) =>
@@ -396,12 +404,9 @@ export const api = {
         const formData = new FormData();
         formData.append("file", file);
         const headers: Record<string, string> = {};
-        const username =
-            typeof window !== "undefined" ? localStorage.getItem("dashboard_username") || "" : "";
-        const password =
-            typeof window !== "undefined" ? localStorage.getItem("dashboard_password") || "" : "";
-        if (username && password) {
-            headers["Authorization"] = `Basic ${btoa(`${username}:${password}`)}`;
+        const auth = getStoredAuth();
+        if (auth) {
+            headers["Authorization"] = `Basic ${auth}`;
         }
         const res = await fetch(
             `${API_BASE}/api/groups/${encodeURIComponent(groupId)}/notes/${encodeURIComponent(noteName)}/media`,

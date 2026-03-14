@@ -5,6 +5,10 @@ Tracks token usage per user and per chat with configurable daily limits.
 """
 
 import json
+import os
+import tempfile
+import time
+from atexit import register as on_exit
 from datetime import datetime
 
 from core.constants import DATA_DIR
@@ -12,6 +16,23 @@ from core.logger import log_debug
 from core.runtime_config import runtime_config
 
 TOKEN_FILE = DATA_DIR / "ai_tokens.json"
+SAVE_INTERVAL_SECONDS = 2.0
+
+
+def _atomic_write_json(file_path, data: dict) -> None:
+    """Atomically write JSON payload to disk."""
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(dir=file_path.parent, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+        os.replace(tmp_path, file_path)
+    except BaseException:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
 
 
 class TokenTracker:
@@ -19,7 +40,10 @@ class TokenTracker:
 
     def __init__(self):
         self._data: dict = {}
+        self._dirty = False
+        self._last_save_ts = 0.0
         self._load()
+        on_exit(self.flush)
 
     def _load(self) -> None:
         """Load token data from disk."""
@@ -32,12 +56,25 @@ class TokenTracker:
         today = datetime.now().strftime("%Y-%m-%d")
         if self._data.get("date") != today:
             self._data = {"date": today, "users": {}, "chats": {}}
-            self._save()
+            self._schedule_save(force=True)
 
     def _save(self) -> None:
         """Save token data to disk."""
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
-        TOKEN_FILE.write_text(json.dumps(self._data, indent=2), encoding="utf-8")
+        _atomic_write_json(TOKEN_FILE, self._data)
+        self._dirty = False
+        self._last_save_ts = time.time()
+
+    def _schedule_save(self, force: bool = False) -> None:
+        """Persist token usage on interval to reduce disk writes."""
+        self._dirty = True
+        now = time.time()
+        if force or now - self._last_save_ts >= SAVE_INTERVAL_SECONDS:
+            self._save()
+
+    def flush(self) -> None:
+        """Flush pending token usage writes."""
+        if self._dirty:
+            self._save()
 
     @property
     def _user_limit(self) -> int:
@@ -54,6 +91,7 @@ class TokenTracker:
         today = datetime.now().strftime("%Y-%m-%d")
         if self._data.get("date") != today:
             self._data = {"date": today, "users": {}, "chats": {}}
+            self._schedule_save(force=True)
 
     def can_use(self, user_id: str, chat_id: str, estimated_tokens: int = 1000) -> bool:
         """Check if a user/chat can use more tokens."""
@@ -84,7 +122,7 @@ class TokenTracker:
         self._data["users"][user_id] = self._data["users"].get(user_id, 0) + tokens_used
         self._data["chats"][chat_id] = self._data["chats"].get(chat_id, 0) + tokens_used
 
-        self._save()
+        self._schedule_save()
         log_debug(
             f"Token usage: user={user_id} +{tokens_used} "
             f"(total: {self._data['users'][user_id]}), "

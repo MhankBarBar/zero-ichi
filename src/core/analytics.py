@@ -5,6 +5,10 @@ Tracks per-command usage with timestamps for dashboard charts.
 """
 
 import json
+import os
+import tempfile
+import time
+from atexit import register as on_exit
 from datetime import datetime, timedelta
 
 from core.constants import DATA_DIR
@@ -13,6 +17,23 @@ from core.logger import log_debug
 ANALYTICS_FILE = DATA_DIR / "analytics.json"
 
 DEFAULT_RETENTION_DAYS = 30
+SAVE_INTERVAL_SECONDS = 2.0
+
+
+def _atomic_write_json(file_path, data: dict) -> None:
+    """Atomically write JSON payload to disk."""
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(dir=file_path.parent, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+        os.replace(tmp_path, file_path)
+    except BaseException:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
 
 
 class CommandAnalytics:
@@ -20,7 +41,10 @@ class CommandAnalytics:
 
     def __init__(self):
         self._data: dict = {}
+        self._dirty = False
+        self._last_save_ts = 0.0
         self._load()
+        on_exit(self.flush)
 
     def _load(self) -> None:
         """Load analytics data from disk."""
@@ -35,8 +59,21 @@ class CommandAnalytics:
 
     def _save(self) -> None:
         """Save analytics data to disk."""
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
-        ANALYTICS_FILE.write_text(json.dumps(self._data, indent=2), encoding="utf-8")
+        _atomic_write_json(ANALYTICS_FILE, self._data)
+        self._dirty = False
+        self._last_save_ts = time.time()
+
+    def _schedule_save(self, force: bool = False) -> None:
+        """Persist analytics on interval to reduce disk writes."""
+        self._dirty = True
+        now = time.time()
+        if force or now - self._last_save_ts >= SAVE_INTERVAL_SECONDS:
+            self._save()
+
+    def flush(self) -> None:
+        """Flush pending analytics writes."""
+        if self._dirty:
+            self._save()
 
     def record_command(self, name: str, user_jid: str = "", chat_jid: str = "") -> None:
         """Record a command execution."""
@@ -55,7 +92,7 @@ class CommandAnalytics:
         )
 
         self._prune()
-        self._save()
+        self._schedule_save()
         log_debug(f"Analytics: recorded {name}")
 
     def _prune(self) -> None:

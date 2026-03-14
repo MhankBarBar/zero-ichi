@@ -8,6 +8,8 @@ import time
 from collections import defaultdict
 from dataclasses import dataclass
 
+from core.runtime_config import runtime_config
+
 
 @dataclass
 class RateLimitConfig:
@@ -45,6 +47,10 @@ class RateLimiter:
         self._command_last_use: dict[str, dict[str, float]] = defaultdict(dict)
 
         self._user_bursts: dict[str, list[float]] = defaultdict(list)
+
+    def update_config(self, config: RateLimitConfig) -> None:
+        """Update limiter configuration at runtime."""
+        self.config = config
 
     def is_limited(self, user_id: str, command_name: str) -> bool:
         """
@@ -131,4 +137,37 @@ class RateLimiter:
         self._user_bursts.clear()
 
 
-rate_limiter = RateLimiter()
+def _to_float(value: object, default: float, minimum: float = 0.0) -> float:
+    """Cast value to bounded float."""
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        parsed = default
+    return max(minimum, parsed)
+
+
+def _to_int(value: object, default: int, minimum: int = 1) -> int:
+    """Cast value to bounded integer."""
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        parsed = default
+    return max(minimum, parsed)
+
+
+def load_rate_limit_config() -> RateLimitConfig:
+    """Load validated rate limiter config from runtime configuration."""
+    section = runtime_config.get_nested("rate_limit", default={})
+    if not isinstance(section, dict):
+        section = {}
+
+    return RateLimitConfig(
+        enabled=bool(section.get("enabled", True)),
+        user_cooldown=_to_float(section.get("user_cooldown"), 3.0, minimum=0.0),
+        command_cooldown=_to_float(section.get("command_cooldown"), 2.0, minimum=0.0),
+        burst_limit=_to_int(section.get("burst_limit"), 5, minimum=1),
+        burst_window=_to_float(section.get("burst_window"), 10.0, minimum=1.0),
+    )
+
+
+rate_limiter = RateLimiter(load_rate_limit_config())

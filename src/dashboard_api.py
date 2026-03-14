@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import unquote
 
+from dotenv import load_dotenv
 from fastapi import (
     APIRouter,
     Body,
@@ -47,7 +48,7 @@ from core.handlers.welcome import (
     set_goodbye_config,
     set_welcome_config,
 )
-from core.rate_limiter import rate_limiter
+from core.rate_limiter import RateLimitConfig, rate_limiter
 from core.reports import create_report, get_report, list_reports, update_report_status
 from core.runtime_config import runtime_config
 from core.scheduler import get_scheduler
@@ -56,6 +57,102 @@ from core.shared import get_bot
 from core.storage import GroupData, Storage
 
 BOT_START_TIME = datetime.now()
+_DOTENV_PATH = Path(__file__).parent.parent / ".env"
+_dotenv_loaded = False
+DEFAULT_CORS_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+WS_TOKEN_TTL_SECONDS = max(30, int(os.getenv("DASHBOARD_WS_TOKEN_TTL_SECONDS", "300")))
+_ws_tokens: dict[str, dict[str, Any]] = {}
+
+
+def _ensure_dotenv_loaded() -> None:
+    """Load .env once for standalone dashboard process usage."""
+    global _dotenv_loaded
+    if _dotenv_loaded:
+        return
+    load_dotenv(_DOTENV_PATH)
+    _dotenv_loaded = True
+
+
+def _get_dashboard_credentials() -> tuple[str, str]:
+    """Get dashboard credentials from environment variables."""
+    _ensure_dotenv_loaded()
+    username = str(os.getenv("DASHBOARD_USERNAME", "")).strip()
+    password = str(os.getenv("DASHBOARD_PASSWORD", "")).strip()
+
+    if not username or not password:
+        raise HTTPException(
+            status_code=503,
+            detail="Dashboard credentials are not configured. Set DASHBOARD_USERNAME and DASHBOARD_PASSWORD.",
+        )
+
+    if username == "admin" and password == "admin":
+        raise HTTPException(
+            status_code=503,
+            detail="Insecure dashboard credentials detected. Change DASHBOARD_USERNAME and DASHBOARD_PASSWORD.",
+        )
+
+    return username, password
+
+
+def _get_cors_origins() -> list[str]:
+    """Resolve allowed dashboard origins from env/config with secure defaults."""
+    _ensure_dotenv_loaded()
+    from_env = [
+        o.strip()
+        for o in os.getenv("DASHBOARD_CORS_ORIGINS", "").split(",")
+        if o and o.strip() and o.strip() != "*"
+    ]
+
+    from_config = runtime_config.get_nested("dashboard", "cors_origins", default=[])
+    config_origins = [
+        o.strip() for o in from_config if isinstance(o, str) and o.strip() and o.strip() != "*"
+    ]
+
+    origins = from_env or config_origins or DEFAULT_CORS_ORIGINS
+    seen = set()
+    deduped = []
+    for origin in origins:
+        if origin not in seen:
+            seen.add(origin)
+            deduped.append(origin)
+    return deduped
+
+
+def _prune_ws_tokens() -> None:
+    """Remove expired WebSocket auth tokens."""
+    now_ts = datetime.now().timestamp()
+    for token in list(_ws_tokens.keys()):
+        if _ws_tokens[token].get("expires_at", 0.0) <= now_ts:
+            _ws_tokens.pop(token, None)
+
+
+def _issue_ws_token(username: str) -> tuple[str, int]:
+    """Issue one-time WebSocket token for an authenticated user."""
+    _prune_ws_tokens()
+    token = secrets.token_urlsafe(32)
+    expires_in = WS_TOKEN_TTL_SECONDS
+    _ws_tokens[token] = {
+        "username": username,
+        "expires_at": datetime.now().timestamp() + float(expires_in),
+    }
+    return token, expires_in
+
+
+def _consume_ws_token(token: str) -> str | None:
+    """Consume and validate one-time WebSocket token."""
+    _prune_ws_tokens()
+    payload = _ws_tokens.pop(token, None)
+    if not payload:
+        return None
+    expires_at = float(payload.get("expires_at", 0.0))
+    if expires_at <= datetime.now().timestamp():
+        return None
+    return str(payload.get("username", "")) or None
 
 
 async def get_current_username(request: Request) -> str:
@@ -91,8 +188,7 @@ async def get_current_username(request: Request) -> str:
             headers={"WWW-Authenticate": "Basic"},
         ) from e
 
-    expected_username = os.getenv("DASHBOARD_USERNAME", "admin")
-    expected_password = os.getenv("DASHBOARD_PASSWORD", "admin")
+    expected_username, expected_password = _get_dashboard_credentials()
 
     correct_username = secrets.compare_digest(cred_username, expected_username)
     correct_password = secrets.compare_digest(cred_password, expected_password)
@@ -115,7 +211,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_get_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -355,12 +451,20 @@ async def get_qr():
     return {"qr": session_state.qr_code}
 
 
+@_api.post("/api/ws-token")
+async def create_ws_token(username: str = Depends(get_current_username)):
+    """Issue a short-lived token for authenticated WebSocket connections."""
+    token, expires_in = _issue_ws_token(username)
+    return {"token": token, "expires_in": expires_in}
+
+
 @_api.post("/api/auth/pair")
 async def start_pairing(req: PairRequest):
     """Start pairing with phone number."""
-    runtime_config.set_nested("bot", "login_method", "PAIR_CODE")
-    runtime_config.set_nested("bot", "phone_number", req.phone)
-    runtime_config._save()
+    bot_cfg = runtime_config.get("bot", {}).copy()
+    bot_cfg["login_method"] = "PAIR_CODE"
+    bot_cfg["phone_number"] = req.phone
+    runtime_config.set("bot", bot_cfg)
 
     return {
         "success": True,
@@ -413,7 +517,6 @@ async def update_config(update: ConfigUpdate):
     """Update a configuration value."""
     try:
         runtime_config.set_nested(update.section, update.key, update.value)
-        runtime_config._save()
         await event_bus.emit(
             "config_update", {"section": update.section, "key": update.key, "value": update.value}
         )
@@ -457,7 +560,6 @@ async def toggle_command(name: str, toggle: CommandToggle):
         disabled.append(name)
 
     runtime_config.set("disabled_commands", disabled)
-    runtime_config._save()
     await event_bus.emit("command_update", {"name": name, "enabled": toggle.enabled})
 
     return {"success": True, "name": name, "enabled": toggle.enabled}
@@ -772,24 +874,34 @@ async def get_logs(
 @_api.get("/api/ratelimit")
 async def get_rate_limit():
     """Get rate limit configuration."""
-    config = rate_limiter.config
+    config = runtime_config.get_nested("rate_limit", default={})
+    if not isinstance(config, dict):
+        config = {}
     return {
-        "enabled": config.enabled,
-        "user_cooldown": config.user_cooldown,
-        "command_cooldown": config.command_cooldown,
-        "burst_limit": config.burst_limit,
-        "burst_window": config.burst_window,
+        "enabled": bool(config.get("enabled", rate_limiter.config.enabled)),
+        "user_cooldown": float(config.get("user_cooldown", rate_limiter.config.user_cooldown)),
+        "command_cooldown": float(
+            config.get("command_cooldown", rate_limiter.config.command_cooldown)
+        ),
+        "burst_limit": int(config.get("burst_limit", rate_limiter.config.burst_limit)),
+        "burst_window": float(config.get("burst_window", rate_limiter.config.burst_window)),
     }
 
 
 @_api.put("/api/ratelimit")
 async def update_rate_limit(settings: RateLimitSettings):
     """Update rate limit configuration."""
-    rate_limiter.config.enabled = settings.enabled
-    rate_limiter.config.user_cooldown = settings.user_cooldown
-    rate_limiter.config.command_cooldown = settings.command_cooldown
-    rate_limiter.config.burst_limit = settings.burst_limit
-    rate_limiter.config.burst_window = settings.burst_window
+    rate_limit_config = {
+        "enabled": settings.enabled,
+        "user_cooldown": settings.user_cooldown,
+        "command_cooldown": settings.command_cooldown,
+        "burst_limit": settings.burst_limit,
+        "burst_window": settings.burst_window,
+    }
+
+    runtime_config.set("rate_limit", rate_limit_config)
+    rate_limiter.update_config(RateLimitConfig(**rate_limit_config))
+    await event_bus.emit("config_update", {"section": "rate_limit", "key": "all"})
 
     return {"success": True}
 
@@ -1410,6 +1522,11 @@ async def delete_group_automation(group_id: str, rule_id: str):
 @app.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket):
     """WebSocket for real-time dashboard updates."""
+    token = ws.query_params.get("token", "")
+    if not token or not _consume_ws_token(token):
+        await ws.close(code=1008, reason="Unauthorized")
+        return
+
     await ws.accept()
     queue = event_bus.subscribe()
     try:
@@ -1475,12 +1592,13 @@ async def get_ai_config():
 @_api.put("/api/ai-config")
 async def update_ai_config(config: AIConfigUpdate):
     """Update AI configuration."""
-    runtime_config.set_nested("agentic_ai", "enabled", config.enabled)
-    runtime_config.set_nested("agentic_ai", "provider", config.provider)
-    runtime_config.set_nested("agentic_ai", "model", config.model)
-    runtime_config.set_nested("agentic_ai", "trigger_mode", config.trigger_mode)
-    runtime_config.set_nested("agentic_ai", "owner_only", config.owner_only)
-    runtime_config._save()
+    ai_cfg = runtime_config.get("agentic_ai", {}).copy()
+    ai_cfg["enabled"] = config.enabled
+    ai_cfg["provider"] = config.provider
+    ai_cfg["model"] = config.model
+    ai_cfg["trigger_mode"] = config.trigger_mode
+    ai_cfg["owner_only"] = config.owner_only
+    runtime_config.set("agentic_ai", ai_cfg)
     await event_bus.emit(
         "config_update", {"section": "agentic_ai", "key": "all", "value": config.dict()}
     )
