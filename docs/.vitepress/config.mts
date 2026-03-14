@@ -25,7 +25,15 @@ export default defineConfig({
         nav: [
             { text: 'Guide', link: '/getting-started/installation' },
             { text: 'Commands', link: '/commands/general' },
-            { text: 'Features', link: '/features/ai' },
+            {
+                text: 'Features',
+                items: [
+                    { text: 'Agentic AI', link: '/features/ai' },
+                    { text: 'Internationalization', link: '/features/i18n' },
+                    { text: 'Web Dashboard', link: '/features/dashboard' },
+                    { text: 'Webhooks', link: '/features/webhooks' },
+                ],
+            },
             {
                 text: 'Development',
                 items: [
@@ -67,6 +75,7 @@ export default defineConfig({
                     { text: 'Agentic AI', link: '/features/ai' },
                     { text: 'Internationalization', link: '/features/i18n' },
                     { text: 'Web Dashboard', link: '/features/dashboard' },
+                    { text: 'Webhooks', link: '/features/webhooks' },
                 ],
             },
             {

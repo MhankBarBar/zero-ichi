@@ -40,6 +40,14 @@ sys.path.insert(0, str(Path(__file__).parent))
 from core.analytics import command_analytics
 from core.automations import load_rules, next_rule_id, save_rules
 from core.command import command_loader
+from core.db import (
+    create_webhook,
+    delete_webhook,
+    get_webhook,
+    list_webhook_deliveries,
+    list_webhooks,
+    update_webhook,
+)
 from core.digest import apply_digest_schedule, build_digest_message, send_digest_now
 from core.event_bus import event_bus
 from core.handlers.welcome import (
@@ -55,6 +63,7 @@ from core.scheduler import get_scheduler
 from core.session import session_state
 from core.shared import get_bot
 from core.storage import GroupData, Storage
+from core.webhooks import list_known_events, send_test_webhook
 
 BOT_START_TIME = datetime.now()
 _DOTENV_PATH = Path(__file__).parent.parent / ".env"
@@ -358,6 +367,22 @@ class AutomationRuleUpdate(BaseModel):
     trigger_value: str | None = None
     action_type: str | None = None
     action_value: str | None = None
+    enabled: bool | None = None
+
+
+class WebhookCreate(BaseModel):
+    name: str
+    url: str
+    events: list[str] = []
+    secret: str = ""
+    enabled: bool = True
+
+
+class WebhookUpdate(BaseModel):
+    name: str | None = None
+    url: str | None = None
+    events: list[str] | None = None
+    secret: str | None = None
     enabled: bool | None = None
 
 
@@ -904,6 +929,129 @@ async def update_rate_limit(settings: RateLimitSettings):
     await event_bus.emit("config_update", {"section": "rate_limit", "key": "all"})
 
     return {"success": True}
+
+
+@_api.get("/api/webhooks")
+async def get_webhooks():
+    """List configured webhooks."""
+    hooks = list_webhooks(include_disabled=True)
+    return {
+        "webhooks": [
+            {
+                "id": hook["id"],
+                "name": hook["name"],
+                "url": hook["url"],
+                "events": hook["events"],
+                "enabled": hook["enabled"],
+                "created_at": hook["created_at"],
+                "updated_at": hook["updated_at"],
+                "has_secret": bool(hook.get("secret")),
+            }
+            for hook in hooks
+        ],
+        "available_events": list_known_events(),
+    }
+
+
+@_api.post("/api/webhooks")
+async def create_webhook_endpoint(payload: WebhookCreate):
+    """Create a webhook endpoint."""
+    url = payload.url.strip()
+    if not url.startswith("http://") and not url.startswith("https://"):
+        raise HTTPException(
+            status_code=400, detail="Webhook URL must start with http:// or https://"
+        )
+
+    secret = payload.secret.strip() or secrets.token_urlsafe(24)
+    created = create_webhook(
+        name=payload.name,
+        url=url,
+        events=payload.events,
+        secret=secret,
+        enabled=payload.enabled,
+    )
+
+    return {
+        "success": True,
+        "webhook": {
+            "id": created["id"],
+            "name": created["name"],
+            "url": created["url"],
+            "events": created["events"],
+            "enabled": created["enabled"],
+            "created_at": created["created_at"],
+            "updated_at": created["updated_at"],
+            "has_secret": bool(created.get("secret")),
+        },
+        "secret": secret,
+    }
+
+
+@_api.put("/api/webhooks/{webhook_id}")
+async def update_webhook_endpoint(webhook_id: int, payload: WebhookUpdate):
+    """Update webhook endpoint settings."""
+    if payload.url is not None:
+        trimmed = payload.url.strip()
+        if not trimmed.startswith("http://") and not trimmed.startswith("https://"):
+            raise HTTPException(
+                status_code=400,
+                detail="Webhook URL must start with http:// or https://",
+            )
+
+    updated = update_webhook(
+        webhook_id,
+        name=payload.name,
+        url=payload.url,
+        events=payload.events,
+        secret=payload.secret,
+        enabled=payload.enabled,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Webhook not found")
+
+    return {
+        "success": True,
+        "webhook": {
+            "id": updated["id"],
+            "name": updated["name"],
+            "url": updated["url"],
+            "events": updated["events"],
+            "enabled": updated["enabled"],
+            "created_at": updated["created_at"],
+            "updated_at": updated["updated_at"],
+            "has_secret": bool(updated.get("secret")),
+        },
+    }
+
+
+@_api.delete("/api/webhooks/{webhook_id}")
+async def delete_webhook_endpoint(webhook_id: int):
+    """Delete webhook endpoint."""
+    if not delete_webhook(webhook_id):
+        raise HTTPException(status_code=404, detail="Webhook not found")
+    return {"success": True}
+
+
+@_api.post("/api/webhooks/{webhook_id}/test")
+async def test_webhook_endpoint(webhook_id: int):
+    """Send one test payload to a webhook."""
+    hook = get_webhook(webhook_id)
+    if not hook:
+        raise HTTPException(status_code=404, detail="Webhook not found")
+
+    result = await send_test_webhook(webhook_id)
+    return {"success": bool(result.get("success")), "result": result}
+
+
+@_api.get("/api/webhooks/{webhook_id}/deliveries")
+async def get_webhook_deliveries_endpoint(webhook_id: int, limit: int = Query(50, ge=1, le=200)):
+    """Get recent webhook delivery attempts."""
+    hook = get_webhook(webhook_id)
+    if not hook:
+        raise HTTPException(status_code=404, detail="Webhook not found")
+
+    deliveries = list_webhook_deliveries(webhook_id, limit=limit)
+    return {"deliveries": deliveries, "count": len(deliveries)}
 
 
 @_api.get("/api/groups/{group_id}/welcome")

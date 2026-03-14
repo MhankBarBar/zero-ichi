@@ -41,6 +41,7 @@ zero-ichi/
 │   │   ├── client.py           # WhatsApp client wrapper
 │   │   ├── command.py          # Command base class & loader
 │   │   ├── constants.py        # Project constants
+│   │   ├── db.py               # SQLAlchemy database layer + migration bridge
 │   │   ├── downloader.py       # Media downloader logic
 │   │   ├── errors.py           # Error handling utilities
 │   │   ├── event_bus.py        # Event system
@@ -54,14 +55,15 @@ zero-ichi/
 │   │   ├── rate_limiter.py     # Rate limiting
 │   │   ├── runtime_config.py   # Live configuration manager
 │   │   ├── scheduler.py        # Task scheduler
-│   │   ├── storage.py          # Per-group data storage
+│   │   ├── storage.py          # Per-group/global runtime storage API (DB-backed)
 │   │   ├── symbols.py          # Unicode symbols
+│   │   ├── webhooks.py         # Webhook dispatcher worker
 │   │   └── handlers/           # Event handlers
 │   │
 │   └── locales/                # Translation files (en, id)
 │
 ├── dashboard/                  # Next.js admin dashboard
-├── data/                       # Per-group persistent data
+├── data/                       # Runtime data (SQLite DB, media files, caches)
 └── logs/                       # Log files
 ```
 
@@ -130,7 +132,12 @@ Commands are auto-discovered from `src/commands/*/` directories.
 
 ### Storage
 
-`core/storage.py` provides per-group persistent storage using JSON files in the `data/` directory:
+Runtime state uses a SQL database through `core/db.py`:
+
+- Default: SQLite at `data/zeroichi.db`
+- Optional: PostgreSQL when `DATABASE_URL` is set
+
+`core/storage.py` keeps a simple API over DB-backed persistence:
 
 ```python
 from core.storage import GroupData
@@ -139,6 +146,18 @@ storage = GroupData(chat_jid)
 storage.save("rules", {"text": "Be kind!"})
 rules = storage.load("rules", {"text": ""})
 ```
+
+Other runtime modules (`scheduler`, `analytics`, `token_tracker`, `afk`, `i18n` chat language state, AI memory) are also persisted in the database.
+
+### Webhooks
+
+`core/event_bus.py` emits internal events for dashboard live updates and webhook fanout.
+
+`core/webhooks.py` subscribes to emitted events asynchronously and delivers them to configured endpoints with:
+
+- HMAC signature headers
+- retry/backoff on failures
+- delivery logs stored in DB (`webhook_deliveries`)
 
 ### JID Resolver
 

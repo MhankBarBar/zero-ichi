@@ -6,6 +6,31 @@
 uv run zero-ichi
 ```
 
+## CLI Arguments
+
+You can run the bot with flags:
+
+```bash
+uv run zero-ichi --debug --auto-reload
+```
+
+| Argument | Description | Example |
+|----------|-------------|---------|
+| `--debug` | Enable debug logging | `uv run zero-ichi --debug` |
+| `--qr` | Force QR login mode | `uv run zero-ichi --qr` |
+| `--phone NUMBER` | Force pair-code login with phone number | `uv run zero-ichi --phone 6281234567890` |
+| `--session NAME` | Override session name | `uv run zero-ichi --session mybot` |
+| `--auto-reload` | Enable auto-reload for development | `uv run zero-ichi --auto-reload` |
+| `--dashboard` | Enable dashboard API at startup | `uv run zero-ichi --dashboard` |
+
+### Update Command
+
+Use built-in update command:
+
+```bash
+uv run zero-ichi update
+```
+
 ## QR Code Login
 
 On first launch, the bot will display a QR code in the terminal:

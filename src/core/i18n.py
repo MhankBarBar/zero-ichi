@@ -6,10 +6,10 @@ Provides translation support for bot messages with per-chat language settings.
 
 import json
 from contextvars import ContextVar
-from pathlib import Path
 
 from core import symbols as sym
 from core.constants import LOCALES_DIR
+from core.db import kv_get_json, kv_set_json
 from core.runtime_config import runtime_config
 
 _locales: dict[str, dict] = {}
@@ -92,30 +92,16 @@ def set_chat_language(chat_jid: str, lang: str) -> bool:
     return True
 
 
-def _get_languages_file() -> Path:
-    """Get path to chat languages file."""
-    data_dir = LOCALES_DIR.parent / "data"
-    data_dir.mkdir(exist_ok=True)
-    return data_dir / "chat_languages.json"
-
-
 def _save_chat_languages() -> None:
-    """Save chat language preferences to file."""
-    file = _get_languages_file()
-    with open(file, "w", encoding="utf-8") as f:
-        json.dump(_chat_languages, f, ensure_ascii=False, indent=2)
+    """Save chat language preferences to database."""
+    kv_set_json("i18n", "chat_languages", _chat_languages)
 
 
 def load_chat_languages() -> None:
-    """Load saved chat language preferences."""
+    """Load saved chat language preferences from database."""
     global _chat_languages
-    file = _get_languages_file()
-    if file.exists():
-        try:
-            with open(file, encoding="utf-8") as f:
-                _chat_languages = json.load(f)
-        except (OSError, json.JSONDecodeError):
-            _chat_languages = {}
+    data = kv_get_json("i18n", "chat_languages", default={})
+    _chat_languages = data if isinstance(data, dict) else {}
 
 
 def t(key: str, chat_jid: str | None = None, **kwargs) -> str:
@@ -187,12 +173,16 @@ def init_i18n(lang: str | None = None) -> None:
     """
     global _default_lang
 
-    if lang is None:
-        lang = runtime_config.get_nested("bot", "language", default="en")
+    lang_value = (
+        lang if lang is not None else runtime_config.get_nested("bot", "language", default="en")
+    )
+    lang_code = str(lang_value).strip() if isinstance(lang_value, str) else "en"
+    if not lang_code:
+        lang_code = "en"
 
-    _default_lang = lang
+    _default_lang = lang_code
     _load_available_languages()
-    load_locale(lang)
+    load_locale(lang_code)
     load_chat_languages()
 
 

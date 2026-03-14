@@ -20,6 +20,8 @@ Because life is too short for boring bots.
 - **Universal Downloader**: Grab videos from YouTube, TikTok, Instagram, and 1000+ other sites. Yes, even that one.
 - **Mod Toolkit**: Keep your groups clean with anti-link, anti-delete, warnings, reports, and blacklists.
 - **Time Travel**: Okay, not really, but our **Scheduler** lets you send messages in the future (cron supported!).
+- **Webhooks**: Stream bot events into your own apps, Discord, CI, or alerting stack.
+- **Database-Backed State**: SQLite out of the box, PostgreSQL when you need it.
 - **Polyglot**: Speaks English and Indonesian fluently. Add your own language if you're feeling adventurous.
 - **Shiny Dashboard**: A web interface to manage everything because terminals are scary sometimes.
 
@@ -55,6 +57,17 @@ cp .env.example .env
 
 ```bash
 uv run zero-ichi
+```
+
+Common CLI options:
+
+```bash
+uv run zero-ichi --debug --auto-reload
+uv run zero-ichi --qr
+uv run zero-ichi --phone 6281234567890
+uv run zero-ichi --dashboard
+uv run zero-ichi --session my_session
+uv run zero-ichi update
 ```
 
 Scan the QR code and you're in business.

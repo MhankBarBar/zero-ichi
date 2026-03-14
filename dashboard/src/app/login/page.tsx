@@ -34,9 +34,23 @@ export default function LoginPage() {
                 localStorage.setItem("dashboard_auth", auth);
                 window.location.href = "/";
             } else {
-                setError("Invalid username or password");
+                let detail = "";
+                try {
+                    const data = (await res.json()) as { detail?: string };
+                    detail = data?.detail || "";
+                } catch {
+                    detail = "";
+                }
+
+                if (res.status === 503 && detail) {
+                    setError(detail);
+                } else if (res.status === 401) {
+                    setError("Invalid username or password");
+                } else {
+                    setError(detail || `Login failed (HTTP ${res.status})`);
+                }
             }
-        } catch (err) {
+        } catch {
             setError("Failed to connect to API server");
         } finally {
             setLoading(false);
@@ -121,6 +135,9 @@ export default function LoginPage() {
                 <p className="mt-8 text-center text-xs text-neutral-600">
                     Credentials can be set in your{" "}
                     <span className="font-mono text-neutral-500">.env</span> file
+                </p>
+                <p className="mt-2 text-center text-xs text-neutral-600">
+                    Use non-default credentials. <span className="font-mono text-neutral-500">admin/admin</span> is blocked.
                 </p>
             </motion.div>
         </div>

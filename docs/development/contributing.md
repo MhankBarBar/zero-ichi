@@ -33,7 +33,7 @@ Contributions are welcome. Here's how to get started.
 
 4.  **Run the bot** to test your changes:
     ```bash
-    uv run zero-ichi
+    uv run zero-ichi --debug --auto-reload
     ```
     The bot supports auto-reload — file changes are picked up without restarting.
 

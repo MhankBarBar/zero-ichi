@@ -184,6 +184,30 @@ export interface AutomationRule {
     action_value: string;
 }
 
+export interface WebhookItem {
+    id: number;
+    name: string;
+    url: string;
+    events: string[];
+    enabled: boolean;
+    has_secret: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface WebhookDelivery {
+    id: number;
+    webhook_id: number;
+    event_type: string;
+    payload: Record<string, unknown>;
+    success: boolean;
+    status_code: number | null;
+    error: string | null;
+    attempt: number;
+    response_body: string | null;
+    created_at: string;
+}
+
 function getStoredAuth(): string | null {
     if (typeof window === "undefined") {
         return null;
@@ -517,6 +541,49 @@ export const api = {
             {
                 method: "DELETE",
             },
+        ),
+
+    getWebhooks: () =>
+        fetchAPI<{ webhooks: WebhookItem[]; available_events: string[] }>("/api/webhooks"),
+    createWebhook: (payload: {
+        name: string;
+        url: string;
+        events: string[];
+        secret?: string;
+        enabled?: boolean;
+    }) =>
+        fetchAPI<{ success: boolean; webhook: WebhookItem; secret: string }>("/api/webhooks", {
+            method: "POST",
+            body: JSON.stringify(payload),
+        }),
+    updateWebhook: (
+        webhookId: number,
+        payload: {
+            name?: string;
+            url?: string;
+            events?: string[];
+            secret?: string;
+            enabled?: boolean;
+        },
+    ) =>
+        fetchAPI<{ success: boolean; webhook: WebhookItem }>(`/api/webhooks/${webhookId}`, {
+            method: "PUT",
+            body: JSON.stringify(payload),
+        }),
+    deleteWebhook: (webhookId: number) =>
+        fetchAPI<{ success: boolean }>(`/api/webhooks/${webhookId}`, {
+            method: "DELETE",
+        }),
+    testWebhook: (webhookId: number) =>
+        fetchAPI<{ success: boolean; result: { success: boolean; status_code?: number } }>(
+            `/api/webhooks/${webhookId}/test`,
+            {
+                method: "POST",
+            },
+        ),
+    getWebhookDeliveries: (webhookId: number, limit = 50) =>
+        fetchAPI<{ deliveries: WebhookDelivery[]; count: number }>(
+            `/api/webhooks/${webhookId}/deliveries?limit=${limit}`,
         ),
 
     getTopCommands: (days = 7, groupId?: string) => {

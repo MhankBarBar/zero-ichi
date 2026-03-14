@@ -30,7 +30,7 @@ The dashboard provides a web-based interface for managing and monitoring the Zer
 
 ### Prerequisites
 
-- Node.js 20+
+- Bun 1.2+
 - The bot API running on `http://localhost:8000`
 
 ### Installation
@@ -39,11 +39,8 @@ The dashboard provides a web-based interface for managing and monitoring the Zer
 # Navigate to dashboard directory
 cd dashboard
 
-# Install dependencies (using Bun)
+# Install dependencies
 bun install
-
-# Or using npm
-npm install
 ```
 
 ### Development
@@ -51,9 +48,6 @@ npm install
 ```bash
 # Start development server
 bun dev
-
-# Or using npm
-npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
@@ -100,12 +94,13 @@ dashboard/
 | Configuration   | Modify bot settings via UI         |
 | Task Scheduler  | View and manage scheduled tasks    |
 | Logs Viewer     | Browse recent bot activity         |
+| Webhooks        | Configure outbound event webhooks  |
 
 ---
 
 ## API Connection
 
-The dashboard expects the bot API to be running at `http://localhost:8000`. The API is started automatically when running the bot via `uv run main.py`.
+The dashboard expects the bot API to be running at `http://localhost:8000`. The API is started automatically when running the bot via `uv run zero-ichi`.
 
 | Endpoint            | Description             |
 | ------------------- | ----------------------- |

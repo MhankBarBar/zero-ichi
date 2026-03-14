@@ -28,8 +28,7 @@ INSTALL_DIR=/opt/zero-ichi curl -fsSL https://raw.githubusercontent.com/MhankBar
 - **Python 3.11+**
 - **[uv](https://github.com/astral-sh/uv)** — fast Python package manager
 - **FFmpeg** — required for audio/video processing
-- **[Bun](https://bun.sh)** — required for YouTube JS challenge solving (yt-dlp)
-- **Node.js 20+** — for the web dashboard (optional)
+- **[Bun](https://bun.sh)** — required for YouTube JS challenge solving (yt-dlp) and dashboard package scripts
 
 ## Manual Install
 
@@ -57,13 +56,27 @@ Edit `.env` with your values:
 
 ```bash
 AI_API_KEY=your_api_key_here
+DATABASE_URL=
+DASHBOARD_USERNAME=change_me
+DASHBOARD_PASSWORD=change_me_too
 ```
 
 ::: tip
 The AI API key is only required if you plan to use the [Agentic AI](/features/ai) feature.
+
+If `DATABASE_URL` is empty, Zero Ichi uses SQLite at `data/zeroichi.db`.
+Set a PostgreSQL URL to run on Postgres.
 :::
 
 ## Next Steps
 
 - [Configure the bot →](/getting-started/configuration)
 - [Run the bot for the first time →](/getting-started/first-run)
+
+Quick run examples:
+
+```bash
+uv run zero-ichi --debug
+uv run zero-ichi --dashboard
+uv run zero-ichi --phone 6281234567890
+```

@@ -58,7 +58,11 @@ def validate_environment():
         else:
             log_bullet("Dashboard credentials are not set (dashboard disabled).")
     else:
-        log_success("Dashboard credentials configured via environment variables.")
+        if user == "admin" and password == "admin":
+            log_warning("Insecure dashboard credentials detected (admin/admin).")
+            log_bullet("Login will be rejected until credentials are changed.")
+        else:
+            log_success("Dashboard credentials configured via environment variables.")
 
     ai_config = runtime_config.get("agentic_ai", {})
     if ai_config.get("enabled"):

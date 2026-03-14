@@ -8,7 +8,6 @@ Uses APScheduler for background job scheduling.
 from __future__ import annotations
 
 import base64
-import json
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -20,7 +19,7 @@ from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from neonize.proto.waE2E.WAWebProtobufsE2E_pb2 import Message
 
-from core.constants import DATA_DIR, TASKS_FILE
+from core.db import kv_get_json, kv_set_json
 from core.logger import log_error, log_info, log_success, log_warning
 
 if TYPE_CHECKING:
@@ -127,36 +126,35 @@ class Scheduler:
         self._load_tasks()
 
     def _load_tasks(self) -> None:
-        """Load tasks from storage."""
-        if not TASKS_FILE.exists():
-            return
-
+        """Load tasks from database storage."""
         try:
-            with open(TASKS_FILE, encoding="utf-8") as f:
-                data = json.load(f)
-                for task_data in data.get("tasks", []):
-                    task = ScheduledTask.from_dict(task_data)
-                    self._tasks[task.task_id] = task
-                self._task_counter = data.get("counter", 0)
+            data = kv_get_json("scheduler", "state", default={"tasks": [], "counter": 0})
+            if not isinstance(data, dict):
+                data = {"tasks": [], "counter": 0}
+
+            for task_data in data.get("tasks", []):
+                if not isinstance(task_data, dict):
+                    continue
+                task = ScheduledTask.from_dict(task_data)
+                self._tasks[task.task_id] = task
+
+            self._task_counter = int(data.get("counter", 0) or 0)
             log_info(f"Loaded {len(self._tasks)} scheduled tasks")
-        except (OSError, json.JSONDecodeError) as e:
+        except Exception as e:
             log_warning(f"Failed to load scheduled tasks: {e}")
 
     def _save_tasks(self) -> None:
-        """Save tasks to storage."""
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        """Save tasks to database storage."""
         try:
-            with open(TASKS_FILE, "w", encoding="utf-8") as f:
-                json.dump(
-                    {
-                        "tasks": [t.to_dict() for t in self._tasks.values()],
-                        "counter": self._task_counter,
-                    },
-                    f,
-                    ensure_ascii=False,
-                    indent=2,
-                )
-        except OSError as e:
+            kv_set_json(
+                "scheduler",
+                "state",
+                {
+                    "tasks": [t.to_dict() for t in self._tasks.values()],
+                    "counter": self._task_counter,
+                },
+            )
+        except Exception as e:
             log_error(f"Failed to save scheduled tasks: {e}")
 
     def _generate_task_id(self) -> str:

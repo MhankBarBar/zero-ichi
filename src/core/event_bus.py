@@ -44,6 +44,13 @@ class EventBus:
         for q in dead_queues:
             self._subscribers.remove(q)
 
+        try:
+            from core.webhooks import dispatch_event
+
+            await dispatch_event(event_type, event["data"], event["timestamp"])
+        except Exception:
+            pass
+
     @property
     def subscriber_count(self) -> int:
         return len(self._subscribers)

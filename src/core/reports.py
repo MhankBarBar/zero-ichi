@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import json
 from datetime import datetime
 from typing import Any
 
-from core.constants import DATA_DIR
+from core.db import kv_get_json, kv_list_scopes
 from core.storage import GroupData
 
 
@@ -117,23 +116,10 @@ def find_reports_by_id(report_id: str) -> list[tuple[str, dict[str, Any]]]:
         return []
 
     matches: list[tuple[str, dict[str, Any]]] = []
-    if not DATA_DIR.exists():
-        return matches
 
-    for entry in DATA_DIR.iterdir():
-        if not entry.is_dir():
-            continue
-
-        report_file = entry / "reports.json"
-        if not report_file.exists():
-            continue
-
-        try:
-            with open(report_file, encoding="utf-8") as f:
-                payload = json.load(f)
-        except Exception:
-            continue
-
+    for scope in kv_list_scopes(prefix="group:"):
+        group_jid = scope[len("group:") :]
+        payload = kv_get_json(scope, "reports", default={"counter": 0, "items": []})
         items = payload.get("items", []) if isinstance(payload, dict) else []
         if not isinstance(items, list):
             continue
@@ -144,10 +130,10 @@ def find_reports_by_id(report_id: str) -> list[tuple[str, dict[str, Any]]]:
             if str(report.get("id", "")).upper() != rid:
                 continue
 
-            group_jid = str(report.get("group_jid", "")).strip()
-            if not group_jid:
+            resolved_group = str(report.get("group_jid", "")).strip() or group_jid
+            if not resolved_group:
                 continue
-            matches.append((group_jid, report))
+            matches.append((resolved_group, report))
 
     return matches
 
