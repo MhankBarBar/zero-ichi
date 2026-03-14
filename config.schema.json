@@ -35,7 +35,7 @@
                 "phone_number": {
                     "type": "string",
                     "description": "Phone number in international format without '+' (e.g., '628xxxx'). Used for PAIR_CODE login method",
-                    "pattern": "^[0-9]+$"
+                    "pattern": "^$|^[0-9]+$"
                 },
                 "owner_jid": {
                     "type": "string",
@@ -293,6 +293,36 @@
                 }
             }
         },
+        "rate_limit": {
+            "type": "object",
+            "description": "Command rate limiter settings",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "default": true
+                },
+                "user_cooldown": {
+                    "type": "number",
+                    "minimum": 0,
+                    "default": 3.0
+                },
+                "command_cooldown": {
+                    "type": "number",
+                    "minimum": 0,
+                    "default": 2.0
+                },
+                "burst_limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "default": 5
+                },
+                "burst_window": {
+                    "type": "number",
+                    "minimum": 1,
+                    "default": 10.0
+                }
+            }
+        },
         "downloader": {
             "type": "object",
             "description": "Downloader settings for /dl, /audio, and /video commands",
@@ -452,6 +482,17 @@
                     "type": "boolean",
                     "description": "Enable the Dashboard API server",
                     "default": false
+                },
+                "cors_origins": {
+                    "type": "array",
+                    "description": "Allowed CORS origins for dashboard API",
+                    "items": {
+                        "type": "string"
+                    },
+                    "default": [
+                        "http://localhost:3000",
+                        "http://127.0.0.1:3000"
+                    ]
                 }
             }
         }

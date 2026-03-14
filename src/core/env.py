@@ -49,23 +49,33 @@ def validate_environment():
     user = os.getenv("DASHBOARD_USERNAME")
     password = os.getenv("DASHBOARD_PASSWORD")
 
+    dashboard_enabled = runtime_config.get_nested("dashboard", "enabled", default=False)
     if not user or not password:
-        log_warning(
-            "DASHBOARD_USERNAME or DASHBOARD_PASSWORD not set. Using defaults (admin:admin)."
-        )
-        log_bullet("This is INSECURE for production deployments!")
+        if dashboard_enabled:
+            log_warning(
+                "Dashboard is enabled but credentials are missing. Set DASHBOARD_USERNAME and DASHBOARD_PASSWORD."
+            )
+        else:
+            log_bullet("Dashboard credentials are not set (dashboard disabled).")
     else:
-        log_success("Dashboard credentials configured via environment variables.")
+        if user == "admin" and password == "admin":
+            log_warning("Insecure dashboard credentials detected (admin/admin).")
+            log_bullet("Login will be rejected until credentials are changed.")
+        else:
+            log_success("Dashboard credentials configured via environment variables.")
 
     ai_config = runtime_config.get("agentic_ai", {})
     if ai_config.get("enabled"):
         provider = ai_config.get("provider", "openai")
-        api_key = (
-            ai_config.get("API_KEY")
-            or os.getenv("AI_API_KEY")
-            or os.getenv("GEMINI_API_KEY")
-            or os.getenv("OPENAI_API_KEY")
-        )
+        config_key = str(ai_config.get("api_key") or "").strip()
+        env_keys = [
+            os.getenv("AI_API_KEY", ""),
+            os.getenv("OPENAI_API_KEY", ""),
+            os.getenv("ANTHROPIC_API_KEY", ""),
+            os.getenv("GOOGLE_API_KEY", ""),
+            os.getenv("GEMINI_API_KEY", ""),
+        ]
+        api_key = config_key or next((k for k in env_keys if k), "")
 
         if api_key and not os.getenv("OPENAI_API_KEY"):
             os.environ["OPENAI_API_KEY"] = api_key

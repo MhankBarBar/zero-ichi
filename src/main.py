@@ -32,6 +32,7 @@ from neonize.utils.enum import BlocklistAction
 from rich.console import Console
 from watchfiles import awatch
 
+from core.db import ensure_database_ready
 from core.handlers.welcome import handle_member_join, handle_member_leave
 from core.i18n import init_i18n, reload_locales, t
 from core.jid_resolver import get_user_part, jids_match, resolve_pair
@@ -105,6 +106,8 @@ def _run_update():
 
 def _init_bot(args):
     """Initialize the bot infrastructure. Only called when actually running the bot."""
+    ensure_database_ready()
+
     _ai_api_key = os.getenv("AI_API_KEY")
     if _ai_api_key and not os.getenv("OPENAI_API_KEY"):
         os.environ["OPENAI_API_KEY"] = str(_ai_api_key)

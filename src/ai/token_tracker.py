@@ -1,43 +1,58 @@
-"""
-AI Token tracker.
+"""AI Token tracker.
 
 Tracks token usage per user and per chat with configurable daily limits.
 """
 
-import json
+from __future__ import annotations
+
+import time
 from datetime import datetime
 
-from core.constants import DATA_DIR
+from core.db import kv_get_json, kv_set_json
 from core.logger import log_debug
 from core.runtime_config import runtime_config
 
-TOKEN_FILE = DATA_DIR / "ai_tokens.json"
+SAVE_INTERVAL_SECONDS = 2.0
 
 
 class TokenTracker:
     """Track AI token usage per user and per chat with daily limits."""
 
     def __init__(self):
+        self._scope = "ai_tokens"
+        self._key = "daily"
         self._data: dict = {}
+        self._dirty = False
+        self._last_save_ts = 0.0
         self._load()
 
     def _load(self) -> None:
-        """Load token data from disk."""
-        try:
-            if TOKEN_FILE.exists():
-                self._data = json.loads(TOKEN_FILE.read_text(encoding="utf-8"))
-        except Exception:
-            self._data = {}
+        """Load token data from database."""
+        data = kv_get_json(self._scope, self._key, default={})
+        self._data = data if isinstance(data, dict) else {}
 
         today = datetime.now().strftime("%Y-%m-%d")
         if self._data.get("date") != today:
             self._data = {"date": today, "users": {}, "chats": {}}
-            self._save()
+            self._schedule_save(force=True)
 
     def _save(self) -> None:
-        """Save token data to disk."""
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
-        TOKEN_FILE.write_text(json.dumps(self._data, indent=2), encoding="utf-8")
+        """Persist token data to database."""
+        kv_set_json(self._scope, self._key, self._data)
+        self._dirty = False
+        self._last_save_ts = time.time()
+
+    def _schedule_save(self, force: bool = False) -> None:
+        """Persist token usage on interval to reduce write volume."""
+        self._dirty = True
+        now = time.time()
+        if force or now - self._last_save_ts >= SAVE_INTERVAL_SECONDS:
+            self._save()
+
+    def flush(self) -> None:
+        """Flush pending token usage writes."""
+        if self._dirty:
+            self._save()
 
     @property
     def _user_limit(self) -> int:
@@ -54,6 +69,7 @@ class TokenTracker:
         today = datetime.now().strftime("%Y-%m-%d")
         if self._data.get("date") != today:
             self._data = {"date": today, "users": {}, "chats": {}}
+            self._schedule_save(force=True)
 
     def can_use(self, user_id: str, chat_id: str, estimated_tokens: int = 1000) -> bool:
         """Check if a user/chat can use more tokens."""
@@ -62,11 +78,11 @@ class TokenTracker:
         user_used = self._data.get("users", {}).get(user_id, 0)
         chat_used = self._data.get("chats", {}).get(chat_id, 0)
 
-        if user_used + estimated_tokens > self._user_limit:
+        if self._user_limit > 0 and user_used + estimated_tokens > self._user_limit:
             log_debug(f"Token limit: user {user_id} at {user_used}/{self._user_limit}")
             return False
 
-        if chat_used + estimated_tokens > self._chat_limit:
+        if self._chat_limit > 0 and chat_used + estimated_tokens > self._chat_limit:
             log_debug(f"Token limit: chat {chat_id} at {chat_used}/{self._chat_limit}")
             return False
 
@@ -84,7 +100,7 @@ class TokenTracker:
         self._data["users"][user_id] = self._data["users"].get(user_id, 0) + tokens_used
         self._data["chats"][chat_id] = self._data["chats"].get(chat_id, 0) + tokens_used
 
-        self._save()
+        self._schedule_save()
         log_debug(
             f"Token usage: user={user_id} +{tokens_used} "
             f"(total: {self._data['users'][user_id]}), "
@@ -95,10 +111,12 @@ class TokenTracker:
         """Get usage info for a user."""
         self._ensure_today()
         used = self._data.get("users", {}).get(user_id, 0)
+        limit = self._user_limit
+        remaining = max(0, limit - used) if limit > 0 else 0
         return {
             "used": used,
-            "limit": self._user_limit,
-            "remaining": max(0, self._user_limit - used),
+            "limit": limit,
+            "remaining": remaining,
         }
 
 

@@ -17,6 +17,7 @@ from ai.context import BotDependencies
 from ai.token_tracker import token_tracker
 from core.command import CommandContext, command_loader
 from core.logger import log_debug, log_error, log_info, log_warning
+from core.permissions import check_command_permissions
 from core.runtime_config import runtime_config
 
 if TYPE_CHECKING:
@@ -46,6 +47,32 @@ CRITICAL RULES:
 - After run_command(), return "" only
 - Max 1-2 tool calls per request
 """
+
+
+def _normalize_actions(values: object) -> set[str]:
+    """Normalize action values from config for policy checks."""
+    if not isinstance(values, list):
+        return set()
+    return {str(v).strip().lower() for v in values if str(v).strip()}
+
+
+def _is_ai_action_allowed(command_name: str) -> bool:
+    """Check if AI is allowed to use a command by config policy."""
+    cmd = command_name.lower().strip()
+    allowed = _normalize_actions(
+        runtime_config.get_nested("agentic_ai", "allowed_actions", default=[])
+    )
+    blocked = _normalize_actions(
+        runtime_config.get_nested("agentic_ai", "blocked_actions", default=[])
+    )
+
+    if cmd in blocked:
+        return False
+
+    if allowed and cmd not in allowed:
+        return False
+
+    return True
 
 
 def _create_agent() -> Agent:
@@ -86,9 +113,18 @@ def _register_core_tools(agent: Agent) -> None:
         for group_name, commands in grouped.items():
             if category and category.lower() not in group_name.lower():
                 continue
-            result_lines.append(f"\n{group_name}:")
+            group_lines = []
             for cmd in commands:
-                result_lines.append(f"  - {cmd.name}: {cmd.description}")
+                if not _is_ai_action_allowed(cmd.name):
+                    continue
+                perm_result = await check_command_permissions(cmd, ctx.deps.msg, ctx.deps.bot)
+                if not perm_result:
+                    continue
+                group_lines.append(f"  - {cmd.name}: {cmd.description}")
+
+            if group_lines:
+                result_lines.append(f"\n{group_name}:")
+                result_lines.extend(group_lines)
 
         return "\n".join(result_lines) if result_lines else "No commands found"
 
@@ -101,8 +137,13 @@ def _register_core_tools(agent: Agent) -> None:
         if not cmd:
             return f"Command '{cmd_name}' not found"
 
-        if not cmd.enabled:
-            return f"Command '{cmd_name}' is disabled"
+        resolved_name = cmd.name.lower()
+        if not _is_ai_action_allowed(resolved_name):
+            return f"Command '{resolved_name}' is not allowed for AI"
+
+        perm_result = await check_command_permissions(cmd, ctx.deps.msg, ctx.deps.bot)
+        if not perm_result:
+            return perm_result.error_message or f"Permission denied for '{resolved_name}'"
 
         args_list = args.split() if args else []
         cmd_ctx = CommandContext(
@@ -110,12 +151,13 @@ def _register_core_tools(agent: Agent) -> None:
             message=ctx.deps.msg,
             args=args_list,
             raw_args=args,
-            command_name=cmd_name,
+            command_name=resolved_name,
+            prefix=runtime_config.display_prefix,
         )
 
         try:
             await cmd.execute(cmd_ctx)
-            return f"Executed command: {cmd_name}"
+            return f"Executed command: {resolved_name}"
         except Exception as e:
             return f"Command error: {str(e)}"
 
@@ -340,7 +382,13 @@ class AgenticAI:
             log_info(f"AI token limit reached for user={user_id} chat={chat_id}")
             return "⏳ AI daily limit reached. Try again tomorrow!"
 
-        os.environ["OPENAI_API_KEY"] = self.api_key
+        if self.provider == "openai":
+            os.environ["OPENAI_API_KEY"] = self.api_key
+        elif self.provider == "anthropic":
+            os.environ["ANTHROPIC_API_KEY"] = self.api_key
+        elif self.provider == "google":
+            os.environ["GOOGLE_API_KEY"] = self.api_key
+            os.environ["GEMINI_API_KEY"] = self.api_key
 
         model_str = f"{self.provider}:{self.model}"
         log_info(f"AI processing with model: {model_str}")

@@ -851,6 +851,31 @@ html:not(.dark) .vp-doc div[class*='language-'] .line-numbers {
         padding: 44px 1rem 1rem;
     }
 
+    /* Keep code blocks inside content width on mobile */
+    .vp-doc div[class*='language-'] {
+        width: auto !important;
+        max-width: 100% !important;
+        margin: 1rem 0 !important;
+        border-radius: 6px;
+        overflow-x: auto;
+    }
+
+    .vp-doc div[class*='language-'] pre {
+        padding-left: 0.9rem !important;
+        padding-right: 0.9rem !important;
+    }
+
+    /* Remove mobile line-number gutter so code starts further left */
+    .vp-doc div[class*='language-'] .line-numbers-wrapper,
+    .vp-doc div[class*='language-'] .line-numbers {
+        display: none !important;
+    }
+
+    .vp-doc div[class*='language-'] pre code {
+        padding-left: 0 !important;
+        margin-left: 0 !important;
+    }
+
     .terminal-window::before {
         padding: 6px 10px;
         font-size: 0.75rem;
@@ -867,16 +892,27 @@ html:not(.dark) .vp-doc div[class*='language-'] .line-numbers {
 
     /* Stats — keep 3-col but smaller fonts */
     .stats-section {
+        display: grid !important;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 0.5rem !important;
         padding: 1rem 0 !important;
     }
 
+    .stat-item {
+        min-width: 0;
+    }
+
     .stat-number {
-        font-size: 2rem !important;
+        font-size: 1.35rem !important;
+        line-height: 1.1;
     }
 
     .stat-label {
-        font-size: 0.7rem !important;
+        font-size: 0.45rem !important;
+        letter-spacing: 0.06em;
+        line-height: 1.3;
+        white-space: normal;
+        margin-top: 0.4rem;
     }
 
     /* Step cards — stack vertically */
@@ -935,8 +971,17 @@ html:not(.dark) .vp-doc div[class*='language-'] .line-numbers {
         padding: 40px 0.75rem 0.75rem;
     }
 
+    .vp-doc div[class*='language-'] {
+        margin: 0.85rem 0 !important;
+    }
+
     .stat-number {
-        font-size: 1.6rem !important;
+        font-size: 1.1rem !important;
+    }
+
+    .stat-label {
+        font-size: 0.4rem !important;
+        letter-spacing: 0.04em;
     }
 
     .categories-grid {

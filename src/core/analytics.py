@@ -1,42 +1,55 @@
-"""
-Command usage analytics.
+"""Command usage analytics.
 
 Tracks per-command usage with timestamps for dashboard charts.
 """
 
-import json
+from __future__ import annotations
+
+import time
 from datetime import datetime, timedelta
 
-from core.constants import DATA_DIR
+from core.db import kv_get_json, kv_set_json
 from core.logger import log_debug
 
-ANALYTICS_FILE = DATA_DIR / "analytics.json"
-
 DEFAULT_RETENTION_DAYS = 30
+SAVE_INTERVAL_SECONDS = 2.0
 
 
 class CommandAnalytics:
     """Track and query command usage analytics."""
 
     def __init__(self):
+        self._scope = "analytics"
+        self._key = "payload"
         self._data: dict = {}
+        self._dirty = False
+        self._last_save_ts = 0.0
         self._load()
 
     def _load(self) -> None:
-        """Load analytics data from disk."""
-        try:
-            if ANALYTICS_FILE.exists():
-                self._data = json.loads(ANALYTICS_FILE.read_text(encoding="utf-8"))
-        except Exception:
-            self._data = {}
-
+        """Load analytics data from database."""
+        data = kv_get_json(self._scope, self._key, default={})
+        self._data = data if isinstance(data, dict) else {}
         if "commands" not in self._data:
             self._data["commands"] = {}
 
     def _save(self) -> None:
-        """Save analytics data to disk."""
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
-        ANALYTICS_FILE.write_text(json.dumps(self._data, indent=2), encoding="utf-8")
+        """Persist analytics data to database."""
+        kv_set_json(self._scope, self._key, self._data)
+        self._dirty = False
+        self._last_save_ts = time.time()
+
+    def _schedule_save(self, force: bool = False) -> None:
+        """Persist analytics on interval to reduce write volume."""
+        self._dirty = True
+        now = time.time()
+        if force or now - self._last_save_ts >= SAVE_INTERVAL_SECONDS:
+            self._save()
+
+    def flush(self) -> None:
+        """Flush pending analytics writes."""
+        if self._dirty:
+            self._save()
 
     def record_command(self, name: str, user_jid: str = "", chat_jid: str = "") -> None:
         """Record a command execution."""
@@ -55,7 +68,7 @@ class CommandAnalytics:
         )
 
         self._prune()
-        self._save()
+        self._schedule_save()
         log_debug(f"Analytics: recorded {name}")
 
     def _prune(self) -> None:

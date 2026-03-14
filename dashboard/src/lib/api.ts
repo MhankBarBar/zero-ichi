@@ -184,6 +184,37 @@ export interface AutomationRule {
     action_value: string;
 }
 
+export interface WebhookItem {
+    id: number;
+    name: string;
+    url: string;
+    events: string[];
+    enabled: boolean;
+    has_secret: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface WebhookDelivery {
+    id: number;
+    webhook_id: number;
+    event_type: string;
+    payload: Record<string, unknown>;
+    success: boolean;
+    status_code: number | null;
+    error: string | null;
+    attempt: number;
+    response_body: string | null;
+    created_at: string;
+}
+
+function getStoredAuth(): string | null {
+    if (typeof window === "undefined") {
+        return null;
+    }
+    return localStorage.getItem("dashboard_auth");
+}
+
 async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
@@ -197,11 +228,9 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> 
         Object.assign(headers, customHeaders);
     }
 
-    if (typeof window !== "undefined") {
-        const auth = localStorage.getItem("dashboard_auth");
-        if (auth) {
-            headers["Authorization"] = `Basic ${auth}`;
-        }
+    const auth = getStoredAuth();
+    if (auth) {
+        headers["Authorization"] = `Basic ${auth}`;
     }
 
     try {
@@ -287,7 +316,7 @@ export const api = {
         formData.append("caption", caption);
         formData.append("file", file);
 
-        const auth = typeof window !== "undefined" ? localStorage.getItem("dashboard_auth") : null;
+        const auth = getStoredAuth();
         const headers: Record<string, string> = {};
         if (auth) {
             headers["Authorization"] = `Basic ${auth}`;
@@ -335,6 +364,9 @@ export const api = {
             method: "PUT",
             body: JSON.stringify(config),
         }),
+    getWsToken: () => fetchAPI<{ token: string; expires_in: number }>("/api/ws-token", {
+        method: "POST",
+    }),
 
     getWelcome: (groupId: string) => fetchAPI<WelcomeConfig>(`/api/groups/${groupId}/welcome`),
     updateWelcome: (groupId: string, config: WelcomeConfig) =>
@@ -396,12 +428,9 @@ export const api = {
         const formData = new FormData();
         formData.append("file", file);
         const headers: Record<string, string> = {};
-        const username =
-            typeof window !== "undefined" ? localStorage.getItem("dashboard_username") || "" : "";
-        const password =
-            typeof window !== "undefined" ? localStorage.getItem("dashboard_password") || "" : "";
-        if (username && password) {
-            headers["Authorization"] = `Basic ${btoa(`${username}:${password}`)}`;
+        const auth = getStoredAuth();
+        if (auth) {
+            headers["Authorization"] = `Basic ${auth}`;
         }
         const res = await fetch(
             `${API_BASE}/api/groups/${encodeURIComponent(groupId)}/notes/${encodeURIComponent(noteName)}/media`,
@@ -512,6 +541,49 @@ export const api = {
             {
                 method: "DELETE",
             },
+        ),
+
+    getWebhooks: () =>
+        fetchAPI<{ webhooks: WebhookItem[]; available_events: string[] }>("/api/webhooks"),
+    createWebhook: (payload: {
+        name: string;
+        url: string;
+        events: string[];
+        secret?: string;
+        enabled?: boolean;
+    }) =>
+        fetchAPI<{ success: boolean; webhook: WebhookItem; secret: string }>("/api/webhooks", {
+            method: "POST",
+            body: JSON.stringify(payload),
+        }),
+    updateWebhook: (
+        webhookId: number,
+        payload: {
+            name?: string;
+            url?: string;
+            events?: string[];
+            secret?: string;
+            enabled?: boolean;
+        },
+    ) =>
+        fetchAPI<{ success: boolean; webhook: WebhookItem }>(`/api/webhooks/${webhookId}`, {
+            method: "PUT",
+            body: JSON.stringify(payload),
+        }),
+    deleteWebhook: (webhookId: number) =>
+        fetchAPI<{ success: boolean }>(`/api/webhooks/${webhookId}`, {
+            method: "DELETE",
+        }),
+    testWebhook: (webhookId: number) =>
+        fetchAPI<{ success: boolean; result: { success: boolean; status_code?: number } }>(
+            `/api/webhooks/${webhookId}/test`,
+            {
+                method: "POST",
+            },
+        ),
+    getWebhookDeliveries: (webhookId: number, limit = 50) =>
+        fetchAPI<{ deliveries: WebhookDelivery[]; count: number }>(
+            `/api/webhooks/${webhookId}/deliveries?limit=${limit}`,
         ),
 
     getTopCommands: (days = 7, groupId?: string) => {

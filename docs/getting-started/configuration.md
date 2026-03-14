@@ -2,7 +2,8 @@
 
 The bot is configured through `config.json` with [JSON Schema](https://json-schema.org/) validation — your editor will provide autocomplete and inline docs automatically.
 
-Runtime changes from WhatsApp commands or Dashboard are persisted back into `config.json` (single source of truth).
+Configuration changes from WhatsApp commands or Dashboard are persisted back into `config.json`.
+Runtime state (stats, notes, tasks, reports, AI memory, etc.) is persisted in the database (`SQLite` by default, `PostgreSQL` optional via `DATABASE_URL`).
 
 ## Quick Start
 
@@ -360,18 +361,20 @@ Configure the web dashboard API.
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
 | `enabled` | `boolean` | `false` | Enable the dashboard API server on startup |
+| `cors_origins` | `string[]` | `["http://localhost:3000", "http://127.0.0.1:3000"]` | Allowed origins for dashboard API CORS |
 
 ```json
 {
   "dashboard": {
-    "enabled": false
+    "enabled": false,
+    "cors_origins": ["http://localhost:3000", "http://127.0.0.1:3000"]
   }
 }
 ```
 
 ::: note
 The dashboard starts on port `8000` by default if enabled.
-This dashboard api is required to enable if you want to use the dashboard.
+Set `DASHBOARD_USERNAME` and `DASHBOARD_PASSWORD` in `.env` when enabling the dashboard.
 :::
 
 ---
@@ -382,6 +385,9 @@ Store sensitive values in `.env` (never commit this file):
 
 ```bash
 AI_API_KEY=your_api_key_here
+DATABASE_URL=
+DASHBOARD_USERNAME=change_me
+DASHBOARD_PASSWORD=change_me_too
 YOUTUBE_COOKIES_PATH=data/cookies.txt
 GALLERY_DL_CONFIG_FILE=data/gallery-dl.conf
 GALLERY_DL_COOKIES_FILE=data/gallery-cookies.txt
@@ -399,6 +405,20 @@ If you are running the bot on a VPS, YouTube may block your requests with "Sign 
 ### gallery-dl Cookies / Config
 
 Use `downloader.gallery_dl` in `config.json`, or override with env vars above.
+
+### Database Backend
+
+- Leave `DATABASE_URL` empty to use SQLite (`data/zeroichi.db`).
+- Set `DATABASE_URL` to use PostgreSQL, for example:
+
+```bash
+DATABASE_URL=postgresql://user:password@localhost:5432/zeroichi
+```
+
+### Webhooks
+
+Webhook endpoints are configured from the dashboard (`/webhooks`) and stored in the database.
+See [Webhooks](/features/webhooks) for payload format and security headers.
 
 Examples:
 

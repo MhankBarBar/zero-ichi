@@ -99,6 +99,8 @@ irm https://raw.githubusercontent.com/MhankBarBar/zero-ichi/master/install.ps1 |
 
 ```bash
 uv run zero-ichi
+# with args:
+uv run zero-ichi --debug --dashboard
 ```
 
 <a href="/getting-started/installation" class="step-link">See full installation guide →</a>

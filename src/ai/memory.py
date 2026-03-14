@@ -1,17 +1,16 @@
-"""
-AI Memory module - Persistent conversation memory for AI agent.
+"""AI Memory module - Persistent conversation memory for AI agent.
 
 Stores conversation history per chat with rich message context.
 Supports TTL-based eviction to keep memory fresh and bounded.
 """
 
-import json
+from __future__ import annotations
+
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
-from pathlib import Path
 from typing import Literal
 
-from core.constants import MEMORY_DIR
+from core.db import kv_delete, kv_get_json, kv_set_json
 from core.logger import log_debug, log_error
 
 MAX_MESSAGES = 100
@@ -51,29 +50,31 @@ class AIMemory:
         self._load()
 
     @property
-    def _file_path(self) -> Path:
-        MEMORY_DIR.mkdir(parents=True, exist_ok=True)
-        return MEMORY_DIR / f"{self._safe_id}.json"
+    def _scope(self) -> str:
+        return "ai_memory"
 
     def _load(self) -> None:
-        """Load memory from disk and evict expired entries."""
+        """Load memory from database and evict expired entries."""
         try:
-            if self._file_path.exists():
-                data = json.loads(self._file_path.read_text(encoding="utf-8"))
-                self._entries = [MemoryEntry(**entry) for entry in data]
-                evicted = self._evict_expired()
-                if evicted:
-                    log_debug(f"Evicted {evicted} expired entries for {self.chat_id}")
-                log_debug(f"Loaded {len(self._entries)} memory entries for {self.chat_id}")
+            data = kv_get_json(self._scope, self._safe_id, default=[])
+            if isinstance(data, list):
+                self._entries = [MemoryEntry(**entry) for entry in data if isinstance(entry, dict)]
+            else:
+                self._entries = []
+
+            evicted = self._evict_expired()
+            if evicted:
+                log_debug(f"Evicted {evicted} expired entries for {self.chat_id}")
+            log_debug(f"Loaded {len(self._entries)} memory entries for {self.chat_id}")
         except Exception as e:
             log_error(f"Failed to load memory for {self.chat_id}: {e}")
             self._entries = []
 
     def _save(self) -> None:
-        """Save memory to disk."""
+        """Save memory to database."""
         try:
             data = [asdict(entry) for entry in self._entries]
-            self._file_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+            kv_set_json(self._scope, self._safe_id, data)
         except Exception as e:
             log_error(f"Failed to save memory for {self.chat_id}: {e}")
 
@@ -145,12 +146,7 @@ class AIMemory:
         return "\n".join(lines)
 
     def to_message_history(self, limit: int = MAX_MESSAGES) -> list[dict]:
-        """
-        Convert memory to Pydantic AI-compatible message_history format.
-
-        Returns a list of dicts with 'role' and 'content' that can be used
-        directly with pydantic-ai's message_history parameter.
-        """
+        """Convert memory to Pydantic AI-compatible message_history format."""
         history = self.get_history(limit)
         messages = []
         for entry in history:
@@ -166,8 +162,7 @@ class AIMemory:
     def clear(self) -> None:
         """Clear all memory for this chat."""
         self._entries = []
-        if self._file_path.exists():
-            self._file_path.unlink()
+        kv_delete(self._scope, self._safe_id)
 
 
 _memory_cache: dict[str, AIMemory] = {}

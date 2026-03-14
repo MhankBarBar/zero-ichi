@@ -1,36 +1,30 @@
-"""
-AFK system handler.
+"""AFK system handler.
 
 Tracks users who are AFK and notifies when they're mentioned.
-Uses file-based storage so AFK state persists across bot restarts.
+Uses database-backed storage so AFK state persists across restarts.
 """
 
-import json
+from __future__ import annotations
+
 import time
-from pathlib import Path
 
 from core import symbols as sym
+from core.db import kv_get_json, kv_set_json
 from core.i18n import t
 
-_AFK_FILE = Path(__file__).parent.parent.parent.parent / "data" / "afk.json"
-_AFK_FILE.parent.mkdir(exist_ok=True)
+_AFK_SCOPE = "afk"
+_AFK_KEY = "state"
 
 
 def _load_afk() -> dict:
-    """Load AFK data from disk."""
-    if not _AFK_FILE.exists():
-        return {}
-    try:
-        with open(_AFK_FILE, encoding="utf-8") as f:
-            return json.load(f)
-    except (OSError, json.JSONDecodeError):
-        return {}
+    """Load AFK data from database."""
+    data = kv_get_json(_AFK_SCOPE, _AFK_KEY, default={})
+    return data if isinstance(data, dict) else {}
 
 
 def _save_afk(data: dict) -> None:
-    """Save AFK data to disk."""
-    with open(_AFK_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    """Save AFK data to database."""
+    kv_set_json(_AFK_SCOPE, _AFK_KEY, data)
 
 
 def set_afk(user_jid: str, reason: str = "") -> None:
@@ -44,7 +38,7 @@ def set_afk(user_jid: str, reason: str = "") -> None:
 
 
 def remove_afk(user_jid: str) -> dict | None:
-    """Remove a user from AFK. Returns the afk data if they were AFK."""
+    """Remove a user from AFK. Returns the AFK data if they were AFK."""
     data = _load_afk()
     afk_info = data.pop(user_jid, None)
     if afk_info:
@@ -70,19 +64,15 @@ def _format_duration(seconds: float) -> str:
 
     if days > 0:
         return f"{days}d {hours % 24}h"
-    elif hours > 0:
+    if hours > 0:
         return f"{hours}h {minutes % 60}m"
-    elif minutes > 0:
+    if minutes > 0:
         return f"{minutes}m"
-    else:
-        return f"{int(seconds)}s"
+    return f"{int(seconds)}s"
 
 
 async def handle_afk_mentions(bot, msg) -> None:
-    """
-    Check if message mentions any AFK users and notify.
-    Also check if sender is AFK and remove them.
-    """
+    """Check AFK mentions and clear sender AFK if needed."""
     afk_data = remove_afk(msg.sender_jid)
     if afk_data:
         duration = _format_duration(time.time() - afk_data["time"])

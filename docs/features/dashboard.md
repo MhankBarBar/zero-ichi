@@ -18,6 +18,8 @@ Then start the bot:
 
 ```bash
 uv run zero-ichi
+# or, without editing config.json:
+uv run zero-ichi --dashboard
 ```
 
 The API runs on `http://localhost:8000`.
@@ -28,8 +30,8 @@ In a separate terminal:
 
 ```bash
 cd dashboard
-bun install    # or npm install
-bun dev        # or npm run dev
+bun install
+bun dev
 ```
 
 Open `http://localhost:3000` in your browser.
@@ -43,7 +45,15 @@ Open `http://localhost:3000` in your browser.
 - **Reports Center** — inspect and resolve/dismiss moderation reports
 - **Digest Manager** — configure daily/weekly group digests with preview + send-now
 - **Automation Rules** — create no-code trigger/action moderation rules
+- **Webhook Manager** — configure outbound event webhooks and inspect delivery logs
 - **Statistics** — message counts, command usage, and more
+
+## Security Notes
+
+- Set `DASHBOARD_USERNAME` and `DASHBOARD_PASSWORD` in `.env`.
+- `admin/admin` is intentionally rejected for security.
+- Dashboard CORS origins are controlled by `dashboard.cors_origins` (or `DASHBOARD_CORS_ORIGINS`).
+- WebSocket live updates require short-lived auth tokens.
 
 ## API
 
@@ -53,9 +63,15 @@ The dashboard communicates with the bot through a REST API:
 |----------|-------------|
 | `GET /api/status` | Bot status and uptime |
 | `GET /api/config` | Current configuration |
-| `POST /api/config` | Update configuration |
+| `PUT /api/config` | Update configuration |
 | `GET /api/commands` | List all commands |
 | `GET /api/groups` | List joined groups |
+| `GET /api/webhooks` | List webhooks + supported event names |
+| `POST /api/webhooks` | Create webhook endpoint |
+| `PUT /api/webhooks/{id}` | Update webhook endpoint |
+| `DELETE /api/webhooks/{id}` | Delete webhook endpoint |
+| `POST /api/webhooks/{id}/test` | Send test event to endpoint |
+| `GET /api/webhooks/{id}/deliveries` | Recent delivery attempts |
 | `GET /api/groups/{group_id}/reports` | List report queue for a group |
 | `PUT /api/groups/{group_id}/reports/{report_id}` | Update report status |
 | `GET /api/groups/{group_id}/digest` | Get digest config + preview |

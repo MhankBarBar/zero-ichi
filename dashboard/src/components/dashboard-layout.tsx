@@ -30,6 +30,7 @@ const navLinks = [
     { label: "Dashboard", href: "/", icon: <IconHome className="h-5 w-5" /> },
     { label: "Send Message", href: "/send", icon: <IconSend className="h-5 w-5" /> },
     { label: "Configuration", href: "/config", icon: <IconSettings className="h-5 w-5" /> },
+    { label: "Webhooks", href: "/webhooks", icon: <IconSettings className="h-5 w-5" /> },
     { label: "Commands", href: "/commands", icon: <IconCommand className="h-5 w-5" /> },
     { label: "Groups", href: "/groups", icon: <IconUsers className="h-5 w-5" /> },
     { label: "Notes", href: "/notes", icon: <IconNote className="h-5 w-5" /> },

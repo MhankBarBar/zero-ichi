@@ -1,130 +1,90 @@
-"""
-Per-group data storage system.
+"""Per-group and global data storage.
 
-Stores group-specific data (notes, filters, settings, etc.) in JSON files.
+Runtime data now uses the shared database layer (`core.db`) instead of JSON files.
 """
 
-import json
-import os
-import tempfile
-from pathlib import Path
+from __future__ import annotations
+
+from copy import deepcopy
 from typing import Any
 
 from core.constants import DATA_DIR
+from core.db import kv_get_json, kv_set_json
 
 DATA_DIR.mkdir(exist_ok=True)
 
 
 def safe_jid(jid: str) -> str:
-    """Sanitize a JID for use in file/directory names."""
+    """Sanitize a JID for compatibility with legacy folder naming."""
     return jid.replace(":", "_").replace("@", "_")
 
 
-def _atomic_write(file: Path, data: Any) -> None:
-    """Write JSON data atomically using write-to-temp-then-rename.
-
-    This prevents data corruption if the process crashes mid-write.
-    """
-    file.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp_path = tempfile.mkstemp(dir=file.parent, suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        os.replace(tmp_path, file)
-    except BaseException:
-        try:
-            os.unlink(tmp_path)
-        except OSError:
-            pass
-        raise
-
-
 class GroupData:
-    """Manages per-group data storage."""
+    """Manages per-group structured data in database storage."""
 
     def __init__(self, group_jid: str) -> None:
-        """Initialize storage for a specific group."""
+        self.group_jid = group_jid
+        self.scope = f"group:{group_jid}"
+
         self.group_dir = DATA_DIR / safe_jid(group_jid)
         self.group_dir.mkdir(exist_ok=True)
 
-    def _get_file(self, name: str) -> Path:
-        """Get path to a data file."""
-        return self.group_dir / f"{name}.json"
-
     def load(self, name: str, default: Any = None) -> Any:
-        """Load data from a JSON file."""
-        file = self._get_file(name)
-        if not file.exists():
-            return default if default is not None else {}
-
-        try:
-            with open(file, encoding="utf-8") as f:
-                return json.load(f)
-        except (OSError, json.JSONDecodeError):
-            return default if default is not None else {}
+        """Load data for a key from database."""
+        fallback = default if default is not None else {}
+        data = kv_get_json(self.scope, name, default=None)
+        if data is None:
+            return deepcopy(fallback)
+        return data
 
     def save(self, name: str, data: Any) -> None:
-        """Save data to a JSON file (atomic write)."""
-        file = self._get_file(name)
-        _atomic_write(file, data)
+        """Save data for a key in database."""
+        kv_set_json(self.scope, name, data)
 
     @property
     def settings(self) -> dict:
-        """Get group settings."""
         return self.load("settings", {})
 
     def save_settings(self, settings: dict) -> None:
-        """Save group settings."""
         self.save("settings", settings)
 
     @property
     def notes(self) -> dict:
-        """Get saved notes."""
         return self.load("notes", {})
 
     def save_notes(self, notes: dict) -> None:
-        """Save notes."""
         self.save("notes", notes)
 
     @property
     def filters(self) -> dict:
-        """Get auto-reply filters."""
         return self.load("filters", {})
 
     def save_filters(self, filters: dict) -> None:
-        """Save filters."""
         self.save("filters", filters)
 
     @property
     def blacklist(self) -> list:
-        """Get blacklisted words."""
         return self.load("blacklist", [])
 
     def save_blacklist(self, words: list) -> None:
-        """Save blacklist."""
         self.save("blacklist", words)
 
     @property
     def warnings(self) -> dict:
-        """Get user warnings."""
         return self.load("warnings", {})
 
     def save_warnings(self, warnings: dict) -> None:
-        """Save warnings."""
         self.save("warnings", warnings)
 
     @property
     def welcome(self) -> dict:
-        """Get welcome message config."""
         return self.load("welcome", {"enabled": False, "message": ""})
 
     def save_welcome(self, config: dict) -> None:
-        """Save welcome config."""
         self.save("welcome", config)
 
     @property
     def anti_link(self) -> dict:
-        """Get anti-link settings for this group."""
         config = self.load(
             "anti_link",
             {
@@ -141,12 +101,10 @@ class GroupData:
         return config
 
     def save_anti_link(self, config: dict) -> None:
-        """Save anti-link settings."""
         self.save("anti_link", config)
 
     @property
     def warnings_config(self) -> dict:
-        """Get warnings configuration for this group."""
         config = self.load(
             "warnings_config",
             {
@@ -160,21 +118,17 @@ class GroupData:
         return config
 
     def save_warnings_config(self, config: dict) -> None:
-        """Save warnings configuration."""
         self.save("warnings_config", config)
 
     @property
     def reports(self) -> dict:
-        """Get moderation reports payload."""
         return self.load("reports", {"counter": 0, "items": []})
 
     def save_reports(self, payload: dict) -> None:
-        """Save moderation reports payload."""
         self.save("reports", payload)
 
     @property
     def digest(self) -> dict:
-        """Get digest settings for this group."""
         return self.load(
             "digest",
             {
@@ -187,74 +141,56 @@ class GroupData:
         )
 
     def save_digest(self, config: dict) -> None:
-        """Save digest settings."""
         self.save("digest", config)
 
     @property
     def automations(self) -> list:
-        """Get automation rules for this group."""
         rules = self.load("automations", [])
         return rules if isinstance(rules, list) else []
 
     def save_automations(self, rules: list) -> None:
-        """Save automation rules for this group."""
         self.save("automations", rules)
 
     @property
     def muted(self) -> list:
-        """Get list of muted users."""
         return self.load("muted", [])
 
     def save_muted(self, users: list) -> None:
-        """Save muted users."""
         self.save("muted", users)
 
 
 class Storage:
-    """Global storage manager for dashboard API."""
+    """Global storage manager for dashboard/API counters and cached group metadata."""
 
-    def __init__(self) -> None:
-        """Initialize storage manager."""
-        self.stats_file = DATA_DIR / "stats.json"
-        self.groups_file = DATA_DIR / "groups.json"
-
-    def _load_json(self, file: Path, default: Any = None) -> Any:
-        """Load JSON file."""
-        if not file.exists():
-            return default if default is not None else {}
-        try:
-            with open(file, encoding="utf-8") as f:
-                return json.load(f)
-        except (OSError, json.JSONDecodeError):
-            return default if default is not None else {}
-
-    def _save_json(self, file: Path, data: Any) -> None:
-        """Save JSON file (atomic write)."""
-        _atomic_write(file, data)
+    _SCOPE = "global"
+    _STATS_KEY = "stats"
+    _GROUPS_KEY = "groups"
 
     def get_all_groups(self) -> dict:
-        """Get all groups and their settings."""
-        return self._load_json(self.groups_file, {})
+        data = kv_get_json(self._SCOPE, self._GROUPS_KEY, default={})
+        return data if isinstance(data, dict) else {}
 
     def get_group_settings(self, group_id: str) -> dict | None:
-        """Get settings for a specific group."""
         groups = self.get_all_groups()
-        return groups.get(group_id)
+        settings = groups.get(group_id)
+        if isinstance(settings, dict):
+            return deepcopy(settings)
+        return settings
 
     def set_group_settings(self, group_id: str, settings: dict) -> None:
-        """Update settings for a group."""
         groups = self.get_all_groups()
-        if group_id not in groups:
-            groups[group_id] = {}
-        groups[group_id].update(settings)
-        self._save_json(self.groups_file, groups)
+        existing = groups.get(group_id)
+        if not isinstance(existing, dict):
+            existing = {}
+        existing.update(settings)
+        groups[group_id] = existing
+        kv_set_json(self._SCOPE, self._GROUPS_KEY, groups)
 
     def register_group(
         self, group_id: str, name: str, member_count: int = 0, is_admin: bool = False
     ) -> None:
-        """Register a new group or update existing."""
         groups = self.get_all_groups()
-        if group_id not in groups:
+        if group_id not in groups or not isinstance(groups[group_id], dict):
             groups[group_id] = {
                 "name": name,
                 "member_count": member_count,
@@ -267,21 +203,29 @@ class Storage:
             groups[group_id]["name"] = name
             groups[group_id]["member_count"] = member_count
             groups[group_id]["is_admin"] = is_admin
-        self._save_json(self.groups_file, groups)
+
+        kv_set_json(self._SCOPE, self._GROUPS_KEY, groups)
 
     def get_stat(self, key: str, default: Any = 0) -> Any:
-        """Get a stat value."""
-        stats = self._load_json(self.stats_file, {})
+        stats = kv_get_json(self._SCOPE, self._STATS_KEY, default={})
+        if not isinstance(stats, dict):
+            return default
         return stats.get(key, default)
 
     def set_stat(self, key: str, value: Any) -> None:
-        """Set a stat value."""
-        stats = self._load_json(self.stats_file, {})
+        stats = kv_get_json(self._SCOPE, self._STATS_KEY, default={})
+        if not isinstance(stats, dict):
+            stats = {}
         stats[key] = value
-        self._save_json(self.stats_file, stats)
+        kv_set_json(self._SCOPE, self._STATS_KEY, stats)
 
     def increment_stat(self, key: str, amount: int = 1) -> None:
-        """Increment a stat value."""
-        stats = self._load_json(self.stats_file, {})
-        stats[key] = stats.get(key, 0) + amount
-        self._save_json(self.stats_file, stats)
+        stats = kv_get_json(self._SCOPE, self._STATS_KEY, default={})
+        if not isinstance(stats, dict):
+            stats = {}
+        stats[key] = int(stats.get(key, 0) or 0) + amount
+        kv_set_json(self._SCOPE, self._STATS_KEY, stats)
+
+    def flush(self, force: bool = True) -> None:
+        """No-op kept for backward compatibility with previous buffered storage."""
+        return
