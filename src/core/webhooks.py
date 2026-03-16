@@ -19,6 +19,8 @@ import httpx
 from core.db import (
     get_active_webhooks_for_event,
     get_webhook,
+    get_webhook_delivery,
+    mark_webhook_delivery_result,
     record_webhook_delivery,
 )
 from core.logger import log_warning
@@ -85,6 +87,7 @@ class WebhookDispatcher:
             "data": event.data,
         }
         body = json.dumps(body_payload, ensure_ascii=False)
+        last_error = ""
 
         max_attempts = MAX_ATTEMPTS if allow_retry else 1
 
@@ -117,18 +120,23 @@ class WebhookDispatcher:
                     status_code=response.status_code,
                     response_body=response.text,
                     error=None if ok else f"HTTP {response.status_code}",
+                    request_headers=headers,
                 )
 
                 if ok:
+                    mark_webhook_delivery_result(webhook_id, success=True)
                     return {
                         "success": True,
                         "status_code": response.status_code,
                         "attempt": attempt,
                     }
 
+                last_error = f"HTTP {response.status_code}"
+
                 if attempt < max_attempts:
                     await asyncio.sleep(BASE_RETRY_DELAY_SECONDS * (2 ** (attempt - 1)))
             except Exception as exc:
+                last_error = str(exc)
                 record_webhook_delivery(
                     webhook_id=webhook_id,
                     event_type=event.event_type,
@@ -138,12 +146,16 @@ class WebhookDispatcher:
                     status_code=None,
                     response_body=None,
                     error=str(exc),
+                    request_headers=headers,
                 )
                 if attempt < max_attempts:
                     await asyncio.sleep(BASE_RETRY_DELAY_SECONDS * (2 ** (attempt - 1)))
                 else:
                     log_warning(f"Webhook delivery failed ({webhook_id}): {exc}")
 
+        mark_webhook_delivery_result(
+            webhook_id, success=False, error=last_error or "delivery_failed"
+        )
         return {"success": False}
 
     async def _worker(self) -> None:
@@ -173,6 +185,37 @@ class WebhookDispatcher:
         result = await self._deliver_one(hook, event, allow_retry=False)
         return result
 
+    async def replay(self, webhook_id: int, delivery_id: int) -> dict[str, Any]:
+        """Replay a previously recorded webhook delivery."""
+        hook = get_webhook(webhook_id)
+        if not hook:
+            return {"success": False, "error": "Webhook not found"}
+
+        delivery = get_webhook_delivery(webhook_id, delivery_id)
+        if not delivery:
+            return {"success": False, "error": "Delivery not found"}
+
+        payload = delivery.get("payload", {})
+        event_type = str(delivery.get("event_type", "replay_event"))
+        event = WebhookEvent(
+            event_type=event_type,
+            data=payload.get("data", {}) if isinstance(payload, dict) else {},
+            timestamp=(
+                str(payload.get("timestamp"))
+                if isinstance(payload, dict) and payload.get("timestamp")
+                else time.strftime("%Y-%m-%dT%H:%M:%S")
+            ),
+        )
+        return await self._deliver_one(hook, event, allow_retry=False)
+
+    def get_status(self) -> dict[str, Any]:
+        """Get worker status for health checks."""
+        running = self._worker_task is not None and not self._worker_task.done()
+        return {
+            "running": running,
+            "queue_size": self._queue.qsize(),
+        }
+
 
 _dispatcher = WebhookDispatcher()
 
@@ -185,6 +228,16 @@ async def dispatch_event(event_type: str, data: dict[str, Any], timestamp: str) 
 async def send_test_webhook(webhook_id: int) -> dict[str, Any]:
     """Trigger a one-shot webhook test delivery."""
     return await _dispatcher.send_test(webhook_id)
+
+
+async def replay_webhook_delivery(webhook_id: int, delivery_id: int) -> dict[str, Any]:
+    """Replay a recorded webhook delivery by id."""
+    return await _dispatcher.replay(webhook_id, delivery_id)
+
+
+def webhook_dispatcher_status() -> dict[str, Any]:
+    """Expose internal dispatcher status for health checks."""
+    return _dispatcher.get_status()
 
 
 def list_known_events() -> list[str]:

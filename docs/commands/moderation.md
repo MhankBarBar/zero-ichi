@@ -84,21 +84,37 @@ Admins can inspect and act from private chat using report ID:
 
 ## /automation
 
-No-code moderation automation rules.
+No-code moderation automation rules. Trigger on message content, exact text, media type, or links.
 
 ```
 /automation list
-/automation add <contains|regex|link> <trigger> => <reply|warn|delete|kick|mute> [response]
+/automation add <trigger_type> <trigger_value> => <action> [response]
 /automation toggle <rule_id>
 /automation remove <rule_id>
 ```
 
-**Example:**
+**Trigger types:**
+
+| Type | Description | Example trigger value |
+|------|-------------|----------------------|
+| `contains` | Text contains substring | `discord.gg` |
+| `starts_with` | Text starts with prefix | `!promo` |
+| `exact_match` | Text matches exactly (case-insensitive) | `hello` |
+| `regex` | Text matches regex pattern | `(?i)free\s+money` |
+| `link` | Message contains any URL | _(no value needed)_ |
+| `media_type` | Message is a specific media type | `image`, `video`, `audio`, `sticker`, `document` |
+
+**Actions:** `reply`, `warn`, `delete`, `kick`, `mute`
+
+**Examples:**
 
 ```
 /automation add contains discord.gg => warn
+/automation add starts_with !promo => delete
+/automation add exact_match hello => reply Welcome!
 /automation add regex (?i)free\s+money => delete
 /automation add link x.com => reply External links are reviewed by admins.
+/automation add media_type sticker => delete
 ```
 
 ## /blacklist

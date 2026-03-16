@@ -54,6 +54,7 @@ DEFAULT_CONFIG = {
         "blacklist": True,
         "warnings": True,
         "automation_rules": True,
+        "anti_spam": False,
     },
     "anti_delete": {
         "forward_to": "",
@@ -116,6 +117,12 @@ DEFAULT_CONFIG = {
         "burst_window": 10.0,
     },
     "disabled_commands": [],
+    "anti_spam": {
+        "max_messages": 5,
+        "window_seconds": 10,
+        "action": "warn",
+        "whitelist_admins": True,
+    },
     "dashboard": {
         "enabled": False,
         "cors_origins": ["http://localhost:3000", "http://127.0.0.1:3000"],

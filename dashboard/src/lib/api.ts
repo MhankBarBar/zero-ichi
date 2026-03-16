@@ -191,6 +191,11 @@ export interface WebhookItem {
     events: string[];
     enabled: boolean;
     has_secret: boolean;
+    failure_count: number;
+    max_failures: number;
+    last_success_at: string | null;
+    last_error: string | null;
+    disabled_reason: string | null;
     created_at: string;
     updated_at: string;
 }
@@ -205,6 +210,27 @@ export interface WebhookDelivery {
     error: string | null;
     attempt: number;
     response_body: string | null;
+    request_headers: Record<string, string>;
+    created_at: string;
+}
+
+export interface IncomingWebhookKey {
+    id: number;
+    name: string;
+    allowed_actions: string[];
+    rate_limit_per_minute: number;
+    enabled: boolean;
+    created_at: string;
+    updated_at: string;
+    last_used_at: string | null;
+}
+
+export interface AuditLogItem {
+    id: number;
+    actor: string;
+    action: string;
+    resource: string;
+    details: Record<string, unknown>;
     created_at: string;
 }
 
@@ -551,6 +577,7 @@ export const api = {
         events: string[];
         secret?: string;
         enabled?: boolean;
+        max_failures?: number;
     }) =>
         fetchAPI<{ success: boolean; webhook: WebhookItem; secret: string }>("/api/webhooks", {
             method: "POST",
@@ -564,6 +591,7 @@ export const api = {
             events?: string[];
             secret?: string;
             enabled?: boolean;
+            max_failures?: number;
         },
     ) =>
         fetchAPI<{ success: boolean; webhook: WebhookItem }>(`/api/webhooks/${webhookId}`, {
@@ -581,10 +609,69 @@ export const api = {
                 method: "POST",
             },
         ),
+    rotateWebhookSecret: (webhookId: number) =>
+        fetchAPI<{ success: boolean; secret: string }>(`/api/webhooks/${webhookId}/rotate-secret`, {
+            method: "POST",
+        }),
     getWebhookDeliveries: (webhookId: number, limit = 50) =>
         fetchAPI<{ deliveries: WebhookDelivery[]; count: number }>(
             `/api/webhooks/${webhookId}/deliveries?limit=${limit}`,
         ),
+    replayWebhookDelivery: (webhookId: number, deliveryId: number) =>
+        fetchAPI<{ success: boolean; result: { success: boolean; status_code?: number } }>(
+            `/api/webhooks/${webhookId}/deliveries/${deliveryId}/replay`,
+            {
+                method: "POST",
+            },
+        ),
+    getIncomingWebhookKeys: () => fetchAPI<{ keys: IncomingWebhookKey[]; count: number }>("/api/incoming-webhook-keys"),
+    createIncomingWebhookKey: (payload: {
+        name: string;
+        allowed_actions: string[];
+        rate_limit_per_minute: number;
+        enabled?: boolean;
+    }) =>
+        fetchAPI<{ success: boolean; key: IncomingWebhookKey & { token: string } }>(
+            "/api/incoming-webhook-keys",
+            {
+                method: "POST",
+                body: JSON.stringify(payload),
+            },
+        ),
+    updateIncomingWebhookKey: (
+        keyId: number,
+        payload: {
+            name?: string;
+            allowed_actions?: string[];
+            rate_limit_per_minute?: number;
+            enabled?: boolean;
+        },
+    ) =>
+        fetchAPI<{ success: boolean; key: IncomingWebhookKey }>(
+            `/api/incoming-webhook-keys/${keyId}`,
+            {
+                method: "PUT",
+                body: JSON.stringify(payload),
+            },
+        ),
+    rotateIncomingWebhookKey: (keyId: number) =>
+        fetchAPI<{ success: boolean; token: string }>(`/api/incoming-webhook-keys/${keyId}/rotate`, {
+            method: "POST",
+        }),
+    deleteIncomingWebhookKey: (keyId: number) =>
+        fetchAPI<{ success: boolean }>(`/api/incoming-webhook-keys/${keyId}`, {
+            method: "DELETE",
+        }),
+    getAuditLogs: (limit = 100, action = "") =>
+        fetchAPI<{ logs: AuditLogItem[]; count: number }>(
+            `/api/audit-logs?limit=${limit}${action ? `&action=${encodeURIComponent(action)}` : ""}`,
+        ),
+    getHealth: () =>
+        fetchAPI<{
+            status: string;
+            database: { ok: boolean; url: string; error?: string | null };
+            webhooks: { running: boolean; queue_size: number };
+        }>("/api/health"),
 
     getTopCommands: (days = 7, groupId?: string) => {
         const query = new URLSearchParams({ days: days.toString() });

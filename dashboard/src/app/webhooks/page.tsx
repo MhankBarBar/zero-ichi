@@ -1,7 +1,14 @@
 "use client";
 
-import { api, type WebhookDelivery, type WebhookItem } from "@/lib/api";
+import {
+    api,
+    type IncomingWebhookKey,
+    type WebhookDelivery,
+    type WebhookItem,
+} from "@/lib/api";
 import { useEffect, useMemo, useState } from "react";
+
+const INCOMING_ACTIONS = ["send_message", "emit_event"];
 
 export default function WebhooksPage() {
     const [webhooks, setWebhooks] = useState<WebhookItem[]>([]);
@@ -10,6 +17,13 @@ export default function WebhooksPage() {
     const [name, setName] = useState("Main Webhook");
     const [url, setUrl] = useState("");
     const [secret, setSecret] = useState("");
+    const [maxFailures, setMaxFailures] = useState(10);
+
+    const [incomingKeys, setIncomingKeys] = useState<IncomingWebhookKey[]>([]);
+    const [incomingName, setIncomingName] = useState("Incoming Key");
+    const [incomingRate, setIncomingRate] = useState(30);
+    const [incomingActions, setIncomingActions] = useState<string[]>(["send_message"]);
+
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
@@ -26,11 +40,15 @@ export default function WebhooksPage() {
         setLoading(true);
         setError("");
         try {
-            const res = await api.getWebhooks();
-            setWebhooks(res.webhooks || []);
-            setAvailableEvents(res.available_events || []);
+            const [hooksRes, incomingRes] = await Promise.all([
+                api.getWebhooks(),
+                api.getIncomingWebhookKeys(),
+            ]);
+            setWebhooks(hooksRes.webhooks || []);
+            setAvailableEvents(hooksRes.available_events || []);
+            setIncomingKeys(incomingRes.keys || []);
         } catch (err) {
-            setError(err instanceof Error ? err.message : "Failed to load webhooks");
+            setError(err instanceof Error ? err.message : "Failed to load webhook data");
         } finally {
             setLoading(false);
         }
@@ -46,11 +64,17 @@ export default function WebhooksPage() {
         );
     };
 
+    const toggleIncomingAction = (action: string) => {
+        setIncomingActions((prev) =>
+            prev.includes(action) ? prev.filter((v) => v !== action) : [...prev, action],
+        );
+    };
+
     const createWebhook = async () => {
         setError("");
         setSuccess("");
         if (!url.trim()) {
-            setError("URL is required");
+            setError("Webhook URL is required");
             return;
         }
 
@@ -61,14 +85,36 @@ export default function WebhooksPage() {
                 events: selectedEvents.length ? selectedEvents : ["*"],
                 secret: secret.trim() || undefined,
                 enabled: true,
+                max_failures: maxFailures,
             });
             setSuccess(`Webhook created. Secret: ${res.secret}`);
             setUrl("");
             setSecret("");
             setSelectedEvents([]);
+            setMaxFailures(10);
             await loadWebhooks();
         } catch (err) {
             setError(err instanceof Error ? err.message : "Failed to create webhook");
+        }
+    };
+
+    const createIncomingKey = async () => {
+        setError("");
+        setSuccess("");
+        try {
+            const res = await api.createIncomingWebhookKey({
+                name: incomingName.trim() || "Incoming Key",
+                allowed_actions: incomingActions.length ? incomingActions : ["send_message"],
+                rate_limit_per_minute: Math.max(1, incomingRate),
+                enabled: true,
+            });
+            setSuccess(`Incoming webhook key created. Token: ${res.key.token}`);
+            setIncomingName("Incoming Key");
+            setIncomingRate(30);
+            setIncomingActions(["send_message"]);
+            await loadWebhooks();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Failed to create incoming key");
         }
     };
 
@@ -98,6 +144,16 @@ export default function WebhooksPage() {
         }
     };
 
+    const rotateWebhookSecret = async (hook: WebhookItem) => {
+        try {
+            const res = await api.rotateWebhookSecret(hook.id);
+            setSuccess(`New secret for ${hook.name}: ${res.secret}`);
+            await loadWebhooks();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Failed to rotate webhook secret");
+        }
+    };
+
     const testWebhook = async (hook: WebhookItem) => {
         try {
             await api.testWebhook(hook.id);
@@ -117,18 +173,59 @@ export default function WebhooksPage() {
         }
     };
 
+    const replayDelivery = async (webhookId: number, deliveryId: number) => {
+        try {
+            const result = await api.replayWebhookDelivery(webhookId, deliveryId);
+            setSuccess(result.success ? "Delivery replayed" : "Replay failed");
+            await loadDeliveries(webhookId);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Failed to replay delivery");
+        }
+    };
+
+    const rotateIncomingKey = async (key: IncomingWebhookKey) => {
+        try {
+            const res = await api.rotateIncomingWebhookKey(key.id);
+            setSuccess(`New incoming token: ${res.token}`);
+            await loadWebhooks();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Failed to rotate incoming key");
+        }
+    };
+
+    const toggleIncomingKey = async (key: IncomingWebhookKey) => {
+        try {
+            await api.updateIncomingWebhookKey(key.id, { enabled: !key.enabled });
+            await loadWebhooks();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Failed to update incoming key");
+        }
+    };
+
+    const deleteIncomingKey = async (key: IncomingWebhookKey) => {
+        if (!confirm(`Delete incoming key \"${key.name}\"?`)) {
+            return;
+        }
+        try {
+            await api.deleteIncomingWebhookKey(key.id);
+            await loadWebhooks();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Failed to delete incoming key");
+        }
+    };
+
     return (
         <div className="space-y-6 text-white">
             <div className="rounded-xl border border-neutral-800 bg-neutral-900/60 p-5">
                 <h1 className="text-2xl font-semibold">Webhooks</h1>
                 <p className="mt-2 text-sm text-neutral-400">
-                    Send bot events to external services (CI, Discord, Slack, custom apps).
+                    Manage outgoing event webhooks and incoming trigger keys.
                 </p>
             </div>
 
             <div className="rounded-xl border border-neutral-800 bg-neutral-900/60 p-5">
-                <h2 className="mb-4 text-lg font-medium">Create Webhook</h2>
-                <div className="grid gap-3 md:grid-cols-2">
+                <h2 className="mb-4 text-lg font-medium">Create Outgoing Webhook</h2>
+                <div className="grid gap-3 md:grid-cols-3">
                     <input
                         value={name}
                         onChange={(e) => setName(e.target.value)}
@@ -147,7 +244,15 @@ export default function WebhooksPage() {
                         placeholder="Secret (optional)"
                         className="rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm"
                     />
-                    <div className="rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-xs text-neutral-400">
+                    <input
+                        type="number"
+                        min={1}
+                        value={maxFailures}
+                        onChange={(e) => setMaxFailures(Math.max(1, Number(e.target.value) || 1))}
+                        placeholder="Max Failures"
+                        className="rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm"
+                    />
+                    <div className="rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-xs text-neutral-400 md:col-span-2">
                         {selectedLabel}
                     </div>
                 </div>
@@ -175,15 +280,97 @@ export default function WebhooksPage() {
                     onClick={() => void createWebhook()}
                     className="mt-4 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500"
                 >
-                    Create
+                    Create Outgoing Webhook
                 </button>
-
-                {error ? <p className="mt-3 text-sm text-red-400">{error}</p> : null}
-                {success ? <p className="mt-3 text-sm text-emerald-400">{success}</p> : null}
             </div>
 
             <div className="rounded-xl border border-neutral-800 bg-neutral-900/60 p-5">
-                <h2 className="mb-4 text-lg font-medium">Configured Endpoints</h2>
+                <h2 className="mb-4 text-lg font-medium">Incoming Webhook Keys</h2>
+
+                <div className="grid gap-3 md:grid-cols-3">
+                    <input
+                        value={incomingName}
+                        onChange={(e) => setIncomingName(e.target.value)}
+                        placeholder="Key name"
+                        className="rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm"
+                    />
+                    <input
+                        type="number"
+                        min={1}
+                        value={incomingRate}
+                        onChange={(e) => setIncomingRate(Math.max(1, Number(e.target.value) || 1))}
+                        placeholder="Rate/min"
+                        className="rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm"
+                    />
+                    <button
+                        onClick={() => void createIncomingKey()}
+                        className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500"
+                    >
+                        Create Incoming Key
+                    </button>
+                </div>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                    {INCOMING_ACTIONS.map((actionName) => {
+                        const active = incomingActions.includes(actionName);
+                        return (
+                            <button
+                                key={actionName}
+                                onClick={() => toggleIncomingAction(actionName)}
+                                className={`rounded-md border px-2 py-1 text-xs ${
+                                    active
+                                        ? "border-sky-500 bg-sky-500/20 text-sky-300"
+                                        : "border-neutral-700 bg-neutral-900 text-neutral-300"
+                                }`}
+                            >
+                                {actionName}
+                            </button>
+                        );
+                    })}
+                </div>
+
+                <div className="mt-4 space-y-2">
+                    {incomingKeys.map((key) => (
+                        <div
+                            key={key.id}
+                            className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-neutral-800 bg-neutral-950/60 p-3 text-xs"
+                        >
+                            <div>
+                                <p className="text-sm font-medium text-white">{key.name}</p>
+                                <p className="text-neutral-400">
+                                    actions: {key.allowed_actions.join(", ")} • rate/min: {key.rate_limit_per_minute}
+                                </p>
+                            </div>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => void toggleIncomingKey(key)}
+                                    className="rounded-md border border-neutral-700 px-2 py-1"
+                                >
+                                    {key.enabled ? "Disable" : "Enable"}
+                                </button>
+                                <button
+                                    onClick={() => void rotateIncomingKey(key)}
+                                    className="rounded-md border border-neutral-700 px-2 py-1"
+                                >
+                                    Rotate
+                                </button>
+                                <button
+                                    onClick={() => void deleteIncomingKey(key)}
+                                    className="rounded-md border border-red-800 px-2 py-1 text-red-300"
+                                >
+                                    Delete
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                    {incomingKeys.length === 0 ? (
+                        <p className="text-sm text-neutral-500">No incoming keys created yet.</p>
+                    ) : null}
+                </div>
+            </div>
+
+            <div className="rounded-xl border border-neutral-800 bg-neutral-900/60 p-5">
+                <h2 className="mb-4 text-lg font-medium">Configured Outgoing Endpoints</h2>
                 {loading ? <p className="text-sm text-neutral-400">Loading...</p> : null}
                 {!loading && webhooks.length === 0 ? (
                     <p className="text-sm text-neutral-500">No webhooks yet.</p>
@@ -202,8 +389,15 @@ export default function WebhooksPage() {
                                     <p className="mt-1 text-xs text-neutral-500">
                                         Events: {hook.events.join(", ") || "*"}
                                     </p>
+                                    <p className="mt-1 text-xs text-neutral-500">
+                                        Failures: {hook.failure_count}/{hook.max_failures}
+                                        {hook.disabled_reason ? ` • ${hook.disabled_reason}` : ""}
+                                    </p>
+                                    {hook.last_error ? (
+                                        <p className="mt-1 text-xs text-red-400">Last error: {hook.last_error}</p>
+                                    ) : null}
                                 </div>
-                                <div className="flex gap-2">
+                                <div className="flex flex-wrap gap-2">
                                     <button
                                         onClick={() => void toggleWebhook(hook)}
                                         className="rounded-md border border-neutral-700 px-3 py-1 text-xs"
@@ -215,6 +409,12 @@ export default function WebhooksPage() {
                                         className="rounded-md border border-neutral-700 px-3 py-1 text-xs"
                                     >
                                         Test
+                                    </button>
+                                    <button
+                                        onClick={() => void rotateWebhookSecret(hook)}
+                                        className="rounded-md border border-neutral-700 px-3 py-1 text-xs"
+                                    >
+                                        Rotate Secret
                                     </button>
                                     <button
                                         onClick={() => void loadDeliveries(hook.id)}
@@ -236,20 +436,28 @@ export default function WebhooksPage() {
                                     {deliveries[hook.id].slice(0, 8).map((d) => (
                                         <div
                                             key={d.id}
-                                            className="flex items-center justify-between text-xs"
+                                            className="flex items-center justify-between gap-2 text-xs"
                                         >
                                             <span className="text-neutral-400">
-                                                {d.event_type} • attempt {d.attempt}
+                                                #{d.id} {d.event_type} • attempt {d.attempt}
                                             </span>
-                                            <span
-                                                className={
-                                                    d.success ? "text-emerald-400" : "text-red-400"
-                                                }
-                                            >
-                                                {d.success
-                                                    ? `OK${d.status_code ? ` (${d.status_code})` : ""}`
-                                                    : d.error || "Failed"}
-                                            </span>
+                                            <div className="flex items-center gap-2">
+                                                <span
+                                                    className={
+                                                        d.success ? "text-emerald-400" : "text-red-400"
+                                                    }
+                                                >
+                                                    {d.success
+                                                        ? `OK${d.status_code ? ` (${d.status_code})` : ""}`
+                                                        : d.error || "Failed"}
+                                                </span>
+                                                <button
+                                                    onClick={() => void replayDelivery(hook.id, d.id)}
+                                                    className="rounded border border-neutral-700 px-2 py-0.5 text-[11px]"
+                                                >
+                                                    Replay
+                                                </button>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
@@ -258,6 +466,9 @@ export default function WebhooksPage() {
                     ))}
                 </div>
             </div>
+
+            {error ? <p className="text-sm text-red-400">{error}</p> : null}
+            {success ? <p className="text-sm text-emerald-400">{success}</p> : null}
         </div>
     );
 }

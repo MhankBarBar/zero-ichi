@@ -230,6 +230,11 @@
                     "type": "boolean",
                     "description": "Enable no-code automation rules",
                     "default": true
+                },
+                "anti_spam": {
+                    "type": "boolean",
+                    "description": "Enable anti-spam message flood protection",
+                    "default": false
                 }
             }
         },
@@ -473,6 +478,41 @@
             },
             "description": "List of command names that are disabled",
             "default": []
+        },
+        "anti_spam": {
+            "type": "object",
+            "description": "Anti-spam flood protection settings",
+            "properties": {
+                "max_messages": {
+                    "type": "integer",
+                    "minimum": 2,
+                    "maximum": 50,
+                    "description": "Maximum messages allowed per user within the time window before action is taken",
+                    "default": 5
+                },
+                "window_seconds": {
+                    "type": "number",
+                    "minimum": 1,
+                    "maximum": 120,
+                    "description": "Sliding time window in seconds for counting messages",
+                    "default": 10
+                },
+                "action": {
+                    "type": "string",
+                    "enum": [
+                        "warn",
+                        "mute",
+                        "kick"
+                    ],
+                    "description": "Action to take when spam is detected",
+                    "default": "warn"
+                },
+                "whitelist_admins": {
+                    "type": "boolean",
+                    "description": "Exempt group admins from spam detection",
+                    "default": true
+                }
+            }
         },
         "dashboard": {
             "type": "object",

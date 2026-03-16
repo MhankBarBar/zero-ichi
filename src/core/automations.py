@@ -49,16 +49,29 @@ def next_rule_id(rules: list[dict[str, Any]]) -> str:
     return f"A{max_idx + 1:03d}"
 
 
-def rule_matches(rule: dict[str, Any], text: str) -> bool:
-    """Evaluate if a rule matches text."""
+def rule_matches(rule: dict[str, Any], text: str, media_type: str | None = None) -> bool:
+    """Evaluate if a rule matches text (or media type for media_type triggers)."""
     trigger_type = str(rule.get("trigger_type", "contains")).lower()
     trigger_value = str(rule.get("trigger_value", ""))
+
+    if trigger_type == "media_type":
+        if not trigger_value or not media_type:
+            return False
+        return media_type.lower() == trigger_value.lower()
+
     if not trigger_value and trigger_type != "link":
+        return False
+
+    if not text:
         return False
 
     lower_text = text.lower()
     if trigger_type == "contains":
         return trigger_value.lower() in lower_text
+    if trigger_type == "exact_match":
+        return lower_text.strip() == trigger_value.lower().strip()
+    if trigger_type == "starts_with":
+        return lower_text.startswith(trigger_value.lower())
     if trigger_type == "regex":
         try:
             return re.search(trigger_value, text, re.IGNORECASE) is not None

@@ -54,6 +54,20 @@ See [Architecture](/development/architecture) for a full breakdown.
 -   Describe what you changed and why.
 -   If you added a feature, include a screenshot or usage example.
 
+## Database Migrations (Alembic)
+
+Runtime persistence uses SQLAlchemy with Alembic migration support.
+
+```bash
+# Apply migrations
+uv run alembic upgrade head
+
+# Create a new migration
+uv run alembic revision -m "your migration message"
+```
+
+Default database is SQLite (`data/zeroichi.db`) unless `DATABASE_URL` is set.
+
 ## Adding a Command
 
 Create a new file in the appropriate `src/commands/<category>/` directory:

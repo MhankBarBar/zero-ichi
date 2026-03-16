@@ -608,8 +608,8 @@
     "none": "Belum ada aturan otomasi.",
     "item": "`{id}` [{status}] jika `{trigger_type}` = `{trigger_value}` => `{action}`",
     "usage": "Cara pake: `{prefix}automation list|add|remove|toggle`",
-    "add_usage": "Cara pake: `{prefix}automation add <contains|regex|link> <trigger> => <reply|warn|delete|kick|mute> [response]`",
-    "invalid_trigger": "Jenis trigger gak valid. Pake `contains`, `regex`, atau `link`.",
+    "add_usage": "Cara pake: `{prefix}automation add <contains|starts_with|exact_match|regex|link|media_type> <trigger> => <reply|warn|delete|kick|mute> [response]`",
+    "invalid_trigger": "Jenis trigger gak valid. Pake `contains`, `starts_with`, `exact_match`, `regex`, `link`, atau `media_type`.",
     "invalid_action": "Jenis action gak valid. Pake `reply`, `warn`, `delete`, `kick`, atau `mute`.",
     "missing_trigger_value": "Nilai trigger wajib diisi kecuali tipe trigger `link`.",
     "added": "Rule otomasi `{id}` ditambah.",
@@ -698,5 +698,28 @@
     "failed": "Gagal keluar dari grup: {error}",
     "not_group": "Pake command ini di grup atau kasih group JID.",
     "no_permission": "Cuma admin grup atau owner yang bisa pake command ini."
+  },
+  "summarize": {
+    "title": "Ringkasan",
+    "processing": "Lagi merangkum...",
+    "ai_disabled": "AI belum diaktifin. Aktifin pake `config ai on`.",
+    "no_api_key": "API key AI belum di-set.",
+    "no_content": "Gak ada yang bisa dirangkum. Reply ke pesan atau punya riwayat chat.",
+    "failed": "Gagal bikin ringkasan."
+  },
+  "whois": {
+    "title": "Info User",
+    "user_id": "User ID",
+    "jid": "JID",
+    "role": "Role",
+    "warnings": "Warnings",
+    "admin": "Admin",
+    "superadmin": "Super Admin",
+    "member": "Member"
+  },
+  "anti_spam": {
+    "warn_message": "@{user}, pelan-pelan! Lu ngirim pesan terlalu cepet.",
+    "muted": "@{user} di-mute karena spam.",
+    "kicked": "@{user} di-kick karena spam."
   }
 }

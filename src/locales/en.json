@@ -607,8 +607,8 @@
     "none": "No automation rules configured.",
     "item": "`{id}` [{status}] if `{trigger_type}` = `{trigger_value}` => `{action}`",
     "usage": "Usage: `{prefix}automation list|add|remove|toggle`",
-    "add_usage": "Usage: `{prefix}automation add <contains|regex|link> <trigger> => <reply|warn|delete|kick|mute> [response]`",
-    "invalid_trigger": "Invalid trigger type. Use `contains`, `regex`, or `link`.",
+    "add_usage": "Usage: `{prefix}automation add <contains|starts_with|exact_match|regex|link|media_type> <trigger> => <reply|warn|delete|kick|mute> [response]`",
+    "invalid_trigger": "Invalid trigger type. Use `contains`, `starts_with`, `exact_match`, `regex`, `link`, or `media_type`.",
     "invalid_action": "Invalid action type. Use `reply`, `warn`, `delete`, `kick`, or `mute`.",
     "missing_trigger_value": "Trigger value is required unless trigger type is `link`.",
     "added": "Automation rule `{id}` added.",
@@ -697,5 +697,28 @@
     "failed": "Failed to leave group: {error}",
     "not_group": "Use this command in a group or provide a group JID.",
     "no_permission": "Only group admins or the owner can use this command."
+  },
+  "summarize": {
+    "title": "Summary",
+    "processing": "Summarizing...",
+    "ai_disabled": "AI is not enabled. Enable it with `config ai on`.",
+    "no_api_key": "AI API key is not configured.",
+    "no_content": "Nothing to summarize. Reply to a message or have recent chat history.",
+    "failed": "Failed to generate summary."
+  },
+  "whois": {
+    "title": "User Info",
+    "user_id": "User ID",
+    "jid": "JID",
+    "role": "Role",
+    "warnings": "Warnings",
+    "admin": "Admin",
+    "superadmin": "Super Admin",
+    "member": "Member"
+  },
+  "anti_spam": {
+    "warn_message": "@{user}, slow down! You are sending messages too fast.",
+    "muted": "@{user} has been muted for spamming.",
+    "kicked": "@{user} was kicked for spamming."
   }
 }

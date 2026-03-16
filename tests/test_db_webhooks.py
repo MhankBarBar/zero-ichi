@@ -55,3 +55,74 @@ def test_webhook_crud_and_delivery_log(tmp_path, monkeypatch):
 
     assert db_module.delete_webhook(hook["id"])
     assert db_module.get_webhook(hook["id"]) is None
+
+
+def test_webhook_auto_disable_after_failures(tmp_path, monkeypatch):
+    _reset_db(tmp_path, monkeypatch)
+
+    hook = db_module.create_webhook(
+        name="Auto Disable",
+        url="https://example.com/hook",
+        events=["*"],
+        secret="abc",
+        enabled=True,
+        max_failures=2,
+    )
+
+    db_module.mark_webhook_delivery_result(hook["id"], success=False, error="timeout")
+    first = db_module.get_webhook(hook["id"])
+    assert first is not None
+    assert first["enabled"] is True
+    assert first["failure_count"] == 1
+
+    db_module.mark_webhook_delivery_result(hook["id"], success=False, error="timeout")
+    second = db_module.get_webhook(hook["id"])
+    assert second is not None
+    assert second["enabled"] is False
+    assert second["failure_count"] == 2
+    assert second["disabled_reason"] is not None
+
+
+def test_incoming_webhook_key_crud(tmp_path, monkeypatch):
+    _reset_db(tmp_path, monkeypatch)
+
+    created = db_module.create_incoming_webhook_key(
+        name="CI Trigger",
+        allowed_actions=["send_message", "emit_event"],
+        rate_limit_per_minute=25,
+        enabled=True,
+    )
+
+    assert created["id"] > 0
+    assert created["token"]
+
+    resolved = db_module.resolve_incoming_webhook_key(created["token"])
+    assert resolved is not None
+    assert resolved["name"] == "CI Trigger"
+    assert resolved["rate_limit_per_minute"] == 25
+
+    rotated = db_module.rotate_incoming_webhook_key(created["id"])
+    assert rotated
+    assert db_module.resolve_incoming_webhook_key(created["token"]) is None
+    assert db_module.resolve_incoming_webhook_key(rotated) is not None
+
+    assert db_module.delete_incoming_webhook_key(created["id"])
+
+
+def test_claim_incoming_idempotency(tmp_path, monkeypatch):
+    _reset_db(tmp_path, monkeypatch)
+
+    key = db_module.create_incoming_webhook_key(
+        name="CI Trigger",
+        allowed_actions=["emit_event"],
+        rate_limit_per_minute=10,
+        enabled=True,
+    )
+    resolved = db_module.resolve_incoming_webhook_key(key["token"])
+    assert resolved is not None
+
+    first = db_module.claim_incoming_idempotency(int(resolved["id"]), "abc-123")
+    second = db_module.claim_incoming_idempotency(int(resolved["id"]), "abc-123")
+
+    assert first is True
+    assert second is False

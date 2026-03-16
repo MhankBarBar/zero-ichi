@@ -4,19 +4,25 @@ Lighthearted commands for entertainment.
 
 ## /joke
 
-Get a random joke.
+Get a random joke. Fetches from [JokeAPI](https://v2.jokeapi.dev/) with a built-in static fallback if the API is unavailable.
 
 ```
 /joke
 ```
 
+::: tip
+Jokes are filtered to exclude NSFW, racist, and sexist content.
+:::
+
 ## /quote
 
-Get a random inspirational quote.
+Get a random inspirational quote. Fetches from [Quotable API](https://api.quotable.io/) with a static fallback.
 
 ```
 /quote
 ```
+
+**Aliases:** `inspire`, `motivation`
 
 ## /8ball
 
@@ -61,8 +67,10 @@ Roll dice using standard dice notation.
 
 ## /fact
 
-Get a random fun fact.
+Get a random fun fact. Fetches from [Useless Facts API](https://uselessfacts.jsph.pl/) with a static fallback.
 
 ```
 /fact
 ```
+
+**Aliases:** `funfact`, `didyouknow`

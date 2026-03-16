@@ -125,3 +125,26 @@ Configure goodbye messages for leaving members.
 ```
 
 Same placeholders as `/welcome`.
+
+## /whois
+
+Show information about a group member: user ID, JID, admin status, and warning count.
+
+```
+/whois              # Reply to a message
+/whois @user        # Mention a user
+```
+
+**Aliases:** `userinfo`
+
+**Output includes:**
+| Field | Description |
+|-------|-------------|
+| User ID | WhatsApp user identifier |
+| JID | Full Jabber ID |
+| Role | Member, Admin, or Super Admin |
+| Warnings | Current warning count |
+
+::: info
+This command is group-only and available to all members.
+:::

@@ -91,7 +91,7 @@ class AutomationCommand(Command):
         action_type = right_parts[0].lower()
         action_value = right_parts[1].strip() if len(right_parts) > 1 else ""
 
-        valid_trigger = {"contains", "regex", "link"}
+        valid_trigger = {"contains", "starts_with", "exact_match", "regex", "link", "media_type"}
         valid_action = {"reply", "warn", "delete", "kick", "mute"}
         if trigger_type not in valid_trigger:
             await ctx.client.reply(ctx.message, t_error("automation.invalid_trigger"))
@@ -99,7 +99,7 @@ class AutomationCommand(Command):
         if action_type not in valid_action:
             await ctx.client.reply(ctx.message, t_error("automation.invalid_action"))
             return
-        if trigger_type != "link" and not trigger_value:
+        if trigger_type not in {"link"} and not trigger_value:
             await ctx.client.reply(ctx.message, t_error("automation.missing_trigger_value"))
             return
 
