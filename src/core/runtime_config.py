@@ -419,6 +419,7 @@ class RuntimeConfig:
             if not isinstance(loaded, dict):
                 loaded = {}
 
+            merged_defaults = self._needs_default_backfill(loaded, DEFAULT_CONFIG)
             config = self._merge_defaults(loaded, DEFAULT_CONFIG)
             config, migrated = self._migrate_runtime_overrides(config)
             config, normalized = self._normalize_legacy_actions(config)
@@ -427,13 +428,22 @@ class RuntimeConfig:
 
             self._config = config
 
-            if migrated or normalized or "$schema" not in loaded:
+            if migrated or normalized or "$schema" not in loaded or merged_defaults:
                 self._save()
 
         except Exception as e:
             print(f"[CONFIG] Error loading config: {e}")
-            self._config = self._ensure_schema_key(deepcopy(DEFAULT_CONFIG))
-            self._save()
+            fallback = (
+                deepcopy(self._config)
+                if isinstance(self._config, dict) and self._config
+                else deepcopy(DEFAULT_CONFIG)
+            )
+            fallback = self._ensure_schema_key(fallback)
+            try:
+                self._assert_valid_config(fallback)
+                self._config = fallback
+            except Exception:
+                self._config = self._ensure_schema_key(deepcopy(DEFAULT_CONFIG))
 
     def _merge_defaults(self, config: dict, defaults: dict) -> dict:
         """Recursively merge defaults into config for missing keys."""
@@ -444,6 +454,17 @@ class RuntimeConfig:
             else:
                 result[key] = value
         return result
+
+    def _needs_default_backfill(self, config: dict[str, Any], defaults: dict[str, Any]) -> bool:
+        """Check whether config is missing any keys present in defaults."""
+        for key, default_value in defaults.items():
+            if key not in config:
+                return True
+            current_value = config.get(key)
+            if isinstance(default_value, dict) and isinstance(current_value, dict):
+                if self._needs_default_backfill(current_value, default_value):
+                    return True
+        return False
 
     def _deep_merge(self, base: dict, overrides: dict) -> dict:
         """Deep merge overrides into base config."""
