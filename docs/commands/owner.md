@@ -2,6 +2,18 @@
 
 Commands restricted to the bot owner. Set yourself as owner with `/config owner me`.
 
+If no owner is configured yet, you can bootstrap ownership from a private chat with:
+
+```
+/config owner me
+```
+
+or:
+
+```
+/setup owner me
+```
+
 ::: danger Owner Only
 These commands have full system access. Only the configured bot owner can use them.
 :::
@@ -14,12 +26,62 @@ Manage bot configuration live from WhatsApp.
 /config                      # Show current config overview
 /config owner me             # Set yourself as owner
 /config prefix <prefix>      # Change command prefix
+/config diff                 # Show config changes vs defaults
+/config validate             # Validate config against schema
+/config history              # Show recent config snapshots
+/config rollback <id>        # Roll back to a previous snapshot
 /config ai                   # Show AI status
 /config ai on                # Enable Agentic AI
 /config ai off               # Disable Agentic AI
 /config ai mode <mode>       # Set AI trigger mode
 /config ai model <model>     # Change AI model
 /config ai provider <name>   # Change AI provider
+```
+
+## /setup
+
+Guided first-run setup wizard for common bot settings.
+
+```
+/setup start
+/setup owner me
+/setup prefix !
+/setup anti-link on warn
+/setup anti-spam on warn
+/setup ai-key <key>
+/setup ai on
+/setup done
+```
+
+## /permission
+
+Manage role-based command access overrides globally or per group.
+
+```
+/permission list
+/permission list here
+/permission set warn admin global
+/permission set quote member here
+/permission reset quote here
+```
+
+Roles:
+- `member`
+- `admin`
+- `owner`
+
+## /privacy
+
+Manage data retention and AI memory privacy controls.
+
+```
+/privacy status
+/privacy retention analytics 30
+/privacy retention memory-ttl 24
+/privacy memory global on
+/privacy memory off here
+/privacy memory inherit here
+/privacy memory clear here
 ```
 
 ## /autodl

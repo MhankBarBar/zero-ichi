@@ -19,6 +19,7 @@ def isolated_runtime_config(tmp_path, monkeypatch):
         "OVERRIDES_MIGRATION_MARKER",
         tmp_path / ".runtime_overrides_migrated",
     )
+    monkeypatch.setattr(runtime_config_module, "HISTORY_FILE", tmp_path / "config_history.json")
     runtime_config_module.RuntimeConfig._instance = None
 
     cfg = runtime_config_module.RuntimeConfig()
@@ -74,6 +75,7 @@ def test_missing_schema_is_merged_and_preserved(tmp_path, monkeypatch):
         "OVERRIDES_MIGRATION_MARKER",
         tmp_path / ".runtime_overrides_migrated",
     )
+    monkeypatch.setattr(runtime_config_module, "HISTORY_FILE", tmp_path / "config_history.json")
     runtime_config_module.RuntimeConfig._instance = None
 
     cfg = runtime_config_module.RuntimeConfig()
@@ -111,6 +113,7 @@ def test_invalid_config_does_not_overwrite_file(tmp_path, monkeypatch):
         "OVERRIDES_MIGRATION_MARKER",
         tmp_path / ".runtime_overrides_migrated",
     )
+    monkeypatch.setattr(runtime_config_module, "HISTORY_FILE", tmp_path / "config_history.json")
     runtime_config_module.RuntimeConfig._instance = None
 
     cfg = runtime_config_module.RuntimeConfig()
@@ -166,6 +169,7 @@ def test_missing_default_keys_are_persisted_with_existing_schema(tmp_path, monke
         "OVERRIDES_MIGRATION_MARKER",
         tmp_path / ".runtime_overrides_migrated",
     )
+    monkeypatch.setattr(runtime_config_module, "HISTORY_FILE", tmp_path / "config_history.json")
     runtime_config_module.RuntimeConfig._instance = None
 
     cfg = runtime_config_module.RuntimeConfig()
@@ -180,3 +184,18 @@ def test_missing_default_keys_are_persisted_with_existing_schema(tmp_path, monke
     assert persisted.get("features", {}).get("anti_spam") is False
 
     runtime_config_module.RuntimeConfig._instance = None
+
+
+def test_command_role_override_roundtrip(isolated_runtime_config):
+    cfg = isolated_runtime_config
+
+    assert cfg.get_command_role_override("warn") is None
+    cfg.set_command_role_override("warn", "admin")
+    assert cfg.get_command_role_override("warn") == "admin"
+
+    cfg.set_command_role_override("quote", "owner", group_jid="123@g.us")
+    assert cfg.get_command_role_override("quote", group_jid="123@g.us") == "owner"
+
+    assert cfg.reset_command_role_override("warn") is True
+    assert cfg.get_command_role_override("warn") is None
+    assert cfg.reset_command_role_override("warn") is False

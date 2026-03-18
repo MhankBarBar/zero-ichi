@@ -76,6 +76,7 @@ Set a PostgreSQL URL to run on Postgres.
 Quick run examples:
 
 ```bash
+uv run zero-ichi setup
 uv run zero-ichi --debug
 uv run zero-ichi --dashboard
 uv run zero-ichi --phone 6281234567890

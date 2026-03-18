@@ -39,6 +39,23 @@ def save_rules(group_jid: str, rules: list[dict[str, Any]]) -> None:
     GroupData(group_jid).save_automations(rules)
 
 
+def get_automation_runtime(group_jid: str) -> dict[str, Any]:
+    """Get per-group automation runtime settings."""
+    data = GroupData(group_jid).load("automation_runtime", {"dry_run": False})
+    if not isinstance(data, dict):
+        data = {"dry_run": False}
+    data.setdefault("dry_run", False)
+    data["dry_run"] = bool(data.get("dry_run", False))
+    return data
+
+
+def set_automation_dry_run(group_jid: str, enabled: bool) -> None:
+    """Set per-group automation dry-run mode."""
+    runtime = get_automation_runtime(group_jid)
+    runtime["dry_run"] = bool(enabled)
+    GroupData(group_jid).save("automation_runtime", runtime)
+
+
 def next_rule_id(rules: list[dict[str, Any]]) -> str:
     """Generate next rule id like A001."""
     max_idx = 0

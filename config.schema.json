@@ -479,6 +479,75 @@
             "description": "List of command names that are disabled",
             "default": []
         },
+        "command_permissions": {
+            "type": "object",
+            "description": "Role overrides for command access (global and per-group)",
+            "properties": {
+                "global": {
+                    "type": "object",
+                    "description": "Global role override per command name",
+                    "additionalProperties": {
+                        "type": "string",
+                        "enum": [
+                            "member",
+                            "admin",
+                            "owner"
+                        ]
+                    },
+                    "default": {}
+                },
+                "groups": {
+                    "type": "object",
+                    "description": "Per-group role override maps by group JID",
+                    "additionalProperties": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "string",
+                            "enum": [
+                                "member",
+                                "admin",
+                                "owner"
+                            ]
+                        }
+                    },
+                    "default": {}
+                }
+            },
+            "default": {
+                "global": {},
+                "groups": {}
+            }
+        },
+        "privacy": {
+            "type": "object",
+            "description": "Privacy and data retention settings",
+            "properties": {
+                "analytics_retention_days": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 365,
+                    "description": "How many days of analytics history to keep",
+                    "default": 30
+                },
+                "ai_memory_enabled": {
+                    "type": "boolean",
+                    "description": "Enable AI conversation memory globally",
+                    "default": true
+                },
+                "ai_memory_ttl_hours": {
+                    "type": "number",
+                    "minimum": 1,
+                    "maximum": 720,
+                    "description": "AI memory time-to-live in hours before eviction",
+                    "default": 24
+                }
+            },
+            "default": {
+                "analytics_retention_days": 30,
+                "ai_memory_enabled": true,
+                "ai_memory_ttl_hours": 24
+            }
+        },
         "anti_spam": {
             "type": "object",
             "description": "Anti-spam flood protection settings",

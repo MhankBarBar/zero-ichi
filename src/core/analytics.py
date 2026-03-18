@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 
 from core.db import kv_get_json, kv_set_json
 from core.logger import log_debug
+from core.privacy import get_analytics_retention_days
 
 DEFAULT_RETENTION_DAYS = 30
 SAVE_INTERVAL_SECONDS = 2.0
@@ -73,13 +74,19 @@ class CommandAnalytics:
 
     def _prune(self) -> None:
         """Remove entries older than retention period."""
-        cutoff = (datetime.now() - timedelta(days=DEFAULT_RETENTION_DAYS)).isoformat()
+        retention_days = get_analytics_retention_days()
+        cutoff = (datetime.now() - timedelta(days=retention_days)).isoformat()
 
         for cmd_name in list(self._data.get("commands", {})):
             entries = self._data["commands"][cmd_name]
             self._data["commands"][cmd_name] = [e for e in entries if e.get("ts", "") >= cutoff]
             if not self._data["commands"][cmd_name]:
                 del self._data["commands"][cmd_name]
+
+    def apply_retention_now(self) -> None:
+        """Apply retention policy immediately and persist."""
+        self._prune()
+        self._schedule_save(force=True)
 
     def get_top_commands(self, days: int = 7, chat_jid: str = "") -> list[dict]:
         """Get top commands by usage in the last N days, optionally filtered by chat."""

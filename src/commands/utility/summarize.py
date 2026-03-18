@@ -13,6 +13,7 @@ from pydantic_ai import Agent
 from core import symbols as sym
 from core.command import Command, CommandContext
 from core.i18n import t, t_error
+from core.privacy import is_chat_memory_enabled
 from core.runtime_config import runtime_config
 
 _SUMMARIZE_PROMPT = """You are a concise summarizer. Summarize the following text in 2-4 bullet points.
@@ -62,6 +63,10 @@ class SummarizeCommand(Command):
         if quoted and quoted.get("text"):
             text_to_summarize = quoted["text"]
         else:
+            if not is_chat_memory_enabled(ctx.message.chat_jid):
+                await ctx.client.reply(ctx.message, t_error("summarize.memory_disabled"))
+                return
+
             from ai.memory import get_memory
 
             memory = get_memory(ctx.message.chat_jid)

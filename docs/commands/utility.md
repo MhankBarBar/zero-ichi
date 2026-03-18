@@ -130,3 +130,35 @@ AI-powered text summarization. Requires the [Agentic AI](/features/ai) feature t
 ::: info
 This command has a 30-second cooldown to prevent abuse.
 :::
+
+## /translate
+
+AI-powered translation.
+
+```
+/translate <target_language> <text>
+```
+
+You can also reply to a message:
+
+```
+/translate en
+```
+
+**Aliases:** `tr`
+
+## /rewrite
+
+AI-powered rewrite in a selected style.
+
+```
+/rewrite <formal|casual|concise|professional|friendly> <text>
+```
+
+You can also reply to a message:
+
+```
+/rewrite concise
+```
+
+**Aliases:** `rephrase`

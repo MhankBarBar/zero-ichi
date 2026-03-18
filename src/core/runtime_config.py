@@ -10,6 +10,7 @@ See config.schema.json for the schema definition.
 import json
 import re
 from copy import deepcopy
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +25,8 @@ OVERRIDES_MIGRATION_MARKER = (
     Path(__file__).parent.parent.parent / "data" / ".runtime_overrides_migrated"
 )
 DEFAULT_SCHEMA_PATH = "./config.schema.json"
+HISTORY_FILE = Path(__file__).parent.parent.parent / "data" / "config_history.json"
+MAX_CONFIG_HISTORY = 50
 
 DEFAULT_CONFIG = {
     "bot": {
@@ -115,6 +118,15 @@ DEFAULT_CONFIG = {
         "command_cooldown": 2.0,
         "burst_limit": 5,
         "burst_window": 10.0,
+    },
+    "command_permissions": {
+        "global": {},
+        "groups": {},
+    },
+    "privacy": {
+        "analytics_retention_days": 30,
+        "ai_memory_enabled": True,
+        "ai_memory_ttl_hours": 24,
     },
     "disabled_commands": [],
     "anti_spam": {
@@ -478,14 +490,133 @@ class RuntimeConfig:
 
     def _save(self) -> None:
         """Persist full runtime config into config.json."""
-        self._save_candidate(self._config)
+        self._save_candidate(self._config, record_history=False)
 
-    def _save_candidate(self, candidate: dict[str, Any]) -> None:
+    def _save_candidate(
+        self,
+        candidate: dict[str, Any],
+        *,
+        reason: str = "update",
+        record_history: bool = True,
+    ) -> None:
         """Validate and persist a candidate runtime config."""
         normalized = self._ensure_schema_key(candidate)
         self._assert_valid_config(normalized)
+
+        if (
+            record_history
+            and isinstance(self._config, dict)
+            and self._config
+            and self._config != normalized
+        ):
+            self._record_history_snapshot(self._config, reason)
+
         self._config = normalized
         jsonc.dump(self._config, CONFIG_FILE, indent=2)
+
+    def _load_history_entries(self) -> list[dict[str, Any]]:
+        """Load config history entries from disk."""
+        try:
+            data = jsonc.load(HISTORY_FILE)
+            if isinstance(data, list):
+                return [item for item in data if isinstance(item, dict)]
+        except Exception:
+            pass
+        return []
+
+    def _save_history_entries(self, entries: list[dict[str, Any]]) -> None:
+        """Persist config history entries to disk."""
+        HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+        jsonc.dump(entries, HISTORY_FILE, indent=2)
+
+    def _next_history_id(self, entries: list[dict[str, Any]]) -> str:
+        """Generate next history id in H0001 format."""
+        max_idx = 0
+        for item in entries:
+            hid = str(item.get("id", ""))
+            if len(hid) == 5 and hid[0].upper() == "H" and hid[1:].isdigit():
+                max_idx = max(max_idx, int(hid[1:]))
+        return f"H{max_idx + 1:04d}"
+
+    def _record_history_snapshot(self, config: dict[str, Any], reason: str = "update") -> None:
+        """Record a full config snapshot before mutation."""
+        entries = self._load_history_entries()
+        entries.append(
+            {
+                "id": self._next_history_id(entries),
+                "ts": datetime.now().isoformat(timespec="seconds"),
+                "reason": reason,
+                "config": deepcopy(config),
+            }
+        )
+        if len(entries) > MAX_CONFIG_HISTORY:
+            entries = entries[-MAX_CONFIG_HISTORY:]
+        self._save_history_entries(entries)
+
+    def validate_current(self) -> tuple[bool, str]:
+        """Validate current in-memory config and return status + details."""
+        try:
+            current = self._ensure_schema_key(deepcopy(self._config))
+            self._assert_valid_config(current)
+            return True, ""
+        except Exception as e:
+            return False, str(e)
+
+    def validate_candidate(self, candidate: dict[str, Any]) -> tuple[bool, str]:
+        """Validate an arbitrary candidate config and return status + details."""
+        try:
+            normalized = self._ensure_schema_key(deepcopy(candidate))
+            self._assert_valid_config(normalized)
+            return True, ""
+        except Exception as e:
+            return False, str(e)
+
+    def replace_config(self, candidate: dict[str, Any]) -> None:
+        """Atomically replace runtime config with a validated candidate."""
+        self._save_candidate(candidate, reason="replace")
+
+    def list_config_history(self, limit: int = 20) -> list[dict[str, Any]]:
+        """List config history metadata, newest first."""
+        entries = self._load_history_entries()
+        meta = []
+        for item in reversed(entries):
+            meta.append(
+                {
+                    "id": str(item.get("id", "")),
+                    "ts": str(item.get("ts", "")),
+                    "reason": str(item.get("reason", "update")),
+                }
+            )
+            if len(meta) >= max(1, int(limit)):
+                break
+        return meta
+
+    def rollback_config(self, snapshot_id: str) -> dict[str, Any] | None:
+        """Rollback config to a snapshot id. Returns snapshot metadata or None."""
+        sid = str(snapshot_id).strip().upper()
+        if not sid:
+            return None
+
+        entries = self._load_history_entries()
+        target = None
+        for item in entries:
+            if str(item.get("id", "")).strip().upper() == sid:
+                target = item
+                break
+
+        if not target:
+            return None
+
+        candidate = target.get("config")
+        if not isinstance(candidate, dict):
+            return None
+
+        self._save_candidate(candidate, reason=f"rollback:{sid}")
+        return {
+            "id": str(target.get("id", "")),
+            "ts": str(target.get("ts", "")),
+            "reason": str(target.get("reason", "update")),
+        }
 
     def reload(self) -> None:
         """Reload configuration from file."""
@@ -663,6 +794,117 @@ class RuntimeConfig:
             self._save_candidate(updated)
             return True
         return False
+
+    def get_command_permissions(self) -> dict[str, Any]:
+        """Get command permission override maps."""
+        raw = self.get("command_permissions", {})
+        if not isinstance(raw, dict):
+            return {"global": {}, "groups": {}}
+
+        global_map = raw.get("global", {})
+        groups_map = raw.get("groups", {})
+        if not isinstance(global_map, dict):
+            global_map = {}
+        if not isinstance(groups_map, dict):
+            groups_map = {}
+        return {
+            "global": {str(k).lower(): str(v).lower() for k, v in global_map.items()},
+            "groups": {
+                str(g): {
+                    str(k).lower(): str(v).lower()
+                    for k, v in rules.items()
+                    if isinstance(rules, dict)
+                }
+                for g, rules in groups_map.items()
+            },
+        }
+
+    def get_command_role_override(
+        self, command_name: str, group_jid: str | None = None
+    ) -> str | None:
+        """Get role override for command (group override first, then global)."""
+        name = command_name.lower().strip()
+        if not name:
+            return None
+
+        perms = self.get_command_permissions()
+        if group_jid:
+            group_map = perms.get("groups", {}).get(group_jid, {})
+            if isinstance(group_map, dict):
+                role = str(group_map.get(name, "")).lower().strip()
+                if role:
+                    return role
+
+        role = str(perms.get("global", {}).get(name, "")).lower().strip()
+        return role or None
+
+    def set_command_role_override(
+        self,
+        command_name: str,
+        role: str,
+        group_jid: str | None = None,
+    ) -> None:
+        """Set role override for a command globally or for a specific group."""
+        name = command_name.lower().strip()
+        normalized_role = role.lower().strip()
+        if normalized_role not in {"member", "admin", "owner"}:
+            raise ValueError(f"invalid role: {role}")
+        if not name:
+            raise ValueError("command name is required")
+
+        updated = deepcopy(self._config)
+        perms = updated.get("command_permissions")
+        if not isinstance(perms, dict):
+            perms = {"global": {}, "groups": {}}
+            updated["command_permissions"] = perms
+
+        if "global" not in perms or not isinstance(perms["global"], dict):
+            perms["global"] = {}
+        if "groups" not in perms or not isinstance(perms["groups"], dict):
+            perms["groups"] = {}
+
+        if group_jid:
+            groups = perms["groups"]
+            group_map = groups.get(group_jid)
+            if not isinstance(group_map, dict):
+                group_map = {}
+            group_map[name] = normalized_role
+            groups[group_jid] = group_map
+        else:
+            perms["global"][name] = normalized_role
+
+        self._save_candidate(updated)
+
+    def reset_command_role_override(self, command_name: str, group_jid: str | None = None) -> bool:
+        """Remove role override for a command. Returns True if removed."""
+        name = command_name.lower().strip()
+        if not name:
+            return False
+
+        updated = deepcopy(self._config)
+        perms = updated.get("command_permissions")
+        if not isinstance(perms, dict):
+            return False
+
+        changed = False
+        if group_jid:
+            groups = perms.get("groups")
+            if isinstance(groups, dict):
+                group_map = groups.get(group_jid)
+                if isinstance(group_map, dict) and name in group_map:
+                    group_map.pop(name, None)
+                    changed = True
+                    if not group_map:
+                        groups.pop(group_jid, None)
+        else:
+            global_map = perms.get("global")
+            if isinstance(global_map, dict) and name in global_map:
+                global_map.pop(name, None)
+                changed = True
+
+        if changed:
+            self._save_candidate(updated)
+        return changed
 
     def get(self, key: str, default: Any = None) -> Any:
         """Get a top-level config value."""

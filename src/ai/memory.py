@@ -168,10 +168,20 @@ class AIMemory:
 _memory_cache: dict[str, AIMemory] = {}
 
 
-def get_memory(chat_id: str, ttl_hours: float = DEFAULT_TTL_HOURS) -> AIMemory:
+def get_memory(chat_id: str, ttl_hours: float | None = None) -> AIMemory:
     """Get or create memory for a chat."""
+    if ttl_hours is None:
+        try:
+            from core.privacy import get_ai_memory_ttl_hours
+
+            ttl_hours = get_ai_memory_ttl_hours()
+        except Exception:
+            ttl_hours = DEFAULT_TTL_HOURS
+
     if chat_id not in _memory_cache:
         _memory_cache[chat_id] = AIMemory(chat_id, ttl_hours)
+    elif _memory_cache[chat_id].ttl_hours != ttl_hours:
+        _memory_cache[chat_id].ttl_hours = ttl_hours
     return _memory_cache[chat_id]
 
 
@@ -182,6 +192,8 @@ def clear_memory(chat_id: str | None = None) -> None:
         if chat_id in _memory_cache:
             _memory_cache[chat_id].clear()
             del _memory_cache[chat_id]
+        else:
+            AIMemory(chat_id).clear()
     else:
         for mem in _memory_cache.values():
             mem.clear()

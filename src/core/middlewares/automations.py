@@ -1,6 +1,7 @@
 """Automation middleware — evaluate and execute group automation rules."""
 
-from core.automations import execute_rule, load_rules, rule_matches
+from core.automations import execute_rule, get_automation_runtime, load_rules, rule_matches
+from core.i18n import t
 from core.runtime_config import runtime_config
 
 
@@ -27,6 +28,9 @@ async def automations_middleware(ctx, next):
         await next()
         return
 
+    runtime = get_automation_runtime(ctx.msg.chat_jid)
+    dry_run = bool(runtime.get("dry_run", False))
+
     text = ctx.msg.text
     if not text and not _has_media_type_rules(rules):
         await next()
@@ -43,6 +47,17 @@ async def automations_middleware(ctx, next):
             continue
 
         try:
+            if dry_run:
+                await ctx.bot.reply(
+                    ctx.msg,
+                    t(
+                        "automation.dryrun_preview",
+                        id=rule.get("id", ""),
+                        action=rule.get("action_type", "reply"),
+                    ),
+                )
+                return
+
             executed = await execute_rule(rule, ctx.bot, ctx.msg)
             if executed:
                 return

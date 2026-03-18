@@ -91,6 +91,9 @@ No-code moderation automation rules. Trigger on message content, exact text, med
 /automation add <trigger_type> <trigger_value> => <action> [response]
 /automation toggle <rule_id>
 /automation remove <rule_id>
+/automation simulate <rule_id> <sample text>
+/automation simulate <rule_id> --media <image|video|audio|sticker|document>
+/automation dryrun <on|off>
 ```
 
 **Trigger types:**
@@ -115,7 +118,14 @@ No-code moderation automation rules. Trigger on message content, exact text, med
 /automation add regex (?i)free\s+money => delete
 /automation add link x.com => reply External links are reviewed by admins.
 /automation add media_type sticker => delete
+/automation simulate A001 this is a test message
+/automation simulate A006 --media sticker
+/automation dryrun on
 ```
+
+::: info
+`dryrun` mode lets you test live traffic safely: matching rules will only send a preview message and won't execute moderation actions.
+:::
 
 ## /blacklist
 

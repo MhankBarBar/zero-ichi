@@ -6,6 +6,12 @@
 uv run zero-ichi
 ```
 
+Optional: run interactive setup before first launch:
+
+```bash
+uv run zero-ichi setup
+```
+
 ## CLI Arguments
 
 You can run the bot with flags:
@@ -23,6 +29,13 @@ uv run zero-ichi --debug --auto-reload
 | `--auto-reload` | Enable auto-reload for development | `uv run zero-ichi --auto-reload` |
 | `--dashboard` | Enable dashboard API at startup | `uv run zero-ichi --dashboard` |
 
+## CLI Subcommands
+
+| Subcommand | Description | Example |
+|------------|-------------|---------|
+| `setup` | Interactive setup wizard (configures common settings) | `uv run zero-ichi setup` |
+| `update` | Pull latest code and sync dependencies | `uv run zero-ichi update` |
+
 ### Update Command
 
 Use built-in update command:
@@ -30,6 +43,29 @@ Use built-in update command:
 ```bash
 uv run zero-ichi update
 ```
+
+### Setup Wizard Command
+
+Use built-in interactive setup wizard:
+
+```bash
+uv run zero-ichi setup
+```
+
+The wizard guides common first-run settings:
+
+- session name (used for `.session` file)
+- login method (QR or pair-code) + phone number
+- owner JID
+- command prefix
+- auto-read / auto-react / self mode
+- dashboard on/off
+- anti-link on/off + action
+- anti-spam on/off + action
+- anti-spam thresholds
+- AI on/off + API key
+- AI provider/model/trigger mode/owner-only
+- rate-limit controls
 
 ## QR Code Login
 
@@ -69,6 +105,20 @@ Send this message from your WhatsApp:
 
 ```
 /config owner me
+```
+
+Or set owner during CLI setup with `uv run zero-ichi setup`.
+
+If owner is not configured yet, you can also bootstrap owner from a private chat using:
+
+```
+/config owner me
+```
+
+or:
+
+```
+/setup owner me
 ```
 
 This gives you access to [owner-only commands](/commands/owner) like `/eval`, `/config`, and `/addcommand`.
