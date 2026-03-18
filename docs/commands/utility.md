@@ -112,3 +112,53 @@ Configure periodic group summaries (daily/weekly), or send one immediately.
 /digest on weekly sun 20:00
 /digest now
 ```
+
+## /summarize
+
+AI-powered text summarization. Requires the [Agentic AI](/features/ai) feature to be enabled with a valid API key.
+
+```
+/summarize             # Summarize recent chat context
+```
+
+**Usage:**
+- **Reply to a message**: summarizes the quoted text
+- **No reply**: summarizes the last ~10 messages from AI memory
+
+**Aliases:** `tldr`
+
+::: info
+This command has a 30-second cooldown to prevent abuse.
+:::
+
+## /translate
+
+AI-powered translation.
+
+```
+/translate <target_language> <text>
+```
+
+You can also reply to a message:
+
+```
+/translate en
+```
+
+**Aliases:** `tr`
+
+## /rewrite
+
+AI-powered rewrite in a selected style.
+
+```
+/rewrite <formal|casual|concise|professional|friendly> <text>
+```
+
+You can also reply to a message:
+
+```
+/rewrite concise
+```
+
+**Aliases:** `rephrase`

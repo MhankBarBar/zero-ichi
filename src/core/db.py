@@ -10,15 +10,19 @@ Provides:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import secrets
 import threading
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import Engine
+from sqlalchemy.exc import IntegrityError
 
 from core.constants import DATA_DIR, LOCALES_DIR, MEMORY_DIR, TASKS_FILE
 
@@ -69,6 +73,21 @@ def get_engine() -> Engine:
     return _engine
 
 
+def _ensure_column(engine: Engine, table_name: str, column_name: str, column_sql: str) -> None:
+    """Add a column if it does not exist."""
+    inspector = inspect(engine)
+    table_names = set(inspector.get_table_names())
+    if table_name not in table_names:
+        return
+
+    existing = {col["name"] for col in inspector.get_columns(table_name)}
+    if column_name in existing:
+        return
+
+    with engine.begin() as conn:
+        conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_sql}"))
+
+
 def _ensure_tables(engine: Engine) -> None:
     """Create required runtime tables if they do not exist."""
     dialect = engine.dialect.name
@@ -102,6 +121,11 @@ def _ensure_tables(engine: Engine) -> None:
                     events TEXT NOT NULL,
                     secret TEXT NOT NULL,
                     enabled INTEGER NOT NULL DEFAULT 1,
+                    failure_count INTEGER NOT NULL DEFAULT 0,
+                    max_failures INTEGER NOT NULL DEFAULT 10,
+                    last_success_at TEXT,
+                    last_error TEXT,
+                    disabled_reason TEXT,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 )
@@ -122,6 +146,7 @@ def _ensure_tables(engine: Engine) -> None:
                     error TEXT,
                     attempt INTEGER NOT NULL,
                     response_body TEXT,
+                    request_headers TEXT,
                     created_at TEXT NOT NULL,
                     FOREIGN KEY(webhook_id) REFERENCES webhooks(id) ON DELETE CASCADE
                 )
@@ -134,6 +159,50 @@ def _ensure_tables(engine: Engine) -> None:
                 "CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_webhook ON webhook_deliveries(webhook_id, id DESC)"
             )
         )
+
+        conn.execute(
+            text(
+                f"""
+                CREATE TABLE IF NOT EXISTS incoming_webhook_keys (
+                    id {id_column},
+                    name TEXT NOT NULL,
+                    token_hash TEXT NOT NULL UNIQUE,
+                    allowed_actions TEXT NOT NULL,
+                    rate_limit_per_minute INTEGER NOT NULL DEFAULT 30,
+                    enabled INTEGER NOT NULL DEFAULT 1,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    last_used_at TEXT
+                )
+                """
+            )
+        )
+
+        conn.execute(
+            text(
+                f"""
+                CREATE TABLE IF NOT EXISTS audit_logs (
+                    id {id_column},
+                    actor TEXT NOT NULL,
+                    action TEXT NOT NULL,
+                    resource TEXT NOT NULL,
+                    details TEXT,
+                    created_at TEXT NOT NULL
+                )
+                """
+            )
+        )
+
+        conn.execute(
+            text("CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(id DESC)")
+        )
+
+    _ensure_column(engine, "webhooks", "failure_count", "failure_count INTEGER NOT NULL DEFAULT 0")
+    _ensure_column(engine, "webhooks", "max_failures", "max_failures INTEGER NOT NULL DEFAULT 10")
+    _ensure_column(engine, "webhooks", "last_success_at", "last_success_at TEXT")
+    _ensure_column(engine, "webhooks", "last_error", "last_error TEXT")
+    _ensure_column(engine, "webhooks", "disabled_reason", "disabled_reason TEXT")
+    _ensure_column(engine, "webhook_deliveries", "request_headers", "request_headers TEXT")
 
 
 def _safe_jid(jid: str) -> str:
@@ -363,9 +432,11 @@ def list_webhooks(include_disabled: bool = True) -> list[dict[str, Any]]:
     """List configured webhooks."""
     ensure_database_ready()
     query = (
-        "SELECT id, name, url, events, secret, enabled, created_at, updated_at FROM webhooks"
+        "SELECT id, name, url, events, secret, enabled, failure_count, max_failures, "
+        "last_success_at, last_error, disabled_reason, created_at, updated_at FROM webhooks"
         if include_disabled
-        else "SELECT id, name, url, events, secret, enabled, created_at, updated_at FROM webhooks WHERE enabled = 1"
+        else "SELECT id, name, url, events, secret, enabled, failure_count, max_failures, "
+        "last_success_at, last_error, disabled_reason, created_at, updated_at FROM webhooks WHERE enabled = 1"
     )
     query += " ORDER BY id DESC"
 
@@ -387,8 +458,13 @@ def list_webhooks(include_disabled: bool = True) -> list[dict[str, Any]]:
                 "events": events if isinstance(events, list) else [],
                 "secret": str(row[4]),
                 "enabled": bool(row[5]),
-                "created_at": str(row[6]),
-                "updated_at": str(row[7]),
+                "failure_count": int(row[6]) if row[6] is not None else 0,
+                "max_failures": int(row[7]) if row[7] is not None else 10,
+                "last_success_at": str(row[8]) if row[8] is not None else None,
+                "last_error": str(row[9]) if row[9] is not None else None,
+                "disabled_reason": str(row[10]) if row[10] is not None else None,
+                "created_at": str(row[11]),
+                "updated_at": str(row[12]),
             }
         )
     return hooks
@@ -409,6 +485,7 @@ def create_webhook(
     events: list[str],
     secret: str,
     enabled: bool,
+    max_failures: int = 10,
 ) -> dict[str, Any]:
     """Create a webhook and return persisted object."""
     ensure_database_ready()
@@ -422,6 +499,7 @@ def create_webhook(
             "events": json.dumps(normalized_events, ensure_ascii=False),
             "secret": secret,
             "enabled": 1 if enabled else 0,
+            "max_failures": max(1, int(max_failures)),
             "created_at": now,
             "updated_at": now,
         }
@@ -430,8 +508,12 @@ def create_webhook(
             result = conn.execute(
                 text(
                     """
-                    INSERT INTO webhooks(name, url, events, secret, enabled, created_at, updated_at)
-                    VALUES (:name, :url, :events, :secret, :enabled, :created_at, :updated_at)
+                    INSERT INTO webhooks(
+                        name, url, events, secret, enabled, max_failures, created_at, updated_at
+                    )
+                    VALUES (
+                        :name, :url, :events, :secret, :enabled, :max_failures, :created_at, :updated_at
+                    )
                     RETURNING id
                     """
                 ),
@@ -442,8 +524,12 @@ def create_webhook(
             result = conn.execute(
                 text(
                     """
-                    INSERT INTO webhooks(name, url, events, secret, enabled, created_at, updated_at)
-                    VALUES (:name, :url, :events, :secret, :enabled, :created_at, :updated_at)
+                    INSERT INTO webhooks(
+                        name, url, events, secret, enabled, max_failures, created_at, updated_at
+                    )
+                    VALUES (
+                        :name, :url, :events, :secret, :enabled, :max_failures, :created_at, :updated_at
+                    )
                     """
                 ),
                 params,
@@ -464,6 +550,7 @@ def update_webhook(
     events: list[str] | None = None,
     secret: str | None = None,
     enabled: bool | None = None,
+    max_failures: int | None = None,
 ) -> dict[str, Any] | None:
     """Update webhook fields and return updated object."""
     existing = get_webhook(webhook_id)
@@ -476,6 +563,7 @@ def update_webhook(
         "events": existing["events"],
         "secret": existing["secret"],
         "enabled": existing["enabled"],
+        "max_failures": existing.get("max_failures", 10),
     }
 
     if name is not None:
@@ -488,6 +576,8 @@ def update_webhook(
         updates["secret"] = secret
     if enabled is not None:
         updates["enabled"] = bool(enabled)
+    if max_failures is not None:
+        updates["max_failures"] = max(1, int(max_failures))
 
     with get_engine().begin() as conn:
         conn.execute(
@@ -499,6 +589,7 @@ def update_webhook(
                     events = :events,
                     secret = :secret,
                     enabled = :enabled,
+                    max_failures = :max_failures,
                     updated_at = :updated_at
                 WHERE id = :id
                 """
@@ -510,6 +601,7 @@ def update_webhook(
                 "events": json.dumps(updates["events"], ensure_ascii=False),
                 "secret": updates["secret"],
                 "enabled": 1 if updates["enabled"] else 0,
+                "max_failures": int(updates["max_failures"]),
                 "updated_at": _utcnow_iso(),
             },
         )
@@ -555,35 +647,64 @@ def record_webhook_delivery(
     status_code: int | None = None,
     error: str | None = None,
     response_body: str | None = None,
-) -> None:
+    request_headers: dict[str, str] | None = None,
+) -> int:
     """Persist webhook delivery attempt."""
     ensure_database_ready()
+    params = {
+        "webhook_id": int(webhook_id),
+        "event_type": event_type,
+        "payload": json.dumps(payload, ensure_ascii=False),
+        "success": 1 if success else 0,
+        "status_code": status_code,
+        "error": (error or "")[:1000] or None,
+        "attempt": int(attempt),
+        "response_body": (response_body or "")[:2000] or None,
+        "request_headers": (
+            json.dumps(request_headers, ensure_ascii=False)
+            if isinstance(request_headers, dict)
+            else None
+        ),
+        "created_at": _utcnow_iso(),
+    }
+
+    if get_engine().dialect.name == "postgresql":
+        with get_engine().begin() as conn:
+            result = conn.execute(
+                text(
+                    """
+                    INSERT INTO webhook_deliveries(
+                        webhook_id, event_type, payload, success, status_code,
+                        error, attempt, response_body, request_headers, created_at
+                    )
+                    VALUES (
+                        :webhook_id, :event_type, :payload, :success, :status_code,
+                        :error, :attempt, :response_body, :request_headers, :created_at
+                    )
+                    RETURNING id
+                    """
+                ),
+                params,
+            )
+            return int(result.scalar_one())
+
     with get_engine().begin() as conn:
-        conn.execute(
+        result = conn.execute(
             text(
                 """
                 INSERT INTO webhook_deliveries(
                     webhook_id, event_type, payload, success, status_code,
-                    error, attempt, response_body, created_at
+                    error, attempt, response_body, request_headers, created_at
                 )
                 VALUES (
                     :webhook_id, :event_type, :payload, :success, :status_code,
-                    :error, :attempt, :response_body, :created_at
+                    :error, :attempt, :response_body, :request_headers, :created_at
                 )
                 """
             ),
-            {
-                "webhook_id": int(webhook_id),
-                "event_type": event_type,
-                "payload": json.dumps(payload, ensure_ascii=False),
-                "success": 1 if success else 0,
-                "status_code": status_code,
-                "error": (error or "")[:1000] or None,
-                "attempt": int(attempt),
-                "response_body": (response_body or "")[:2000] or None,
-                "created_at": _utcnow_iso(),
-            },
+            params,
         )
+    return int(result.lastrowid) if result.lastrowid is not None else 0
 
 
 def list_webhook_deliveries(webhook_id: int, limit: int = 50) -> list[dict[str, Any]]:
@@ -594,7 +715,7 @@ def list_webhook_deliveries(webhook_id: int, limit: int = 50) -> list[dict[str, 
             text(
                 """
                 SELECT id, webhook_id, event_type, payload, success, status_code,
-                       error, attempt, response_body, created_at
+                       error, attempt, response_body, request_headers, created_at
                 FROM webhook_deliveries
                 WHERE webhook_id = :webhook_id
                 ORDER BY id DESC
@@ -622,7 +743,536 @@ def list_webhook_deliveries(webhook_id: int, limit: int = 50) -> list[dict[str, 
                 "error": str(row[6]) if row[6] is not None else None,
                 "attempt": int(row[7]),
                 "response_body": str(row[8]) if row[8] is not None else None,
-                "created_at": str(row[9]),
+                "request_headers": (
+                    json.loads(str(row[9])) if row[9] is not None and str(row[9]).strip() else {}
+                ),
+                "created_at": str(row[10]),
             }
         )
     return deliveries
+
+
+def get_webhook_delivery(webhook_id: int, delivery_id: int) -> dict[str, Any] | None:
+    """Get one webhook delivery row by id."""
+    ensure_database_ready()
+    with get_engine().begin() as conn:
+        row = conn.execute(
+            text(
+                """
+                SELECT id, webhook_id, event_type, payload, success, status_code,
+                       error, attempt, response_body, request_headers, created_at
+                FROM webhook_deliveries
+                WHERE webhook_id = :webhook_id AND id = :delivery_id
+                """
+            ),
+            {"webhook_id": int(webhook_id), "delivery_id": int(delivery_id)},
+        ).fetchone()
+
+    if not row:
+        return None
+
+    try:
+        payload = json.loads(str(row[3]))
+    except Exception:
+        payload = {}
+
+    try:
+        request_headers = json.loads(str(row[9])) if row[9] is not None else {}
+    except Exception:
+        request_headers = {}
+
+    return {
+        "id": int(row[0]),
+        "webhook_id": int(row[1]),
+        "event_type": str(row[2]),
+        "payload": payload,
+        "success": bool(row[4]),
+        "status_code": int(row[5]) if row[5] is not None else None,
+        "error": str(row[6]) if row[6] is not None else None,
+        "attempt": int(row[7]),
+        "response_body": str(row[8]) if row[8] is not None else None,
+        "request_headers": request_headers if isinstance(request_headers, dict) else {},
+        "created_at": str(row[10]),
+    }
+
+
+def mark_webhook_delivery_result(webhook_id: int, success: bool, error: str | None = None) -> None:
+    """Update webhook health status after a delivery cycle."""
+    ensure_database_ready()
+    webhook = get_webhook(webhook_id)
+    if not webhook:
+        return
+
+    failure_count = int(webhook.get("failure_count", 0) or 0)
+    max_failures = max(1, int(webhook.get("max_failures", 10) or 10))
+
+    with get_engine().begin() as conn:
+        if success:
+            conn.execute(
+                text(
+                    """
+                    UPDATE webhooks
+                    SET failure_count = 0,
+                        last_success_at = :last_success_at,
+                        last_error = NULL,
+                        disabled_reason = NULL,
+                        enabled = 1,
+                        updated_at = :updated_at
+                    WHERE id = :id
+                    """
+                ),
+                {
+                    "id": int(webhook_id),
+                    "last_success_at": _utcnow_iso(),
+                    "updated_at": _utcnow_iso(),
+                },
+            )
+            return
+
+        next_count = failure_count + 1
+        should_disable = next_count >= max_failures
+        conn.execute(
+            text(
+                """
+                UPDATE webhooks
+                SET failure_count = :failure_count,
+                    last_error = :last_error,
+                    disabled_reason = :disabled_reason,
+                    enabled = :enabled,
+                    updated_at = :updated_at
+                WHERE id = :id
+                """
+            ),
+            {
+                "id": int(webhook_id),
+                "failure_count": next_count,
+                "last_error": (error or "delivery_failed")[:1000],
+                "disabled_reason": (
+                    f"auto_disabled_after_{next_count}_failures" if should_disable else None
+                ),
+                "enabled": 0 if should_disable else 1,
+                "updated_at": _utcnow_iso(),
+            },
+        )
+
+
+def rotate_webhook_secret(webhook_id: int) -> str | None:
+    """Rotate webhook secret and return new value."""
+    ensure_database_ready()
+    hook = get_webhook(webhook_id)
+    if not hook:
+        return None
+
+    secret = secrets.token_urlsafe(24)
+    with get_engine().begin() as conn:
+        conn.execute(
+            text(
+                """
+                UPDATE webhooks
+                SET secret = :secret, updated_at = :updated_at
+                WHERE id = :id
+                """
+            ),
+            {"id": int(webhook_id), "secret": secret, "updated_at": _utcnow_iso()},
+        )
+    return secret
+
+
+def _hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def create_incoming_webhook_key(
+    *,
+    name: str,
+    allowed_actions: list[str],
+    rate_limit_per_minute: int = 30,
+    enabled: bool = True,
+) -> dict[str, Any]:
+    """Create incoming webhook key. Returns metadata + plain token once."""
+    ensure_database_ready()
+    token = secrets.token_urlsafe(32)
+    token_hash = _hash_token(token)
+    now = _utcnow_iso()
+    allowed = [str(v).strip() for v in allowed_actions if str(v).strip()]
+    if not allowed:
+        allowed = ["send_message"]
+
+    params = {
+        "name": name.strip() or "Incoming Key",
+        "token_hash": token_hash,
+        "allowed_actions": json.dumps(allowed, ensure_ascii=False),
+        "rate_limit_per_minute": max(1, int(rate_limit_per_minute)),
+        "enabled": 1 if enabled else 0,
+        "created_at": now,
+        "updated_at": now,
+    }
+
+    if get_engine().dialect.name == "postgresql":
+        with get_engine().begin() as conn:
+            result = conn.execute(
+                text(
+                    """
+                    INSERT INTO incoming_webhook_keys(
+                        name, token_hash, allowed_actions, rate_limit_per_minute,
+                        enabled, created_at, updated_at
+                    )
+                    VALUES(
+                        :name, :token_hash, :allowed_actions, :rate_limit_per_minute,
+                        :enabled, :created_at, :updated_at
+                    )
+                    RETURNING id
+                    """
+                ),
+                params,
+            )
+            key_id = int(result.scalar_one())
+    else:
+        with get_engine().begin() as conn:
+            result = conn.execute(
+                text(
+                    """
+                    INSERT INTO incoming_webhook_keys(
+                        name, token_hash, allowed_actions, rate_limit_per_minute,
+                        enabled, created_at, updated_at
+                    )
+                    VALUES(
+                        :name, :token_hash, :allowed_actions, :rate_limit_per_minute,
+                        :enabled, :created_at, :updated_at
+                    )
+                    """
+                ),
+                params,
+            )
+            key_id = int(result.lastrowid) if result.lastrowid is not None else 0
+    return {
+        "id": key_id,
+        "name": name.strip() or "Incoming Key",
+        "allowed_actions": allowed,
+        "rate_limit_per_minute": max(1, int(rate_limit_per_minute)),
+        "enabled": bool(enabled),
+        "created_at": now,
+        "updated_at": now,
+        "last_used_at": None,
+        "token": token,
+    }
+
+
+def list_incoming_webhook_keys() -> list[dict[str, Any]]:
+    """List incoming webhook key metadata (without token)."""
+    ensure_database_ready()
+    with get_engine().begin() as conn:
+        rows = conn.execute(
+            text(
+                """
+                SELECT id, name, allowed_actions, rate_limit_per_minute, enabled,
+                       created_at, updated_at, last_used_at
+                FROM incoming_webhook_keys
+                ORDER BY id DESC
+                """
+            )
+        ).fetchall()
+
+    keys: list[dict[str, Any]] = []
+    for row in rows:
+        try:
+            actions = json.loads(str(row[2]))
+        except Exception:
+            actions = []
+        keys.append(
+            {
+                "id": int(row[0]),
+                "name": str(row[1]),
+                "allowed_actions": actions if isinstance(actions, list) else [],
+                "rate_limit_per_minute": int(row[3]),
+                "enabled": bool(row[4]),
+                "created_at": str(row[5]),
+                "updated_at": str(row[6]),
+                "last_used_at": str(row[7]) if row[7] is not None else None,
+            }
+        )
+    return keys
+
+
+def update_incoming_webhook_key(
+    key_id: int,
+    *,
+    name: str | None = None,
+    allowed_actions: list[str] | None = None,
+    rate_limit_per_minute: int | None = None,
+    enabled: bool | None = None,
+) -> dict[str, Any] | None:
+    """Update incoming webhook key metadata."""
+    existing = None
+    for row in list_incoming_webhook_keys():
+        if int(row["id"]) == int(key_id):
+            existing = row
+            break
+    if not existing:
+        return None
+
+    next_name = name.strip() if isinstance(name, str) and name.strip() else existing["name"]
+    next_actions = (
+        [str(v).strip() for v in allowed_actions if str(v).strip()]
+        if allowed_actions is not None
+        else existing["allowed_actions"]
+    )
+    if not next_actions:
+        next_actions = ["send_message"]
+    next_rate = (
+        max(1, int(rate_limit_per_minute))
+        if rate_limit_per_minute is not None
+        else int(existing["rate_limit_per_minute"])
+    )
+    next_enabled = bool(enabled) if enabled is not None else bool(existing["enabled"])
+
+    with get_engine().begin() as conn:
+        conn.execute(
+            text(
+                """
+                UPDATE incoming_webhook_keys
+                SET name = :name,
+                    allowed_actions = :allowed_actions,
+                    rate_limit_per_minute = :rate,
+                    enabled = :enabled,
+                    updated_at = :updated_at
+                WHERE id = :id
+                """
+            ),
+            {
+                "id": int(key_id),
+                "name": next_name,
+                "allowed_actions": json.dumps(next_actions, ensure_ascii=False),
+                "rate": next_rate,
+                "enabled": 1 if next_enabled else 0,
+                "updated_at": _utcnow_iso(),
+            },
+        )
+
+    for row in list_incoming_webhook_keys():
+        if int(row["id"]) == int(key_id):
+            return row
+    return None
+
+
+def rotate_incoming_webhook_key(key_id: int) -> str | None:
+    """Rotate incoming webhook key token and return new token."""
+    ensure_database_ready()
+    exists = any(int(row["id"]) == int(key_id) for row in list_incoming_webhook_keys())
+    if not exists:
+        return None
+
+    token = secrets.token_urlsafe(32)
+    with get_engine().begin() as conn:
+        conn.execute(
+            text(
+                """
+                UPDATE incoming_webhook_keys
+                SET token_hash = :token_hash,
+                    updated_at = :updated_at
+                WHERE id = :id
+                """
+            ),
+            {
+                "id": int(key_id),
+                "token_hash": _hash_token(token),
+                "updated_at": _utcnow_iso(),
+            },
+        )
+    return token
+
+
+def delete_incoming_webhook_key(key_id: int) -> bool:
+    """Delete incoming webhook key."""
+    ensure_database_ready()
+    with get_engine().begin() as conn:
+        result = conn.execute(
+            text("DELETE FROM incoming_webhook_keys WHERE id = :id"),
+            {"id": int(key_id)},
+        )
+    return result.rowcount > 0
+
+
+def resolve_incoming_webhook_key(token: str) -> dict[str, Any] | None:
+    """Resolve and return key metadata by plain token."""
+    ensure_database_ready()
+    token_hash = _hash_token(token)
+    with get_engine().begin() as conn:
+        row = conn.execute(
+            text(
+                """
+                SELECT id, name, allowed_actions, rate_limit_per_minute, enabled,
+                       created_at, updated_at, last_used_at
+                FROM incoming_webhook_keys
+                WHERE token_hash = :token_hash
+                """
+            ),
+            {"token_hash": token_hash},
+        ).fetchone()
+
+    if not row:
+        return None
+
+    try:
+        actions = json.loads(str(row[2]))
+    except Exception:
+        actions = []
+
+    return {
+        "id": int(row[0]),
+        "name": str(row[1]),
+        "allowed_actions": actions if isinstance(actions, list) else [],
+        "rate_limit_per_minute": int(row[3]),
+        "enabled": bool(row[4]),
+        "created_at": str(row[5]),
+        "updated_at": str(row[6]),
+        "last_used_at": str(row[7]) if row[7] is not None else None,
+    }
+
+
+def touch_incoming_webhook_key(key_id: int) -> None:
+    """Update last_used_at for incoming webhook key."""
+    ensure_database_ready()
+    with get_engine().begin() as conn:
+        conn.execute(
+            text(
+                """
+                UPDATE incoming_webhook_keys
+                SET last_used_at = :last_used_at,
+                    updated_at = :updated_at
+                WHERE id = :id
+                """
+            ),
+            {
+                "id": int(key_id),
+                "last_used_at": _utcnow_iso(),
+                "updated_at": _utcnow_iso(),
+            },
+        )
+
+
+def claim_incoming_idempotency(
+    key_id: int, idempotency_key: str, ttl_seconds: int = 86_400
+) -> bool:
+    """Atomically claim idempotency key usage for incoming webhooks.
+
+    Returns True when key is first-seen within TTL window.
+    Returns False when key was already claimed.
+    """
+    ensure_database_ready()
+
+    raw = str(idempotency_key).strip()
+    if not raw:
+        return False
+
+    now = time.time()
+    cutoff = now - max(60, int(ttl_seconds))
+    key_hash = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+    scope = f"incoming_idem:{int(key_id)}"
+
+    with get_engine().begin() as conn:
+        rows = conn.execute(
+            text("SELECT key, value FROM kv_store WHERE scope = :scope"),
+            {"scope": scope},
+        ).fetchall()
+
+        stale_keys: list[str] = []
+        for row in rows:
+            try:
+                parsed = json.loads(str(row[1]))
+                ts = float(parsed.get("ts", 0.0)) if isinstance(parsed, dict) else 0.0
+            except Exception:
+                ts = 0.0
+            if ts < cutoff:
+                stale_keys.append(str(row[0]))
+
+        if stale_keys:
+            for stale_key in stale_keys:
+                conn.execute(
+                    text("DELETE FROM kv_store WHERE scope = :scope AND key = :key"),
+                    {"scope": scope, "key": stale_key},
+                )
+
+        try:
+            conn.execute(
+                text(
+                    """
+                    INSERT INTO kv_store(scope, key, value, updated_at)
+                    VALUES (:scope, :key, :value, :updated_at)
+                    """
+                ),
+                {
+                    "scope": scope,
+                    "key": key_hash,
+                    "value": json.dumps({"ts": now}),
+                    "updated_at": _utcnow_iso(),
+                },
+            )
+            return True
+        except IntegrityError:
+            return False
+
+
+def add_audit_log(
+    *, actor: str, action: str, resource: str, details: dict[str, Any] | None = None
+) -> None:
+    """Persist audit log entry."""
+    ensure_database_ready()
+    with get_engine().begin() as conn:
+        conn.execute(
+            text(
+                """
+                INSERT INTO audit_logs(actor, action, resource, details, created_at)
+                VALUES (:actor, :action, :resource, :details, :created_at)
+                """
+            ),
+            {
+                "actor": actor.strip() or "system",
+                "action": action.strip() or "unknown",
+                "resource": resource.strip() or "unknown",
+                "details": json.dumps(details or {}, ensure_ascii=False),
+                "created_at": _utcnow_iso(),
+            },
+        )
+
+
+def list_audit_logs(limit: int = 100, action: str = "") -> list[dict[str, Any]]:
+    """List recent audit logs."""
+    ensure_database_ready()
+    params: dict[str, Any] = {"limit": int(limit)}
+    where = ""
+    if action.strip():
+        where = "WHERE action = :action"
+        params["action"] = action.strip()
+
+    with get_engine().begin() as conn:
+        rows = conn.execute(
+            text(
+                f"""
+                SELECT id, actor, action, resource, details, created_at
+                FROM audit_logs
+                {where}
+                ORDER BY id DESC
+                LIMIT :limit
+                """
+            ),
+            params,
+        ).fetchall()
+
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        try:
+            details = json.loads(str(row[4]))
+        except Exception:
+            details = {}
+        out.append(
+            {
+                "id": int(row[0]),
+                "actor": str(row[1]),
+                "action": str(row[2]),
+                "resource": str(row[3]),
+                "details": details if isinstance(details, dict) else {},
+                "created_at": str(row[5]),
+            }
+        )
+    return out

@@ -372,6 +372,7 @@ class AgenticAI:
         Returns the AI's text response, or None if no response.
         """
         from ai.memory import get_memory
+        from core.privacy import is_chat_memory_enabled
 
         if not self.api_key:
             return None
@@ -438,10 +439,13 @@ Current context:
 Note: When user mentions @{bot_jid} or @{bot_lid}, they are talking TO you, not asking you to mention yourself.
 """
 
-        memory = get_memory(msg.chat_jid)
-        history_text = memory.get_context_string()
-        if history_text:
-            history_text = "\n\n" + history_text
+        memory_enabled = is_chat_memory_enabled(msg.chat_jid)
+        memory = get_memory(msg.chat_jid) if memory_enabled else None
+        history_text = ""
+        if memory:
+            history_text = memory.get_context_string()
+            if history_text:
+                history_text = "\n\n" + history_text
 
         try:
             skills_context = ""
@@ -464,7 +468,7 @@ Note: When user mentions @{bot_jid} or @{bot_lid}, they are talking TO you, not 
                 model=model_str,
             )
 
-            if msg.text:
+            if msg.text and memory:
                 memory.add(
                     role="user",
                     content=msg.text,
@@ -473,7 +477,7 @@ Note: When user mentions @{bot_jid} or @{bot_lid}, they are talking TO you, not 
                     is_reply=is_reply,
                     reply_to=reply_to,
                 )
-            if result.output:
+            if result.output and memory:
                 memory.add(role="assistant", content=result.output)
 
             try:
@@ -491,7 +495,7 @@ Note: When user mentions @{bot_jid} or @{bot_lid}, they are talking TO you, not 
             error_str = str(e)
             if "expected a string, got null" in error_str:
                 log_debug("AI completed tool execution (null response is expected)")
-                if msg.text:
+                if msg.text and memory:
                     memory.add(
                         role="user",
                         content=msg.text,

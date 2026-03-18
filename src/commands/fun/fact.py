@@ -1,14 +1,16 @@
 """
-Fact command - Random fun facts.
+Fact command - Random fun facts with live API fetch + static fallback.
 """
 
 import random
+
+import httpx
 
 from core import symbols as sym
 from core.command import Command, CommandContext
 from core.i18n import t
 
-FACTS = [
+_FALLBACK_FACTS = [
     "Honey never spoils. Archaeologists have found 3000-year-old honey in Egyptian tombs that was still edible.",
     "Octopuses have three hearts and blue blood.",
     "A group of flamingos is called a 'flamboyance'.",
@@ -36,6 +38,23 @@ FACTS = [
     "The longest hiccuping spree lasted 68 years.",
 ]
 
+_FACT_API = "https://uselessfacts.jsph.pl/random.json?language=en"
+
+
+async def _fetch_live_fact() -> str | None:
+    """Fetch a random fact from Useless Facts API. Returns fact text or None."""
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            resp = await client.get(_FACT_API)
+            resp.raise_for_status()
+            data = resp.json()
+            text = data.get("text", "").strip()
+            if text:
+                return text
+    except Exception:
+        pass
+    return None
+
 
 class FactCommand(Command):
     name = "fact"
@@ -45,8 +64,10 @@ class FactCommand(Command):
     category = "fun"
 
     async def execute(self, ctx: CommandContext) -> None:
-        """Send a random fun fact."""
-        fact = random.choice(FACTS)
+        """Send a random fun fact (live API with static fallback)."""
+        fact = await _fetch_live_fact()
+        if fact is None:
+            fact = random.choice(_FALLBACK_FACTS)
 
         await ctx.client.reply(
             ctx.message, f"{sym.SEARCH} *{t('fact.title')}*\n\n{sym.ARROW} {fact}"

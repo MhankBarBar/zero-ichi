@@ -1,13 +1,16 @@
 """
-Joke command - Get a random joke.
+Joke command - Get a random joke with live API fetch + static fallback.
 """
 
 import random
 
+import httpx
+
 from core import symbols as sym
 from core.command import Command, CommandContext
+from core.i18n import t
 
-JOKES = [
+_FALLBACK_JOKES = [
     ("Why don't scientists trust atoms?", "Because they make up everything!"),
     ("Why did the scarecrow win an award?", "He was outstanding in his field!"),
     ("I told my wife she was drawing her eyebrows too high.", "She looked surprised."),
@@ -30,6 +33,22 @@ JOKES = [
     ("Why did the tomato turn red?", "Because it saw the salad dressing!"),
 ]
 
+_JOKE_API = "https://v2.jokeapi.dev/joke/Any?blacklistFlags=nsfw,racist,sexist&type=twopart"
+
+
+async def _fetch_live_joke() -> tuple[str, str] | None:
+    """Fetch a joke from JokeAPI. Returns (setup, punchline) or None on failure."""
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            resp = await client.get(_JOKE_API)
+            resp.raise_for_status()
+            data = resp.json()
+            if data.get("type") == "twopart":
+                return data["setup"], data["delivery"]
+    except Exception:
+        pass
+    return None
+
 
 class JokeCommand(Command):
     name = "joke"
@@ -38,7 +57,14 @@ class JokeCommand(Command):
     category = "fun"
 
     async def execute(self, ctx: CommandContext) -> None:
-        """Send a random joke."""
-        setup, punchline = random.choice(JOKES)
+        """Send a random joke (live API with static fallback)."""
+        result = await _fetch_live_joke()
+        if result is None:
+            result = random.choice(_FALLBACK_JOKES)
 
-        await ctx.client.reply(ctx.message, f"{sym.SPARKLE} *{setup}*\n\n{sym.ARROW} _{punchline}_")
+        setup, punchline = result
+        await ctx.client.reply(
+            ctx.message,
+            f"{sym.SPARKLE} *{t('joke.title')}*\n\n"
+            f"{sym.ARROW} *{setup}*\n\n{sym.DIAMOND} _{punchline}_",
+        )

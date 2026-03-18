@@ -67,3 +67,21 @@ Show bot statistics including messages processed, commands used, uptime, and gro
 🐍 Python: 3.11.5
 💻 OS: Windows
 ```
+
+## /status
+
+Quick health view for key runtime systems.
+
+```
+/status
+```
+
+Shows:
+- uptime
+- database connectivity
+- webhook worker + queue size
+- AI state/model
+- rate limiter state
+- loaded command count
+
+**Aliases:** `health`

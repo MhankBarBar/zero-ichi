@@ -32,6 +32,7 @@ export default defineConfig({
                     { text: 'Internationalization', link: '/features/i18n' },
                     { text: 'Web Dashboard', link: '/features/dashboard' },
                     { text: 'Webhooks', link: '/features/webhooks' },
+                    { text: 'Anti-Spam', link: '/features/anti-spam' },
                 ],
             },
             {
@@ -76,6 +77,7 @@ export default defineConfig({
                     { text: 'Internationalization', link: '/features/i18n' },
                     { text: 'Web Dashboard', link: '/features/dashboard' },
                     { text: 'Webhooks', link: '/features/webhooks' },
+                    { text: 'Anti-Spam', link: '/features/anti-spam' },
                 ],
             },
             {

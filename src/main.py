@@ -12,6 +12,7 @@ import signal
 import subprocess
 import sys
 import traceback
+from copy import deepcopy
 from pathlib import Path
 
 import segno
@@ -70,6 +71,7 @@ def _parse_args():
     )
     sub = parser.add_subparsers(dest="command")
     sub.add_parser("update", help="Pull latest code and sync dependencies")
+    sub.add_parser("setup", help="Run interactive setup wizard")
 
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     parser.add_argument("--qr", action="store_true", help="Force QR code login")
@@ -102,6 +104,299 @@ def _run_update():
         sys.exit(1)
 
     console.print("\n[bold green]✅ Update complete![/bold green]")
+
+
+def _prompt_text(label: str, default: str = "") -> str:
+    """Prompt for text input with optional default value."""
+    suffix = f" [{default}]" if default else ""
+    value = input(f"{label}{suffix}: ").strip()
+    return value if value else default
+
+
+def _prompt_yes_no(label: str, default: bool) -> bool:
+    """Prompt for yes/no input with default choice."""
+    hint = "Y/n" if default else "y/N"
+    while True:
+        value = input(f"{label} ({hint}): ").strip().lower()
+        if not value:
+            return default
+        if value in {"y", "yes", "1", "true", "on"}:
+            return True
+        if value in {"n", "no", "0", "false", "off"}:
+            return False
+        print("Please answer with y or n.")
+
+
+def _prompt_choice(label: str, options: list[str], default: str) -> str:
+    """Prompt for one value from a list of options."""
+    opts = "/".join(options)
+    while True:
+        value = input(f"{label} ({opts}) [{default}]: ").strip().lower()
+        selected = value or default
+        if selected in options:
+            return selected
+        print(f"Please choose one of: {opts}")
+
+
+def _prompt_int(
+    label: str, default: int, min_value: int | None = None, max_value: int | None = None
+) -> int:
+    """Prompt for integer input with optional range bounds."""
+    while True:
+        raw = input(f"{label} [{default}]: ").strip()
+        if not raw:
+            value = default
+        else:
+            try:
+                value = int(raw)
+            except ValueError:
+                print("Please enter a valid integer.")
+                continue
+
+        if min_value is not None and value < min_value:
+            print(f"Value must be >= {min_value}.")
+            continue
+        if max_value is not None and value > max_value:
+            print(f"Value must be <= {max_value}.")
+            continue
+        return value
+
+
+def _prompt_float(
+    label: str,
+    default: float,
+    min_value: float | None = None,
+    max_value: float | None = None,
+) -> float:
+    """Prompt for float input with optional range bounds."""
+    while True:
+        raw = input(f"{label} [{default}]: ").strip()
+        if not raw:
+            value = default
+        else:
+            try:
+                value = float(raw)
+            except ValueError:
+                print("Please enter a valid number.")
+                continue
+
+        if min_value is not None and value < min_value:
+            print(f"Value must be >= {min_value}.")
+            continue
+        if max_value is not None and value > max_value:
+            print(f"Value must be <= {max_value}.")
+            continue
+        return value
+
+
+def _run_setup():
+    """Run interactive setup wizard without starting the bot runtime."""
+    current = deepcopy(runtime_config.all_config())
+    candidate = deepcopy(current)
+
+    bot_cfg = candidate.setdefault("bot", {})
+    features = candidate.setdefault("features", {})
+    anti_link = candidate.setdefault("anti_link", {})
+    anti_spam = candidate.setdefault("anti_spam", {})
+    ai_cfg = candidate.setdefault("agentic_ai", {})
+    dashboard_cfg = candidate.setdefault("dashboard", {})
+    rate_limit_cfg = candidate.setdefault("rate_limit", {})
+
+    console.print("[bold cyan]Zero Ichi Setup Wizard[/bold cyan]")
+    console.print("Configure key settings. Press Enter to keep current values.\n")
+
+    bot_cfg["name"] = _prompt_text("Session name", str(bot_cfg.get("name", "zero_ichi_bot")))
+
+    owner = _prompt_text("Owner JID", str(bot_cfg.get("owner_jid", "")))
+    bot_cfg["owner_jid"] = owner
+
+    prefix = _prompt_text("Command prefix", str(bot_cfg.get("prefix", "/")))
+    bot_cfg["prefix"] = prefix or "/"
+
+    login_method = _prompt_choice(
+        "Login method",
+        ["qr", "pair_code"],
+        str(bot_cfg.get("login_method", "QR")).lower(),
+    )
+    bot_cfg["login_method"] = login_method.upper()
+    if login_method == "pair_code":
+        bot_cfg["phone_number"] = _prompt_text(
+            "Pair-code phone number",
+            str(bot_cfg.get("phone_number", "")),
+        )
+    else:
+        bot_cfg["phone_number"] = ""
+
+    bot_cfg["auto_read"] = _prompt_yes_no(
+        "Enable auto-read",
+        bool(bot_cfg.get("auto_read", False)),
+    )
+    bot_cfg["self_mode"] = _prompt_yes_no(
+        "Enable self mode",
+        bool(bot_cfg.get("self_mode", False)),
+    )
+
+    auto_react = _prompt_yes_no(
+        "Enable auto-react",
+        bool(bot_cfg.get("auto_react", False)),
+    )
+    bot_cfg["auto_react"] = auto_react
+    if auto_react:
+        bot_cfg["auto_react_emoji"] = _prompt_text(
+            "Auto-react emoji",
+            str(bot_cfg.get("auto_react_emoji", "👍")) or "👍",
+        )
+    else:
+        bot_cfg["auto_react_emoji"] = ""
+
+    dashboard_cfg["enabled"] = _prompt_yes_no(
+        "Enable dashboard API",
+        bool(dashboard_cfg.get("enabled", False)),
+    )
+
+    anti_link_enabled = _prompt_yes_no(
+        "Enable anti-link",
+        bool(features.get("anti_link", True)),
+    )
+    features["anti_link"] = anti_link_enabled
+    anti_link["action"] = _prompt_choice(
+        "Anti-link action",
+        ["warn", "delete", "kick"],
+        str(anti_link.get("action", "warn")),
+    )
+
+    anti_spam_enabled = _prompt_yes_no(
+        "Enable anti-spam",
+        bool(features.get("anti_spam", False)),
+    )
+    features["anti_spam"] = anti_spam_enabled
+    anti_spam["action"] = _prompt_choice(
+        "Anti-spam action",
+        ["warn", "mute", "kick"],
+        str(anti_spam.get("action", "warn")),
+    )
+    anti_spam["max_messages"] = _prompt_int(
+        "Anti-spam max messages in window",
+        int(anti_spam.get("max_messages", 5)),
+        min_value=2,
+        max_value=50,
+    )
+    anti_spam["window_seconds"] = _prompt_int(
+        "Anti-spam window seconds",
+        int(anti_spam.get("window_seconds", 10)),
+        min_value=1,
+        max_value=120,
+    )
+    anti_spam["whitelist_admins"] = _prompt_yes_no(
+        "Whitelist admins for anti-spam",
+        bool(anti_spam.get("whitelist_admins", True)),
+    )
+
+    ai_enabled = _prompt_yes_no("Enable AI", bool(ai_cfg.get("enabled", False)))
+    features.setdefault("automation_rules", True)
+    ai_cfg["enabled"] = ai_enabled
+
+    if ai_enabled:
+        ai_cfg["provider"] = _prompt_choice(
+            "AI provider",
+            ["openai", "google", "anthropic", "groq"],
+            str(ai_cfg.get("provider", "openai")).lower(),
+        )
+        ai_cfg["model"] = _prompt_text(
+            "AI model",
+            str(ai_cfg.get("model", "gpt-5-mini")),
+        )
+        ai_cfg["trigger_mode"] = _prompt_choice(
+            "AI trigger mode",
+            ["mention", "reply", "always"],
+            str(ai_cfg.get("trigger_mode", "mention")).lower(),
+        )
+        ai_cfg["owner_only"] = _prompt_yes_no(
+            "AI owner-only mode",
+            bool(ai_cfg.get("owner_only", True)),
+        )
+
+    current_key = str(ai_cfg.get("api_key", ""))
+    if ai_enabled and not current_key:
+        key_input = _prompt_text("AI API key")
+        ai_cfg["api_key"] = key_input
+    elif ai_enabled and current_key:
+        if _prompt_yes_no("Update AI API key", False):
+            ai_cfg["api_key"] = _prompt_text("AI API key", current_key)
+
+    rate_limit_cfg["enabled"] = _prompt_yes_no(
+        "Enable rate limiter",
+        bool(rate_limit_cfg.get("enabled", True)),
+    )
+    rate_limit_cfg["user_cooldown"] = _prompt_float(
+        "Rate limit user cooldown (seconds)",
+        float(rate_limit_cfg.get("user_cooldown", 3.0)),
+        min_value=0.0,
+        max_value=60.0,
+    )
+    rate_limit_cfg["command_cooldown"] = _prompt_float(
+        "Rate limit command cooldown (seconds)",
+        float(rate_limit_cfg.get("command_cooldown", 2.0)),
+        min_value=0.0,
+        max_value=60.0,
+    )
+    rate_limit_cfg["burst_limit"] = _prompt_int(
+        "Rate limit burst count",
+        int(rate_limit_cfg.get("burst_limit", 5)),
+        min_value=1,
+        max_value=50,
+    )
+    rate_limit_cfg["burst_window"] = _prompt_float(
+        "Rate limit burst window (seconds)",
+        float(rate_limit_cfg.get("burst_window", 10.0)),
+        min_value=1.0,
+        max_value=120.0,
+    )
+
+    ok, details = runtime_config.validate_candidate(candidate)
+    if not ok:
+        console.print(f"\n[bold red]Configuration invalid:[/bold red] {details}")
+        return
+
+    console.print("\n[bold]Summary[/bold]")
+    console.print(f"- session_name: {bot_cfg.get('name')}")
+    console.print(f"- owner_jid: {bot_cfg.get('owner_jid') or '(not set)'}")
+    console.print(f"- prefix: {bot_cfg.get('prefix')}")
+    console.print(f"- login_method: {bot_cfg.get('login_method')}")
+    if bot_cfg.get("login_method") == "PAIR_CODE":
+        console.print(f"- phone_number: {bot_cfg.get('phone_number') or '(not set)'}")
+    console.print(f"- auto_read: {'on' if bot_cfg.get('auto_read') else 'off'}")
+    console.print(f"- self_mode: {'on' if bot_cfg.get('self_mode') else 'off'}")
+    console.print(f"- auto_react: {'on' if bot_cfg.get('auto_react') else 'off'}")
+    if bot_cfg.get("auto_react"):
+        console.print(f"- auto_react_emoji: {bot_cfg.get('auto_react_emoji')}")
+    console.print(f"- dashboard: {'on' if dashboard_cfg.get('enabled') else 'off'}")
+    console.print(
+        f"- anti_link: {'on' if anti_link_enabled else 'off'} ({anti_link.get('action')})"
+    )
+    console.print(
+        f"- anti_spam: {'on' if anti_spam_enabled else 'off'} ({anti_spam.get('action')})"
+    )
+    console.print(
+        f"- anti_spam limits: {anti_spam.get('max_messages')} msgs / {anti_spam.get('window_seconds')}s"
+    )
+    console.print(f"- ai: {'on' if ai_enabled else 'off'}")
+    if ai_enabled:
+        console.print(
+            f"- ai provider/model/mode: {ai_cfg.get('provider')} / {ai_cfg.get('model')} / {ai_cfg.get('trigger_mode')}"
+        )
+    console.print(
+        f"- rate_limit: {'on' if rate_limit_cfg.get('enabled') else 'off'} "
+        f"(u:{rate_limit_cfg.get('user_cooldown')}s, c:{rate_limit_cfg.get('command_cooldown')}s)"
+    )
+
+    if not _prompt_yes_no("Apply these changes", True):
+        console.print("[yellow]Setup cancelled.[/yellow]")
+        return
+
+    runtime_config.replace_config(candidate)
+    console.print("\n[bold green]Setup complete.[/bold green]")
+    console.print("You can now run: [bold]uv run zero-ichi[/bold]")
 
 
 def _init_bot(args):
@@ -643,6 +938,10 @@ def main():
 
     if args.command == "update":
         _run_update()
+        return
+
+    if args.command == "setup":
+        _run_setup()
         return
 
     _init_bot(args)

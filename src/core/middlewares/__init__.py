@@ -7,6 +7,7 @@ Provides build_pipeline() to construct the full middleware pipeline.
 from core.middleware import MiddlewarePipeline
 
 from .ai import ai_middleware
+from .anti_spam import anti_spam_middleware
 from .antidelete import antidelete_middleware
 from .antilink import antilink_middleware
 from .auto_actions import auto_actions_middleware
@@ -31,6 +32,7 @@ def build_pipeline() -> MiddlewarePipeline:
     pipeline.use("blacklist", blacklist_middleware)
     pipeline.use("antilink", antilink_middleware)
     pipeline.use("mute", mute_middleware)
+    pipeline.use("anti_spam", anti_spam_middleware)
     pipeline.use("features", features_middleware)
     pipeline.use("automations", automations_middleware)
     pipeline.use("auto_download", auto_download_middleware)

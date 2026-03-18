@@ -6,11 +6,14 @@ Run alongside the bot or separately.
 """
 
 import base64
+import hashlib
+import hmac
 import json
 import os
 import re
 import secrets
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -41,11 +44,24 @@ from core.analytics import command_analytics
 from core.automations import load_rules, next_rule_id, save_rules
 from core.command import command_loader
 from core.db import (
+    add_audit_log,
+    claim_incoming_idempotency,
+    create_incoming_webhook_key,
     create_webhook,
+    delete_incoming_webhook_key,
     delete_webhook,
+    ensure_database_ready,
+    get_database_url,
     get_webhook,
+    list_audit_logs,
+    list_incoming_webhook_keys,
     list_webhook_deliveries,
     list_webhooks,
+    resolve_incoming_webhook_key,
+    rotate_incoming_webhook_key,
+    rotate_webhook_secret,
+    touch_incoming_webhook_key,
+    update_incoming_webhook_key,
     update_webhook,
 )
 from core.digest import apply_digest_schedule, build_digest_message, send_digest_now
@@ -63,7 +79,12 @@ from core.scheduler import get_scheduler
 from core.session import session_state
 from core.shared import get_bot
 from core.storage import GroupData, Storage
-from core.webhooks import list_known_events, send_test_webhook
+from core.webhooks import (
+    list_known_events,
+    replay_webhook_delivery,
+    send_test_webhook,
+    webhook_dispatcher_status,
+)
 
 BOT_START_TIME = datetime.now()
 _DOTENV_PATH = Path(__file__).parent.parent / ".env"
@@ -76,6 +97,50 @@ DEFAULT_CORS_ORIGINS = [
 ]
 WS_TOKEN_TTL_SECONDS = max(30, int(os.getenv("DASHBOARD_WS_TOKEN_TTL_SECONDS", "300")))
 _ws_tokens: dict[str, dict[str, Any]] = {}
+INCOMING_MAX_DRIFT_SECONDS = 300
+_incoming_rate_windows: dict[int, list[float]] = {}
+
+
+def _audit(actor: str, action: str, resource: str, details: dict[str, Any] | None = None) -> None:
+    """Best-effort audit trail write."""
+    try:
+        add_audit_log(actor=actor, action=action, resource=resource, details=details or {})
+    except Exception:
+        pass
+
+
+def _verify_incoming_signature(token: str, timestamp: str, signature: str, raw_body: bytes) -> bool:
+    """Verify incoming webhook HMAC signature and timestamp drift."""
+    if not token or not timestamp or not signature:
+        return False
+
+    try:
+        ts = int(timestamp)
+    except ValueError:
+        return False
+
+    now = int(time.time())
+    if abs(now - ts) > INCOMING_MAX_DRIFT_SECONDS:
+        return False
+
+    message = f"{timestamp}.".encode() + raw_body
+    digest = hmac.new(token.encode("utf-8"), message, hashlib.sha256).hexdigest()
+    expected = f"sha256={digest}"
+    return secrets.compare_digest(expected, signature)
+
+
+def _consume_incoming_rate_limit(key_id: int, per_minute: int) -> bool:
+    """Return True if key can proceed under current rate limit."""
+    now = time.time()
+    window = _incoming_rate_windows.get(key_id, [])
+    fresh = [ts for ts in window if now - ts < 60.0]
+    if len(fresh) >= max(1, int(per_minute)):
+        _incoming_rate_windows[key_id] = fresh
+        return False
+
+    fresh.append(now)
+    _incoming_rate_windows[key_id] = fresh
+    return True
 
 
 def _ensure_dotenv_loaded() -> None:
@@ -376,6 +441,7 @@ class WebhookCreate(BaseModel):
     events: list[str] = []
     secret: str = ""
     enabled: bool = True
+    max_failures: int = 10
 
 
 class WebhookUpdate(BaseModel):
@@ -383,6 +449,21 @@ class WebhookUpdate(BaseModel):
     url: str | None = None
     events: list[str] | None = None
     secret: str | None = None
+    enabled: bool | None = None
+    max_failures: int | None = None
+
+
+class IncomingWebhookKeyCreate(BaseModel):
+    name: str = "Incoming Key"
+    allowed_actions: list[str] = ["send_message"]
+    rate_limit_per_minute: int = 30
+    enabled: bool = True
+
+
+class IncomingWebhookKeyUpdate(BaseModel):
+    name: str | None = None
+    allowed_actions: list[str] | None = None
+    rate_limit_per_minute: int | None = None
     enabled: bool | None = None
 
 
@@ -545,6 +626,12 @@ async def update_config(update: ConfigUpdate):
         await event_bus.emit(
             "config_update", {"section": update.section, "key": update.key, "value": update.value}
         )
+        _audit(
+            "dashboard",
+            "config.update",
+            f"{update.section}.{update.key}",
+            {"value": update.value},
+        )
         return {"success": True, "message": f"Updated {update.section}.{update.key}"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
@@ -586,6 +673,12 @@ async def toggle_command(name: str, toggle: CommandToggle):
 
     runtime_config.set("disabled_commands", disabled)
     await event_bus.emit("command_update", {"name": name, "enabled": toggle.enabled})
+    _audit(
+        "dashboard",
+        "command.toggle",
+        f"command:{name}",
+        {"enabled": toggle.enabled},
+    )
 
     return {"success": True, "name": name, "enabled": toggle.enabled}
 
@@ -927,6 +1020,7 @@ async def update_rate_limit(settings: RateLimitSettings):
     runtime_config.set("rate_limit", rate_limit_config)
     rate_limiter.update_config(RateLimitConfig(**rate_limit_config))
     await event_bus.emit("config_update", {"section": "rate_limit", "key": "all"})
+    _audit("dashboard", "rate_limit.update", "rate_limit", rate_limit_config)
 
     return {"success": True}
 
@@ -943,6 +1037,11 @@ async def get_webhooks():
                 "url": hook["url"],
                 "events": hook["events"],
                 "enabled": hook["enabled"],
+                "failure_count": hook.get("failure_count", 0),
+                "max_failures": hook.get("max_failures", 10),
+                "last_success_at": hook.get("last_success_at"),
+                "last_error": hook.get("last_error"),
+                "disabled_reason": hook.get("disabled_reason"),
                 "created_at": hook["created_at"],
                 "updated_at": hook["updated_at"],
                 "has_secret": bool(hook.get("secret")),
@@ -969,6 +1068,18 @@ async def create_webhook_endpoint(payload: WebhookCreate):
         events=payload.events,
         secret=secret,
         enabled=payload.enabled,
+        max_failures=payload.max_failures,
+    )
+
+    _audit(
+        "dashboard",
+        "webhook.create",
+        f"webhook:{created['id']}",
+        {
+            "name": created["name"],
+            "url": created["url"],
+            "events": created["events"],
+        },
     )
 
     return {
@@ -979,6 +1090,11 @@ async def create_webhook_endpoint(payload: WebhookCreate):
             "url": created["url"],
             "events": created["events"],
             "enabled": created["enabled"],
+            "failure_count": created.get("failure_count", 0),
+            "max_failures": created.get("max_failures", 10),
+            "last_success_at": created.get("last_success_at"),
+            "last_error": created.get("last_error"),
+            "disabled_reason": created.get("disabled_reason"),
             "created_at": created["created_at"],
             "updated_at": created["updated_at"],
             "has_secret": bool(created.get("secret")),
@@ -1005,9 +1121,22 @@ async def update_webhook_endpoint(webhook_id: int, payload: WebhookUpdate):
         events=payload.events,
         secret=payload.secret,
         enabled=payload.enabled,
+        max_failures=payload.max_failures,
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Webhook not found")
+
+    _audit(
+        "dashboard",
+        "webhook.update",
+        f"webhook:{webhook_id}",
+        {
+            "name": updated["name"],
+            "enabled": updated["enabled"],
+            "events": updated["events"],
+            "max_failures": updated.get("max_failures", 10),
+        },
+    )
 
     return {
         "success": True,
@@ -1017,6 +1146,11 @@ async def update_webhook_endpoint(webhook_id: int, payload: WebhookUpdate):
             "url": updated["url"],
             "events": updated["events"],
             "enabled": updated["enabled"],
+            "failure_count": updated.get("failure_count", 0),
+            "max_failures": updated.get("max_failures", 10),
+            "last_success_at": updated.get("last_success_at"),
+            "last_error": updated.get("last_error"),
+            "disabled_reason": updated.get("disabled_reason"),
             "created_at": updated["created_at"],
             "updated_at": updated["updated_at"],
             "has_secret": bool(updated.get("secret")),
@@ -1029,6 +1163,7 @@ async def delete_webhook_endpoint(webhook_id: int):
     """Delete webhook endpoint."""
     if not delete_webhook(webhook_id):
         raise HTTPException(status_code=404, detail="Webhook not found")
+    _audit("dashboard", "webhook.delete", f"webhook:{webhook_id}", {})
     return {"success": True}
 
 
@@ -1040,6 +1175,44 @@ async def test_webhook_endpoint(webhook_id: int):
         raise HTTPException(status_code=404, detail="Webhook not found")
 
     result = await send_test_webhook(webhook_id)
+    _audit(
+        "dashboard",
+        "webhook.test",
+        f"webhook:{webhook_id}",
+        {"success": bool(result.get("success"))},
+    )
+    return {"success": bool(result.get("success")), "result": result}
+
+
+@_api.post("/api/webhooks/{webhook_id}/rotate-secret")
+async def rotate_webhook_secret_endpoint(webhook_id: int):
+    """Rotate one webhook secret and return the new secret once."""
+    hook = get_webhook(webhook_id)
+    if not hook:
+        raise HTTPException(status_code=404, detail="Webhook not found")
+
+    secret = rotate_webhook_secret(webhook_id)
+    if not secret:
+        raise HTTPException(status_code=500, detail="Failed to rotate secret")
+
+    _audit("dashboard", "webhook.rotate_secret", f"webhook:{webhook_id}", {})
+    return {"success": True, "secret": secret}
+
+
+@_api.post("/api/webhooks/{webhook_id}/deliveries/{delivery_id}/replay")
+async def replay_webhook_delivery_endpoint(webhook_id: int, delivery_id: int):
+    """Replay one previously logged webhook delivery."""
+    hook = get_webhook(webhook_id)
+    if not hook:
+        raise HTTPException(status_code=404, detail="Webhook not found")
+
+    result = await replay_webhook_delivery(webhook_id, delivery_id)
+    _audit(
+        "dashboard",
+        "webhook.replay_delivery",
+        f"webhook:{webhook_id}",
+        {"delivery_id": delivery_id, "success": bool(result.get("success"))},
+    )
     return {"success": bool(result.get("success")), "result": result}
 
 
@@ -1052,6 +1225,199 @@ async def get_webhook_deliveries_endpoint(webhook_id: int, limit: int = Query(50
 
     deliveries = list_webhook_deliveries(webhook_id, limit=limit)
     return {"deliveries": deliveries, "count": len(deliveries)}
+
+
+@_api.get("/api/incoming-webhook-keys")
+async def list_incoming_webhook_keys_endpoint():
+    """List incoming webhook keys (metadata only)."""
+    keys = list_incoming_webhook_keys()
+    return {"keys": keys, "count": len(keys)}
+
+
+@_api.post("/api/incoming-webhook-keys")
+async def create_incoming_webhook_key_endpoint(payload: IncomingWebhookKeyCreate):
+    """Create incoming webhook key and return token once."""
+    created = create_incoming_webhook_key(
+        name=payload.name,
+        allowed_actions=payload.allowed_actions,
+        rate_limit_per_minute=payload.rate_limit_per_minute,
+        enabled=payload.enabled,
+    )
+    _audit(
+        "dashboard",
+        "incoming_key.create",
+        f"incoming_key:{created['id']}",
+        {
+            "name": created["name"],
+            "allowed_actions": created["allowed_actions"],
+            "rate_limit_per_minute": created["rate_limit_per_minute"],
+        },
+    )
+    return {"success": True, "key": created}
+
+
+@_api.put("/api/incoming-webhook-keys/{key_id}")
+async def update_incoming_webhook_key_endpoint(key_id: int, payload: IncomingWebhookKeyUpdate):
+    """Update incoming webhook key metadata."""
+    updated = update_incoming_webhook_key(
+        key_id,
+        name=payload.name,
+        allowed_actions=payload.allowed_actions,
+        rate_limit_per_minute=payload.rate_limit_per_minute,
+        enabled=payload.enabled,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Incoming webhook key not found")
+
+    _audit(
+        "dashboard",
+        "incoming_key.update",
+        f"incoming_key:{key_id}",
+        {
+            "name": updated["name"],
+            "allowed_actions": updated["allowed_actions"],
+            "enabled": updated["enabled"],
+        },
+    )
+    return {"success": True, "key": updated}
+
+
+@_api.post("/api/incoming-webhook-keys/{key_id}/rotate")
+async def rotate_incoming_webhook_key_endpoint(key_id: int):
+    """Rotate incoming webhook key token and return new value once."""
+    token = rotate_incoming_webhook_key(key_id)
+    if not token:
+        raise HTTPException(status_code=404, detail="Incoming webhook key not found")
+
+    _audit("dashboard", "incoming_key.rotate", f"incoming_key:{key_id}", {})
+    return {"success": True, "token": token}
+
+
+@_api.delete("/api/incoming-webhook-keys/{key_id}")
+async def delete_incoming_webhook_key_endpoint(key_id: int):
+    """Delete incoming webhook key."""
+    if not delete_incoming_webhook_key(key_id):
+        raise HTTPException(status_code=404, detail="Incoming webhook key not found")
+
+    _audit("dashboard", "incoming_key.delete", f"incoming_key:{key_id}", {})
+    return {"success": True}
+
+
+@app.post("/api/incoming-webhook/{token}")
+async def incoming_webhook_endpoint(token: str, request: Request):
+    """Receive signed incoming webhook requests and execute allowed actions."""
+    key_meta = resolve_incoming_webhook_key(token)
+    if not key_meta or not key_meta.get("enabled"):
+        raise HTTPException(status_code=401, detail="Invalid incoming webhook key")
+
+    ts_header = request.headers.get("X-ZeroIchi-Incoming-Timestamp", "")
+    sig_header = request.headers.get("X-ZeroIchi-Incoming-Signature", "")
+    idem_header = request.headers.get("X-ZeroIchi-Incoming-Idempotency-Key", "").strip()
+    raw_body = await request.body()
+    if not _verify_incoming_signature(token, ts_header, sig_header, raw_body):
+        raise HTTPException(status_code=401, detail="Invalid signature")
+
+    if not idem_header:
+        raise HTTPException(status_code=400, detail="Missing X-ZeroIchi-Incoming-Idempotency-Key")
+
+    if not _consume_incoming_rate_limit(
+        int(key_meta["id"]), int(key_meta.get("rate_limit_per_minute", 30))
+    ):
+        raise HTTPException(status_code=429, detail="Incoming webhook rate limit exceeded")
+
+    if not claim_incoming_idempotency(int(key_meta["id"]), idem_header):
+        raise HTTPException(status_code=409, detail="Duplicate idempotency key")
+
+    try:
+        payload = json.loads(raw_body.decode("utf-8"))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload") from exc
+
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Payload must be a JSON object")
+
+    action = str(payload.get("action", "")).strip()
+    data = payload.get("data", {})
+    if not action:
+        raise HTTPException(status_code=400, detail="Missing action")
+    if not isinstance(data, dict):
+        raise HTTPException(status_code=400, detail="data must be an object")
+
+    allowed_actions = key_meta.get("allowed_actions", [])
+    if not isinstance(allowed_actions, list):
+        allowed_actions = []
+    if action not in allowed_actions:
+        raise HTTPException(status_code=403, detail=f"Action '{action}' not allowed")
+
+    if action == "send_message":
+        to = str(data.get("to", "")).strip()
+        text_value = str(data.get("text", "")).strip()
+        if not to or not text_value:
+            raise HTTPException(status_code=400, detail="send_message requires 'to' and 'text'")
+
+        bot = get_bot()
+        if not await check_bot_logged_in(bot) or bot is None:
+            raise HTTPException(status_code=503, detail="Bot not connected")
+        await bot.send(to, text_value)
+        result = {"success": True, "action": action, "sent_to": to}
+
+    elif action == "emit_event":
+        event_type = str(data.get("event_type", "")).strip()
+        event_data = data.get("event_data", {})
+        if not event_type:
+            raise HTTPException(status_code=400, detail="emit_event requires 'event_type'")
+        if not isinstance(event_data, dict):
+            raise HTTPException(status_code=400, detail="event_data must be an object")
+        await event_bus.emit(event_type, event_data)
+        result = {"success": True, "action": action, "event_type": event_type}
+
+    else:
+        raise HTTPException(status_code=400, detail=f"Unsupported action '{action}'")
+
+    touch_incoming_webhook_key(int(key_meta["id"]))
+    _audit(
+        f"incoming_key:{key_meta['id']}",
+        "incoming_webhook.execute",
+        action,
+        {"payload_keys": list(data.keys())[:10]},
+    )
+    return result
+
+
+@app.get("/healthz")
+async def healthz():
+    """Public lightweight liveness endpoint."""
+    return {"status": "ok"}
+
+
+@_api.get("/api/health")
+async def api_health():
+    """Detailed health endpoint for operators."""
+    db_ok = True
+    db_error = ""
+    try:
+        ensure_database_ready()
+    except Exception as exc:
+        db_ok = False
+        db_error = str(exc)
+
+    webhook_status = webhook_dispatcher_status()
+    return {
+        "status": "ok" if db_ok else "degraded",
+        "database": {
+            "ok": db_ok,
+            "url": get_database_url(),
+            "error": db_error or None,
+        },
+        "webhooks": webhook_status,
+    }
+
+
+@_api.get("/api/audit-logs")
+async def get_audit_logs(limit: int = Query(100, ge=1, le=500), action: str = Query("")):
+    """List audit log entries."""
+    rows = list_audit_logs(limit=limit, action=action)
+    return {"logs": rows, "count": len(rows)}
 
 
 @_api.get("/api/groups/{group_id}/welcome")
@@ -1750,6 +2116,7 @@ async def update_ai_config(config: AIConfigUpdate):
     await event_bus.emit(
         "config_update", {"section": "agentic_ai", "key": "all", "value": config.dict()}
     )
+    _audit("dashboard", "ai_config.update", "agentic_ai", config.dict())
     return {"success": True}
 
 

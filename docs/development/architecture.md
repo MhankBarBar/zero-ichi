@@ -158,6 +158,15 @@ Other runtime modules (`scheduler`, `analytics`, `token_tracker`, `afk`, `i18n` 
 - HMAC signature headers
 - retry/backoff on failures
 - delivery logs stored in DB (`webhook_deliveries`)
+- auto-disable after configurable failure threshold
+
+Incoming webhooks are exposed via dashboard API endpoint `POST /api/incoming-webhook/{token}` with:
+
+- HMAC signature validation
+- per-key allowed actions
+- per-key rate limits
+
+Audit entries for sensitive operations are stored in `audit_logs` and surfaced in dashboard.
 
 ### JID Resolver
 

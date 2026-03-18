@@ -86,6 +86,45 @@ class PermissionResult:
         return self.allowed
 
 
+_ROLE_RANK = {
+    "member": 0,
+    "admin": 1,
+    "owner": 2,
+}
+
+
+def _base_required_role(cmd: Command) -> str:
+    """Get intrinsic role requirement from command flags."""
+    if cmd.owner_only:
+        return "owner"
+    if cmd.admin_only:
+        return "admin"
+    return "member"
+
+
+def _normalize_role(role: str | None) -> str | None:
+    """Normalize a role string to member/admin/owner."""
+    if not role:
+        return None
+    value = str(role).strip().lower()
+    if value in _ROLE_RANK:
+        return value
+    return None
+
+
+def _resolve_required_role(cmd: Command, chat_jid: str) -> str:
+    """Resolve effective required role using overrides."""
+    intrinsic = _base_required_role(cmd)
+    override = _normalize_role(runtime_config.get_command_role_override(cmd.name, chat_jid))
+    if override is None:
+        return intrinsic
+
+    # Never allow overriding an intrinsic owner-only command to lower role.
+    if intrinsic == "owner" and override != "owner":
+        return "owner"
+    return override
+
+
 async def check_command_permissions(
     cmd: Command, msg: MessageHelper, bot: BotClient
 ) -> PermissionResult:
@@ -108,14 +147,30 @@ async def check_command_permissions(
             return PermissionResult(False, t_error("errors.private_only"))
         return PermissionResult(False, None)
 
-    if cmd.owner_only:
-        is_owner = await runtime_config.is_owner_async(msg.sender_jid, bot)
-        if not is_owner:
-            return PermissionResult(False, None)
+    chat_jid = getattr(msg, "chat_jid", "")
+    required_role = _resolve_required_role(cmd, chat_jid)
 
-    if cmd.admin_only and msg.is_group:
-        if not await check_admin_permission(bot, msg.chat_jid, msg.sender_jid):
+    owner = runtime_config.get_owner_jid().strip()
+    if required_role == "owner" and not owner:
+        if await _allow_owner_bootstrap(cmd, msg):
+            return PermissionResult(True)
+        return PermissionResult(False, t_error("errors.owner_only"))
+
+    is_owner = False
+    if owner:
+        is_owner = await runtime_config.is_owner_async(msg.sender_jid, bot)
+
+    is_admin = False
+    if msg.is_group and not is_owner:
+        is_admin = await check_admin_permission(bot, msg.chat_jid, msg.sender_jid)
+
+    current_role = "owner" if is_owner else "admin" if is_admin else "member"
+    if _ROLE_RANK[current_role] < _ROLE_RANK[required_role]:
+        if required_role == "owner":
+            return PermissionResult(False, t_error("errors.owner_only"))
+        if required_role == "admin":
             return PermissionResult(False, t_error("errors.admin_required"))
+        return PermissionResult(False, None)
 
     if cmd.bot_admin_required and msg.is_group:
         if not await check_bot_admin(bot, msg.chat_jid):
@@ -134,3 +189,39 @@ async def is_owner_for_bypass(msg: MessageHelper, bot: BotClient) -> bool:
     This uses the JID resolver for accurate PN/LID comparison.
     """
     return await runtime_config.is_owner_async(msg.sender_jid, bot)
+
+
+async def _allow_owner_bootstrap(cmd: Command, msg: MessageHelper) -> bool:
+    """Allow limited owner bootstrap commands when owner_jid is not configured."""
+    if msg.is_group:
+        return False
+
+    text = (msg.text or "").strip().lower()
+    if not text:
+        return False
+
+    parts = text.split()
+    if len(parts) < 2:
+        return False
+
+    command_name = cmd.name.lower()
+    # /config owner me|set <jid>
+    if command_name == "config":
+        if len(parts) >= 3 and parts[1] == "owner":
+            if parts[2] == "me":
+                return True
+            if parts[2] == "set" and len(parts) >= 4:
+                return True
+        return False
+
+    # /setup status|start|owner me|set <jid>
+    if command_name == "setup":
+        if parts[1] in {"status", "start"}:
+            return True
+        if len(parts) >= 3 and parts[1] == "owner":
+            if parts[2] == "me":
+                return True
+            if parts[2] == "set" and len(parts) >= 4:
+                return True
+
+    return False

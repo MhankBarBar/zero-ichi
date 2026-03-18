@@ -98,6 +98,7 @@ irm https://raw.githubusercontent.com/MhankBarBar/zero-ichi/master/install.ps1 |
 <p>Then start the bot:</p>
 
 ```bash
+uv run zero-ichi setup
 uv run zero-ichi
 # with args:
 uv run zero-ichi --debug --dashboard

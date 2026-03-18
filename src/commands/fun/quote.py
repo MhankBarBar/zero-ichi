@@ -1,13 +1,16 @@
 """
-Quote command - Get an inspirational quote.
+Quote command - Get an inspirational quote with live API fetch + static fallback.
 """
 
 import random
 
+import httpx
+
 from core import symbols as sym
 from core.command import Command, CommandContext
+from core.i18n import t
 
-QUOTES = [
+_FALLBACK_QUOTES = [
     ("The only way to do great work is to love what you do.", "Steve Jobs"),
     ("Innovation distinguishes between a leader and a follower.", "Steve Jobs"),
     ("Stay hungry, stay foolish.", "Steve Jobs"),
@@ -42,6 +45,28 @@ QUOTES = [
     ),
 ]
 
+_QUOTE_API = "https://api.quotable.io/quotes/random"
+
+
+async def _fetch_live_quote() -> tuple[str, str] | None:
+    """Fetch a quote from Quotable API. Returns (content, author) or None."""
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            resp = await client.get(_QUOTE_API)
+            resp.raise_for_status()
+            data = resp.json()
+            if isinstance(data, list) and data:
+                entry = data[0]
+            else:
+                entry = data
+            content = entry.get("content", "").strip()
+            author = entry.get("author", "").strip()
+            if content and author:
+                return content, author
+    except Exception:
+        pass
+    return None
+
 
 class QuoteCommand(Command):
     name = "quote"
@@ -51,7 +76,13 @@ class QuoteCommand(Command):
     category = "fun"
 
     async def execute(self, ctx: CommandContext) -> None:
-        """Send a random inspirational quote."""
-        quote, author = random.choice(QUOTES)
+        """Send a random inspirational quote (live API with static fallback)."""
+        result = await _fetch_live_quote()
+        if result is None:
+            result = random.choice(_FALLBACK_QUOTES)
 
-        await ctx.client.reply(ctx.message, f"{sym.QUOTE} _{quote}_\n\n{sym.DIAMOND} *{author}*")
+        quote, author = result
+        await ctx.client.reply(
+            ctx.message,
+            f"{sym.QUOTE} *{t('quote.title')}*\n\n_{quote}_\n\n{sym.DIAMOND} *{author}*",
+        )

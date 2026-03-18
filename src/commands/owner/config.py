@@ -2,10 +2,15 @@
 Owner config command - Manage bot configuration at runtime.
 """
 
+from __future__ import annotations
+
+from copy import deepcopy
+from typing import Any
+
 from core import symbols as sym
 from core.command import Command, CommandContext, command_loader
 from core.i18n import t, t_error, t_info, t_success
-from core.runtime_config import runtime_config
+from core.runtime_config import DEFAULT_CONFIG, runtime_config
 
 
 class ConfigCommand(Command):
@@ -40,6 +45,14 @@ class ConfigCommand(Command):
             await self._handle_command(ctx, args[1:])
         elif action == "all":
             await self._show_all(ctx)
+        elif action == "diff":
+            await self._show_diff(ctx)
+        elif action == "validate":
+            await self._validate_config(ctx)
+        elif action == "history":
+            await self._show_history(ctx, args[1:])
+        elif action == "rollback":
+            await self._rollback(ctx, args[1:])
         elif action in ("autoread", "ar"):
             await self._handle_autoread(ctx, args[1:])
         elif action in ("autoreact", "react"):
@@ -67,7 +80,11 @@ class ConfigCommand(Command):
 - `{p}config selfmode [on/off]` - {t("config.selfmode_desc")}
 - `{p}config ai [on/off/key/mode]` - {t("config.ai_desc")}
 - `{p}config owner` - {t("config.show_owner")}
-- `{p}config all` - {t("config.show_all")}"""
+- `{p}config all` - {t("config.show_all")}
+- `{p}config diff` - {t("config.show_diff")}
+- `{p}config validate` - {t("config.validate_desc")}
+- `{p}config history [limit]` - {t("config.history_desc")}
+- `{p}config rollback <id>` - {t("config.rollback_desc")}"""
 
         await ctx.client.reply(ctx.message, help_text)
 
@@ -103,7 +120,11 @@ class ConfigCommand(Command):
 
         current = all_features[feature_name]
         new_value = not current
-        runtime_config.set_feature(feature_name, new_value)
+        if not await self._apply_change(
+            ctx,
+            lambda: runtime_config.set_feature(feature_name, new_value),
+        ):
+            return
 
         status = (
             f"{sym.ON} {t('common.enabled')}" if new_value else f"{sym.OFF} {t('common.disabled')}"
@@ -124,7 +145,13 @@ class ConfigCommand(Command):
             await self._list_commands(ctx)
         elif action == "enable" and len(args) >= 2:
             cmd_name = args[1].lower()
-            if runtime_config.enable_command(cmd_name):
+            changed = await self._apply_change(
+                ctx,
+                lambda: runtime_config.enable_command(cmd_name),
+            )
+            if changed is None:
+                return
+            if changed:
                 await ctx.client.reply(ctx.message, t_success("config.cmd_enabled", name=cmd_name))
             else:
                 await ctx.client.reply(
@@ -135,7 +162,13 @@ class ConfigCommand(Command):
             if cmd_name in ["config", "cfg", "settings"]:
                 await ctx.client.reply(ctx.message, t_error("config.cannot_disable_config"))
                 return
-            if runtime_config.disable_command(cmd_name):
+            changed = await self._apply_change(
+                ctx,
+                lambda: runtime_config.disable_command(cmd_name),
+            )
+            if changed is None:
+                return
+            if changed:
                 await ctx.client.reply(ctx.message, t_success("config.cmd_disabled", name=cmd_name))
             else:
                 await ctx.client.reply(
@@ -173,13 +206,16 @@ class ConfigCommand(Command):
             await ctx.client.reply(ctx.message, t_error("config.get_usage"))
             return
 
-        key = args[0]
-        value = runtime_config.get(key)
+        key_name = args[0]
+        value = runtime_config.get(key_name)
 
         if value is None:
-            await ctx.client.reply(ctx.message, t_error("config.key_not_found", key=key))
+            await ctx.client.reply(
+                ctx.message,
+                t_error("config.key_not_found", **{"key": key_name}),
+            )
         else:
-            await ctx.client.reply(ctx.message, f"*{key}*: `{value}`")
+            await ctx.client.reply(ctx.message, f"*{key_name}*: `{value}`")
 
     async def _handle_set(self, ctx: CommandContext, args: list[str]) -> None:
         """Set a config value."""
@@ -187,7 +223,7 @@ class ConfigCommand(Command):
             await ctx.client.reply(ctx.message, t_error("config.set_usage"))
             return
 
-        key = args[0]
+        key_name = args[0]
         value_str = " ".join(args[1:])
 
         if value_str.lower() == "true":
@@ -199,8 +235,12 @@ class ConfigCommand(Command):
         else:
             value = value_str
 
-        runtime_config.set(key, value)
-        await ctx.client.reply(ctx.message, t_success("config.value_set", key=key, value=value))
+        if not await self._apply_change(ctx, lambda: runtime_config.set(key_name, value)):
+            return
+        await ctx.client.reply(
+            ctx.message,
+            t_success("config.value_set", value=value, **{"key": key_name}),
+        )
 
     async def _handle_owner(self, ctx: CommandContext, args: list[str]) -> None:
         """Handle owner subcommand."""
@@ -214,10 +254,15 @@ class ConfigCommand(Command):
 
         if args[0].lower() == "set" and len(args) >= 2:
             new_owner = args[1]
-            runtime_config.set_owner_jid(new_owner)
+            if not await self._apply_change(ctx, lambda: runtime_config.set_owner_jid(new_owner)):
+                return
             await ctx.client.reply(ctx.message, t_success("config.owner_set", owner=new_owner))
         elif args[0].lower() == "me":
-            runtime_config.set_owner_jid(ctx.message.sender_jid)
+            if not await self._apply_change(
+                ctx,
+                lambda: runtime_config.set_owner_jid(ctx.message.sender_jid),
+            ):
+                return
             await ctx.client.reply(ctx.message, t_success("config.owner_is_you"))
         else:
             await ctx.client.reply(ctx.message, t_error("config.owner_usage"))
@@ -245,6 +290,165 @@ class ConfigCommand(Command):
 
         await ctx.client.reply(ctx.message, "\n".join(lines))
 
+    async def _show_diff(self, ctx: CommandContext) -> None:
+        """Show diff between runtime config and defaults."""
+        current = deepcopy(runtime_config.all_config())
+        current.pop("$schema", None)
+        defaults = deepcopy(DEFAULT_CONFIG)
+
+        diffs = self._collect_diff(defaults, current)
+        if not diffs:
+            await ctx.client.reply(ctx.message, t_info("config.diff_no_changes"))
+            return
+
+        lines = [f"*{t('config.diff_title')}*", ""]
+        for item in diffs[:50]:
+            kind = item["kind"]
+            path = item["path"]
+            if kind == "changed":
+                lines.append(
+                    f"{sym.BULLET} `~ {path}`: `{self._fmt(item['default'])}` {sym.ARROW} `{self._fmt(item['current'])}`"
+                )
+            elif kind == "custom":
+                lines.append(f"{sym.BULLET} `+ {path}`: `{self._fmt(item['current'])}`")
+            elif kind == "missing":
+                lines.append(f"{sym.BULLET} `- {path}`: `{self._fmt(item['default'])}`")
+
+        if len(diffs) > 50:
+            lines.append(t("config.diff_truncated", count=str(len(diffs) - 50)))
+
+        await ctx.client.reply(ctx.message, "\n".join(lines))
+
+    async def _validate_config(self, ctx: CommandContext) -> None:
+        """Validate current runtime config against schema."""
+        ok, details = runtime_config.validate_current()
+        if ok:
+            await ctx.client.reply(ctx.message, t_success("config.validate_ok"))
+            return
+        await ctx.client.reply(ctx.message, t_error("config.validate_failed", details=details))
+
+    async def _show_history(self, ctx: CommandContext, args: list[str] | None = None) -> None:
+        """Show recent config history entries."""
+        limit = 10
+        if args:
+            raw = str(args[0]).strip()
+            if raw.isdigit():
+                limit = max(1, min(50, int(raw)))
+
+        entries = runtime_config.list_config_history(limit=limit)
+        if not entries:
+            await ctx.client.reply(ctx.message, t_info("config.history_empty"))
+            return
+
+        lines = [f"*{t('config.history_title')}*", ""]
+        for item in entries:
+            lines.append(
+                t(
+                    "config.history_item",
+                    id=item.get("id", ""),
+                    ts=item.get("ts", ""),
+                    reason=item.get("reason", "update"),
+                )
+            )
+
+        lines.append("")
+        lines.append(t("config.rollback_hint", prefix=ctx.prefix))
+        await ctx.client.reply(ctx.message, "\n".join(lines))
+
+    async def _rollback(self, ctx: CommandContext, args: list[str]) -> None:
+        """Rollback config to a snapshot id."""
+        if not args:
+            await ctx.client.reply(ctx.message, t_error("config.rollback_usage", prefix=ctx.prefix))
+            return
+
+        snapshot_id = args[0].strip().upper()
+        if not snapshot_id:
+            await ctx.client.reply(ctx.message, t_error("config.rollback_usage", prefix=ctx.prefix))
+            return
+
+        rolled_back = runtime_config.rollback_config(snapshot_id)
+        if not rolled_back:
+            await ctx.client.reply(
+                ctx.message, t_error("config.rollback_not_found", id=snapshot_id)
+            )
+            return
+
+        await ctx.client.reply(
+            ctx.message,
+            t_success(
+                "config.rollback_done",
+                id=rolled_back.get("id", snapshot_id),
+                ts=rolled_back.get("ts", ""),
+            ),
+        )
+
+    def _collect_diff(
+        self,
+        defaults: dict[str, Any],
+        current: dict[str, Any],
+        parent: str = "",
+    ) -> list[dict[str, Any]]:
+        """Collect nested config differences."""
+        diffs: list[dict[str, Any]] = []
+        keys = sorted(set(defaults.keys()) | set(current.keys()))
+
+        for key in keys:
+            path = f"{parent}.{key}" if parent else key
+            in_defaults = key in defaults
+            in_current = key in current
+
+            if not in_defaults:
+                diffs.append(
+                    {"kind": "custom", "path": path, "default": None, "current": current[key]}
+                )
+                continue
+
+            if not in_current:
+                diffs.append(
+                    {"kind": "missing", "path": path, "default": defaults[key], "current": None}
+                )
+                continue
+
+            default_val = defaults[key]
+            current_val = current[key]
+            if isinstance(default_val, dict) and isinstance(current_val, dict):
+                diffs.extend(self._collect_diff(default_val, current_val, path))
+                continue
+
+            if default_val != current_val:
+                diffs.append(
+                    {
+                        "kind": "changed",
+                        "path": path,
+                        "default": default_val,
+                        "current": current_val,
+                    }
+                )
+
+        return diffs
+
+    def _fmt(self, value: Any) -> str:
+        """Format diff values for compact output."""
+        text = str(value)
+        return text if len(text) <= 80 else text[:77] + "..."
+
+    async def _apply_change(self, ctx: CommandContext, operation) -> Any:
+        """Run preflight validation then apply a config mutation safely."""
+        ok, details = runtime_config.validate_current()
+        if not ok:
+            await ctx.client.reply(ctx.message, t_error("config.preflight_failed", details=details))
+            return None
+
+        try:
+            result = operation()
+            return True if result is None else result
+        except ValueError as e:
+            await ctx.client.reply(ctx.message, t_error("config.validation_failed", details=str(e)))
+            return None
+        except Exception as e:
+            await ctx.client.reply(ctx.message, t_error("config.update_failed", error=str(e)))
+            return None
+
     async def _handle_autoread(self, ctx: CommandContext, args: list[str]) -> None:
         """Handle auto-read configuration."""
         current = runtime_config.get_nested("bot", "auto_read", default=False)
@@ -257,10 +461,17 @@ class ConfigCommand(Command):
         action = args[0].lower()
 
         if action in ("on", "enable", "1", "true"):
-            runtime_config.set_nested("bot", "auto_read", True)
+            if not await self._apply_change(
+                ctx, lambda: runtime_config.set_nested("bot", "auto_read", True)
+            ):
+                return
             await ctx.client.reply(ctx.message, t_success("config.autoread_enabled"))
         elif action in ("off", "disable", "0", "false"):
-            runtime_config.set_nested("bot", "auto_read", False)
+            if not await self._apply_change(
+                ctx,
+                lambda: runtime_config.set_nested("bot", "auto_read", False),
+            ):
+                return
             await ctx.client.reply(ctx.message, t_success("config.autoread_disabled"))
         else:
             await ctx.client.reply(ctx.message, t_error("config.autoread_usage"))
@@ -281,12 +492,22 @@ class ConfigCommand(Command):
         action = args[0]
 
         if action.lower() in ("off", "disable", "0", "false"):
-            runtime_config.set_nested("bot", "auto_react", False)
+            if not await self._apply_change(
+                ctx,
+                lambda: runtime_config.set_nested("bot", "auto_react", False),
+            ):
+                return
             await ctx.client.reply(ctx.message, t_success("config.autoreact_disabled"))
         else:
             emoji = action
-            runtime_config.set_nested("bot", "auto_react_emoji", emoji)
-            runtime_config.set_nested("bot", "auto_react", True)
+            if not await self._apply_change(
+                ctx,
+                lambda: (
+                    runtime_config.set_nested("bot", "auto_react_emoji", emoji),
+                    runtime_config.set_nested("bot", "auto_react", True),
+                ),
+            ):
+                return
             await ctx.client.reply(ctx.message, t_success("config.autoreact_enabled", emoji=emoji))
 
     async def _handle_selfmode(self, ctx: CommandContext, args: list[str]) -> None:
@@ -301,10 +522,12 @@ class ConfigCommand(Command):
         action = args[0].lower()
 
         if action in ("on", "enable", "1", "true"):
-            runtime_config.set_self_mode(True)
+            if not await self._apply_change(ctx, lambda: runtime_config.set_self_mode(True)):
+                return
             await ctx.client.reply(ctx.message, t_success("config.selfmode_enabled"))
         elif action in ("off", "disable", "0", "false"):
-            runtime_config.set_self_mode(False)
+            if not await self._apply_change(ctx, lambda: runtime_config.set_self_mode(False)):
+                return
             await ctx.client.reply(ctx.message, t_success("config.selfmode_disabled"))
         else:
             await ctx.client.reply(ctx.message, t_error("config.selfmode_usage"))
@@ -342,24 +565,28 @@ class ConfigCommand(Command):
             if not agentic_ai.api_key:
                 await ctx.client.reply(ctx.message, t_error("config.ai_no_key"))
                 return
-            agentic_ai.set_enabled(True)
+            if not await self._apply_change(ctx, lambda: agentic_ai.set_enabled(True)):
+                return
             await ctx.client.reply(
                 ctx.message, t_success("config.ai_enabled", mode=agentic_ai.trigger_mode)
             )
 
         elif action in ("off", "disable", "0", "false"):
-            agentic_ai.set_enabled(False)
+            if not await self._apply_change(ctx, lambda: agentic_ai.set_enabled(False)):
+                return
             await ctx.client.reply(ctx.message, t_success("config.ai_disabled"))
 
         elif action == "key" and len(args) >= 2:
             key = args[1]
-            agentic_ai.set_api_key(key)
+            if not await self._apply_change(ctx, lambda: agentic_ai.set_api_key(key)):
+                return
             await ctx.client.reply(ctx.message, t_success("config.ai_key_updated"))
 
         elif action == "mode" and len(args) >= 2:
             mode = args[1].lower()
             if mode in ("always", "mention", "reply"):
-                agentic_ai.set_trigger_mode(mode)
+                if not await self._apply_change(ctx, lambda: agentic_ai.set_trigger_mode(mode)):
+                    return
                 await ctx.client.reply(ctx.message, t_success("config.ai_mode_set", mode=mode))
             else:
                 await ctx.client.reply(ctx.message, t_error("config.ai_invalid_mode"))

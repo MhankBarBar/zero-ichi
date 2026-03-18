@@ -39,6 +39,23 @@ def save_rules(group_jid: str, rules: list[dict[str, Any]]) -> None:
     GroupData(group_jid).save_automations(rules)
 
 
+def get_automation_runtime(group_jid: str) -> dict[str, Any]:
+    """Get per-group automation runtime settings."""
+    data = GroupData(group_jid).load("automation_runtime", {"dry_run": False})
+    if not isinstance(data, dict):
+        data = {"dry_run": False}
+    data.setdefault("dry_run", False)
+    data["dry_run"] = bool(data.get("dry_run", False))
+    return data
+
+
+def set_automation_dry_run(group_jid: str, enabled: bool) -> None:
+    """Set per-group automation dry-run mode."""
+    runtime = get_automation_runtime(group_jid)
+    runtime["dry_run"] = bool(enabled)
+    GroupData(group_jid).save("automation_runtime", runtime)
+
+
 def next_rule_id(rules: list[dict[str, Any]]) -> str:
     """Generate next rule id like A001."""
     max_idx = 0
@@ -49,16 +66,29 @@ def next_rule_id(rules: list[dict[str, Any]]) -> str:
     return f"A{max_idx + 1:03d}"
 
 
-def rule_matches(rule: dict[str, Any], text: str) -> bool:
-    """Evaluate if a rule matches text."""
+def rule_matches(rule: dict[str, Any], text: str, media_type: str | None = None) -> bool:
+    """Evaluate if a rule matches text (or media type for media_type triggers)."""
     trigger_type = str(rule.get("trigger_type", "contains")).lower()
     trigger_value = str(rule.get("trigger_value", ""))
+
+    if trigger_type == "media_type":
+        if not trigger_value or not media_type:
+            return False
+        return media_type.lower() == trigger_value.lower()
+
     if not trigger_value and trigger_type != "link":
+        return False
+
+    if not text:
         return False
 
     lower_text = text.lower()
     if trigger_type == "contains":
         return trigger_value.lower() in lower_text
+    if trigger_type == "exact_match":
+        return lower_text.strip() == trigger_value.lower().strip()
+    if trigger_type == "starts_with":
+        return lower_text.startswith(trigger_value.lower())
     if trigger_type == "regex":
         try:
             return re.search(trigger_value, text, re.IGNORECASE) is not None

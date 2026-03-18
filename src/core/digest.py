@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from datetime import datetime, timedelta
 
+from core import symbols as sym
 from core.analytics import command_analytics
+from core.i18n import t
 from core.reports import list_reports
 from core.scheduler import get_scheduler
 from core.storage import GroupData
@@ -20,30 +23,69 @@ DAY_TO_CRON = {
 }
 
 
+def _get_top_active_users(days: int, chat_jid: str, limit: int = 5) -> tuple[list[dict], int]:
+    """Get top active users by command usage in the given time window."""
+    cutoff = (datetime.now() - timedelta(days=days)).isoformat()
+    user_counts: Counter[str] = Counter()
+    unique_users: set[str] = set()
+
+    for entries in command_analytics._data.get("commands", {}).values():
+        for entry in entries:
+            if entry.get("ts", "") < cutoff:
+                continue
+            if chat_jid and entry.get("chat") != chat_jid:
+                continue
+            user = entry.get("user", "")
+            if user:
+                user_counts[user] += 1
+                unique_users.add(user)
+
+    top = user_counts.most_common(limit)
+    return [{"user": u, "count": c} for u, c in top], len(unique_users)
+
+
 def build_digest_message(group_jid: str, period: str = "daily") -> str:
-    """Build digest text for a group."""
+    """Build rich digest text for a group using sym helpers."""
     days = 1 if period == "daily" else 7
-    top = command_analytics.get_top_commands(days=days, chat_jid=group_jid)[:5]
+    top_cmds = command_analytics.get_top_commands(days=days, chat_jid=group_jid)[:5]
     total = command_analytics.get_total_commands(days=days, chat_jid=group_jid)
     reports = list_reports(group_jid)
     open_reports = len([r for r in reports if str(r.get("status", "")).lower() == "open"])
+    top_users, unique_count = _get_top_active_users(days, group_jid)
 
-    title = "Daily Digest" if period == "daily" else "Weekly Digest"
-    lines = [f"*{title}*", ""]
-    lines.append(f"Commands used: `{total}`")
-    lines.append(f"Open reports: `{open_reports}`")
-    lines.append("")
-    lines.append("*Top commands*:")
+    period_label = t("digest.title") + " — " + ("Daily" if period == "daily" else "Weekly")
 
-    if top:
-        for item in top:
-            lines.append(f"- `/{item['command']}`: {item['count']}")
+    summary_lines = [
+        sym.status_line(t("stats.commands_used"), f"`{total}`"),
+        sym.status_line("Open reports", f"`{open_reports}`"),
+        sym.status_line("Active users", f"`{unique_count}`"),
+    ]
+
+    cmd_items = []
+    if top_cmds:
+        for i, item in enumerate(top_cmds, 1):
+            cmd_items.append(f"{i}. `/{item['command']}` {sym.ARROW} {item['count']}")
     else:
-        lines.append("- No command activity")
+        cmd_items.append("No command activity")
 
-    lines.append("")
-    lines.append(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-    return "\n".join(lines)
+    user_items = []
+    if top_users:
+        for i, entry in enumerate(top_users, 1):
+            user_items.append(f"{i}. @{entry['user']} {sym.ARROW} {entry['count']}")
+    else:
+        user_items.append("No user activity")
+
+    parts = [
+        sym.box(period_label, summary_lines),
+        "",
+        sym.section("Top Commands", cmd_items),
+        "",
+        sym.section("Top Active Users", user_items),
+        "",
+        f"{sym.TIME} {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+    ]
+
+    return "\n".join(parts)
 
 
 def _cron_for(period: str, time_str: str, day: str = "sun") -> str:
