@@ -17,6 +17,7 @@ from typing import Any
 from jsonschema import Draft7Validator
 
 from core import jsonc
+from core.id_utils import next_prefixed_id
 
 CONFIG_FILE = Path(__file__).parent.parent.parent / "config.json"
 SCHEMA_FILE = Path(__file__).parent.parent.parent / "config.schema.json"
@@ -531,12 +532,7 @@ class RuntimeConfig:
 
     def _next_history_id(self, entries: list[dict[str, Any]]) -> str:
         """Generate next history id in H0001 format."""
-        max_idx = 0
-        for item in entries:
-            hid = str(item.get("id", ""))
-            if len(hid) == 5 and hid[0].upper() == "H" and hid[1:].isdigit():
-                max_idx = max(max_idx, int(hid[1:]))
-        return f"H{max_idx + 1:04d}"
+        return next_prefixed_id(entries, prefix="H", width=4)
 
     def _record_history_snapshot(self, config: dict[str, Any], reason: str = "update") -> None:
         """Record a full config snapshot before mutation."""

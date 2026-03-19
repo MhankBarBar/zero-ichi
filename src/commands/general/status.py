@@ -9,21 +9,10 @@ from sqlalchemy import text
 from core import symbols as sym
 from core.command import Command, CommandContext, command_loader
 from core.i18n import t
+from core.presentation import format_command_card
 from core.runtime_config import runtime_config
+from core.timefmt import format_uptime
 from core.webhooks import webhook_dispatcher_status
-
-
-def _format_uptime(seconds: float) -> str:
-    days = int(seconds // 86400)
-    hours = int((seconds % 86400) // 3600)
-    minutes = int((seconds % 3600) // 60)
-    parts = []
-    if days:
-        parts.append(f"{days}d")
-    if hours:
-        parts.append(f"{hours}h")
-    parts.append(f"{minutes}m")
-    return " ".join(parts)
 
 
 class StatusCommand(Command):
@@ -37,7 +26,7 @@ class StatusCommand(Command):
         from commands.general.uptime import _start_time
         from core.db import get_engine
 
-        uptime = _format_uptime(time.time() - _start_time)
+        uptime = format_uptime(time.time() - _start_time)
 
         db_ok = False
         try:
@@ -55,20 +44,22 @@ class StatusCommand(Command):
         rate_limit_enabled = runtime_config.get_nested("rate_limit", "enabled", default=True)
 
         lines = [
-            sym.status_line(t("status.uptime"), uptime),
-            sym.status_line(t("status.db"), t("common.on") if db_ok else t("common.off")),
-            sym.status_line(
-                t("status.webhook_worker"),
-                t("common.on") if webhook.get("running") else t("common.off"),
-            ),
-            sym.status_line(t("status.webhook_queue"), str(webhook.get("queue_size", 0))),
-            sym.status_line(t("status.ai"), t("common.on") if ai_enabled else t("common.off")),
-            sym.status_line(t("status.ai_model"), f"{ai_provider}:{ai_model}"),
-            sym.status_line(
-                t("status.rate_limit"),
-                t("common.on") if rate_limit_enabled else t("common.off"),
-            ),
-            sym.status_line(t("status.commands"), str(len(command_loader.enabled_commands))),
+            f"{sym.BULLET} *{t('status.uptime')}:* {uptime}",
+            f"{sym.BULLET} *{t('status.db')}:* {t('common.on') if db_ok else t('common.off')}",
+            f"{sym.BULLET} *{t('status.webhook_worker')}:* {t('common.on') if webhook.get('running') else t('common.off')}",
+            f"{sym.BULLET} *{t('status.webhook_queue')}:* {webhook.get('queue_size', 0)}",
+            f"{sym.BULLET} *{t('status.ai')}:* {t('common.on') if ai_enabled else t('common.off')}",
+            f"{sym.BULLET} *{t('status.ai_model')}:* {ai_provider}:{ai_model}",
+            f"{sym.BULLET} *{t('status.rate_limit')}:* {t('common.on') if rate_limit_enabled else t('common.off')}",
+            f"{sym.BULLET} *{t('status.commands')}:* {len(command_loader.enabled_commands)}",
         ]
 
-        await ctx.client.reply(ctx.message, sym.box(t("status.title"), lines))
+        header = format_command_card(
+            ctx.prefix,
+            self.name,
+            self.description,
+            self.get_usage(ctx.prefix),
+            aliases=self.aliases,
+            category=self.category,
+        )
+        await ctx.client.reply(ctx.message, header + "\n\n" + "\n".join(lines))

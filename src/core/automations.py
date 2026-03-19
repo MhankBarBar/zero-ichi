@@ -7,10 +7,21 @@ from typing import Any
 
 from core.event_bus import event_bus
 from core.i18n import t
+from core.id_utils import next_prefixed_id
 from core.moderation import execute_moderation_action
 from core.storage import GroupData
+from core.url_patterns import URL_PATTERN
 
-URL_PATTERN = re.compile(r'https?://[^\s<>"{}|\\^`\[\]]+', re.IGNORECASE)
+TRIGGER_TYPES = {
+    "contains",
+    "starts_with",
+    "exact_match",
+    "regex",
+    "link",
+    "media_type",
+}
+ACTION_TYPES = {"reply", "warn", "delete", "kick", "mute"}
+ACTION_ALIASES = {"ban": "kick"}
 
 
 def load_rules(group_jid: str) -> list[dict[str, Any]]:
@@ -58,12 +69,23 @@ def set_automation_dry_run(group_jid: str, enabled: bool) -> None:
 
 def next_rule_id(rules: list[dict[str, Any]]) -> str:
     """Generate next rule id like A001."""
-    max_idx = 0
-    for rule in rules:
-        rid = str(rule.get("id", ""))
-        if len(rid) == 4 and rid[0].upper() == "A" and rid[1:].isdigit():
-            max_idx = max(max_idx, int(rid[1:]))
-    return f"A{max_idx + 1:03d}"
+    return next_prefixed_id(rules, prefix="A", width=3)
+
+
+def is_valid_trigger(trigger_type: str) -> bool:
+    """Check if trigger type is supported."""
+    return str(trigger_type).lower() in TRIGGER_TYPES
+
+
+def normalize_action(action_type: str) -> str:
+    """Normalize action aliases into canonical action type."""
+    raw = str(action_type).lower().strip()
+    return ACTION_ALIASES.get(raw, raw)
+
+
+def is_valid_action(action_type: str) -> bool:
+    """Check if action type is supported (including aliases)."""
+    return normalize_action(action_type) in ACTION_TYPES
 
 
 def rule_matches(rule: dict[str, Any], text: str, media_type: str | None = None) -> bool:
@@ -101,14 +123,13 @@ def rule_matches(rule: dict[str, Any], text: str, media_type: str | None = None)
 
 async def execute_rule(rule: dict[str, Any], bot, msg) -> bool:
     """Execute one automation rule. Returns True if an action was executed."""
-    action_type = str(rule.get("action_type", "reply")).lower()
+    action_type = normalize_action(str(rule.get("action_type", "reply")).lower())
     action_value = str(rule.get("action_value", "")).strip()
 
     if action_type == "reply":
         await bot.reply(msg, action_value or t("automation.default_reply"))
-    elif action_type in {"warn", "delete", "kick", "ban"}:
-        normalized = "kick" if action_type == "ban" else action_type
-        await execute_moderation_action(bot, msg, normalized, "automation")
+    elif action_type in {"warn", "delete", "kick"}:
+        await execute_moderation_action(bot, msg, action_type, "automation")
     elif action_type == "mute":
         data = GroupData(msg.chat_jid)
         muted = data.muted

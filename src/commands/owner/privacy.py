@@ -6,7 +6,9 @@ from ai.memory import clear_memory
 from core import symbols as sym
 from core.analytics import command_analytics
 from core.command import Command, CommandContext
+from core.config_ops import apply_config_operation
 from core.i18n import t, t_error, t_info, t_success
+from core.presentation import format_command_card
 from core.privacy import (
     clear_chat_memory_override,
     get_ai_memory_ttl_hours,
@@ -24,10 +26,13 @@ class PrivacyCommand(Command):
     usage = "privacy status|retention|memory"
     owner_only = True
 
+    async def _apply_change(self, ctx: CommandContext, operation):
+        return await apply_config_operation(ctx, operation)
+
     async def execute(self, ctx: CommandContext) -> None:
         args = ctx.args
         if not args:
-            await ctx.client.reply(ctx.message, t_error("privacy.usage", prefix=ctx.prefix))
+            await self._show_help(ctx)
             return
 
         action = args[0].lower()
@@ -41,7 +46,31 @@ class PrivacyCommand(Command):
             await self._memory(ctx, args[1:])
             return
 
-        await ctx.client.reply(ctx.message, t_error("privacy.usage", prefix=ctx.prefix))
+        await self._show_help(ctx)
+
+    async def _show_help(self, ctx: CommandContext) -> None:
+        """Show privacy command usage in command-card style."""
+        card = format_command_card(
+            ctx.prefix,
+            self.name,
+            self.description,
+            self.get_usage(ctx.prefix),
+            category="owner",
+            restrictions=["Owner only"],
+        )
+        actions = [
+            f"`{ctx.prefix}privacy status`",
+            f"`{ctx.prefix}privacy retention analytics 30`",
+            f"`{ctx.prefix}privacy retention memory-ttl 24`",
+            f"`{ctx.prefix}privacy memory global on`",
+            f"`{ctx.prefix}privacy memory off here`",
+            f"`{ctx.prefix}privacy memory inherit here`",
+            f"`{ctx.prefix}privacy memory clear here`",
+        ]
+        await ctx.client.reply(
+            ctx.message,
+            card + "\n\n" + sym.section(t("headers.list"), actions),
+        )
 
     async def _status(self, ctx: CommandContext, args: list[str]) -> None:
         chat_jid = self._scope_to_chat_jid(ctx, args[0] if args else "here")
@@ -92,7 +121,12 @@ class PrivacyCommand(Command):
             if days < 1 or days > 365:
                 await ctx.client.reply(ctx.message, t_error("privacy.retention_range"))
                 return
-            runtime_config.set_nested("privacy", "analytics_retention_days", days)
+            changed = await self._apply_change(
+                ctx,
+                lambda: runtime_config.set_nested("privacy", "analytics_retention_days", days),
+            )
+            if changed is None:
+                return
             command_analytics.apply_retention_now()
             await ctx.client.reply(
                 ctx.message,
@@ -111,7 +145,12 @@ class PrivacyCommand(Command):
                 await ctx.client.reply(ctx.message, t_error("privacy.memory_ttl_range"))
                 return
 
-            runtime_config.set_nested("privacy", "ai_memory_ttl_hours", hours)
+            changed = await self._apply_change(
+                ctx,
+                lambda: runtime_config.set_nested("privacy", "ai_memory_ttl_hours", hours),
+            )
+            if changed is None:
+                return
             await ctx.client.reply(
                 ctx.message,
                 t_success("privacy.memory_ttl_set", hours=str(hours)),
@@ -182,7 +221,12 @@ class PrivacyCommand(Command):
                     ctx.message, t_error("privacy.memory_global_usage", prefix=ctx.prefix)
                 )
                 return
-            runtime_config.set_nested("privacy", "ai_memory_enabled", mode == "on")
+            changed = await self._apply_change(
+                ctx,
+                lambda: runtime_config.set_nested("privacy", "ai_memory_enabled", mode == "on"),
+            )
+            if changed is None:
+                return
             await ctx.client.reply(
                 ctx.message,
                 t_success(

@@ -20,8 +20,8 @@ from core.photo_downloader import (
     send_photo_items,
 )
 from core.runtime_config import runtime_config
+from core.url_patterns import URL_PATTERN
 
-URL_PATTERN = re.compile(r'https?://[^\s<>"{}|\\^`\[\]]+', re.IGNORECASE)
 APPLE_MUSIC_URL_PATTERN = re.compile(
     r"https?://(?:music\.apple\.com|embed\.music\.apple\.com)/", re.IGNORECASE
 )

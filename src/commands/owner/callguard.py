@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from core import symbols as sym
 from core.command import Command, CommandContext
+from core.config_ops import apply_config_operation
 from core.i18n import t, t_error, t_success
 from core.runtime_config import runtime_config
 
@@ -17,6 +18,9 @@ class CallGuardCommand(Command):
     )
     owner_only = True
 
+    async def _apply_change(self, ctx: CommandContext, operation):
+        return await apply_config_operation(ctx, operation)
+
     async def execute(self, ctx: CommandContext) -> None:
         args = ctx.args
 
@@ -27,14 +31,28 @@ class CallGuardCommand(Command):
         action = args[0].lower()
 
         if action == "on":
-            runtime_config.set_nested("call_guard", "enabled", True)
-            runtime_config.set_nested("call_guard", "action", "block")
+            changed = await self._apply_change(
+                ctx,
+                lambda: (
+                    runtime_config.set_nested("call_guard", "enabled", True),
+                    runtime_config.set_nested("call_guard", "action", "block"),
+                ),
+            )
+            if changed is None:
+                return
             await ctx.client.reply(ctx.message, t_success("callguard.enabled"))
             return
 
         if action == "off":
-            runtime_config.set_nested("call_guard", "enabled", False)
-            runtime_config.set_nested("call_guard", "action", "off")
+            changed = await self._apply_change(
+                ctx,
+                lambda: (
+                    runtime_config.set_nested("call_guard", "enabled", False),
+                    runtime_config.set_nested("call_guard", "action", "off"),
+                ),
+            )
+            if changed is None:
+                return
             await ctx.client.reply(ctx.message, t_success("callguard.disabled"))
             return
 
@@ -50,7 +68,12 @@ class CallGuardCommand(Command):
                 await ctx.client.reply(ctx.message, t_error("callguard.delay_range"))
                 return
 
-            runtime_config.set_nested("call_guard", "delay_seconds", delay)
+            changed = await self._apply_change(
+                ctx,
+                lambda: runtime_config.set_nested("call_guard", "delay_seconds", delay),
+            )
+            if changed is None:
+                return
             await ctx.client.reply(ctx.message, t_success("callguard.delay_set", seconds=delay))
             return
 
@@ -63,7 +86,12 @@ class CallGuardCommand(Command):
                 return
 
             enabled = args[1].lower() == "on"
-            runtime_config.set_nested("call_guard", "notify_caller", enabled)
+            changed = await self._apply_change(
+                ctx,
+                lambda: runtime_config.set_nested("call_guard", "notify_caller", enabled),
+            )
+            if changed is None:
+                return
             await ctx.client.reply(
                 ctx.message,
                 t_success(
@@ -82,7 +110,12 @@ class CallGuardCommand(Command):
                 return
 
             enabled = args[1].lower() == "on"
-            runtime_config.set_nested("call_guard", "notify_owner", enabled)
+            changed = await self._apply_change(
+                ctx,
+                lambda: runtime_config.set_nested("call_guard", "notify_owner", enabled),
+            )
+            if changed is None:
+                return
             await ctx.client.reply(
                 ctx.message,
                 t_success(
@@ -193,7 +226,12 @@ class CallGuardCommand(Command):
                     return
 
             whitelist.append(jid)
-            runtime_config.set_nested("call_guard", "whitelist", whitelist)
+            changed = await self._apply_change(
+                ctx,
+                lambda: runtime_config.set_nested("call_guard", "whitelist", whitelist),
+            )
+            if changed is None:
+                return
             await ctx.client.reply(ctx.message, t_success("callguard.whitelist_added", jid=jid))
             return
 
@@ -215,7 +253,12 @@ class CallGuardCommand(Command):
                 )
                 return
 
-            runtime_config.set_nested("call_guard", "whitelist", filtered)
+            changed = await self._apply_change(
+                ctx,
+                lambda: runtime_config.set_nested("call_guard", "whitelist", filtered),
+            )
+            if changed is None:
+                return
             await ctx.client.reply(ctx.message, t_success("callguard.whitelist_removed", jid=jid))
             return
 

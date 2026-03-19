@@ -26,7 +26,8 @@ Manage bot configuration live from WhatsApp.
 /config                      # Show current config overview
 /config owner me             # Set yourself as owner
 /config prefix <prefix>      # Change command prefix
-/config diff                 # Show config changes vs defaults
+/config diff                 # Show config changes vs defaults (image)
+/config diff text            # Show config changes as plain text
 /config validate             # Validate config against schema
 /config history              # Show recent config snapshots
 /config rollback <id>        # Roll back to a previous snapshot
@@ -69,6 +70,7 @@ Roles:
 - `member`
 - `admin`
 - `owner`
+
 
 ## /privacy
 

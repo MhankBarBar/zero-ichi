@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from core.command import Command, CommandContext, command_loader
+from core.config_ops import apply_config_operation
 from core.i18n import t, t_error, t_info, t_success
+from core.presentation import format_command_card
 from core.runtime_config import runtime_config
 
 
@@ -14,10 +16,13 @@ class PermissionCommand(Command):
     usage = "permission list|set|reset"
     owner_only = True
 
+    async def _apply_change(self, ctx: CommandContext, operation):
+        return await apply_config_operation(ctx, operation)
+
     async def execute(self, ctx: CommandContext) -> None:
         args = ctx.args
         if not args:
-            await ctx.client.reply(ctx.message, t_error("permission.usage", prefix=ctx.prefix))
+            await self._show_help(ctx)
             return
 
         action = args[0].lower()
@@ -31,7 +36,20 @@ class PermissionCommand(Command):
             await self._reset_override(ctx, args[1:])
             return
 
-        await ctx.client.reply(ctx.message, t_error("permission.usage", prefix=ctx.prefix))
+        await self._show_help(ctx)
+
+    async def _show_help(self, ctx: CommandContext) -> None:
+        """Show permission command usage in unified command-card style."""
+        text = format_command_card(
+            ctx.prefix,
+            self.name,
+            self.description,
+            self.get_usage(ctx.prefix),
+            aliases=self.aliases,
+            category="owner",
+            restrictions=["Owner only"],
+        )
+        await ctx.client.reply(ctx.message, text)
 
     async def _list_overrides(self, ctx: CommandContext, args: list[str]) -> None:
         perms = runtime_config.get_command_permissions()
@@ -108,10 +126,11 @@ class PermissionCommand(Command):
             await ctx.client.reply(ctx.message, t_error("permission.here_group_only"))
             return
 
-        try:
-            runtime_config.set_command_role_override(canonical, role, group_jid=group_jid)
-        except ValueError as e:
-            await ctx.client.reply(ctx.message, t_error("config.validation_failed", details=str(e)))
+        changed = await self._apply_change(
+            ctx,
+            lambda: runtime_config.set_command_role_override(canonical, role, group_jid=group_jid),
+        )
+        if changed is None:
             return
 
         scope_text = (
@@ -153,7 +172,12 @@ class PermissionCommand(Command):
             await ctx.client.reply(ctx.message, t_error("permission.here_group_only"))
             return
 
-        removed = runtime_config.reset_command_role_override(canonical, group_jid=group_jid)
+        removed = await self._apply_change(
+            ctx,
+            lambda: runtime_config.reset_command_role_override(canonical, group_jid=group_jid),
+        )
+        if removed is None:
+            return
         if not removed:
             await ctx.client.reply(ctx.message, t_info("permission.no_override", command=canonical))
             return

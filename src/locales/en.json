@@ -325,6 +325,7 @@
     "rollback_desc": "Rollback config to a previous snapshot",
     "diff_title": "Config Differences",
     "diff_no_changes": "No differences from default config.",
+    "diff_image_caption": "Config diff (image mode). Use `config diff text` for plain text.",
     "diff_truncated": "... and {count} more differences",
     "validate_ok": "Config is valid.",
     "validate_failed": "Config validation failed: {details}",

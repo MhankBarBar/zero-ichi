@@ -7,7 +7,6 @@ using the Pydantic AI agent framework with proper tool calling.
 
 from __future__ import annotations
 
-import os
 import re
 from typing import TYPE_CHECKING
 
@@ -15,6 +14,7 @@ from pydantic_ai import Agent, BinaryContent, RunContext
 
 from ai.context import BotDependencies
 from ai.token_tracker import token_tracker
+from core.ai_runtime import apply_provider_env, resolve_api_key
 from core.command import CommandContext, command_loader
 from core.logger import log_debug, log_error, log_info, log_warning
 from core.permissions import check_command_permissions
@@ -227,10 +227,7 @@ class AgenticAI:
     @property
     def api_key(self) -> str:
         """Get the API key (from env var AI_API_KEY or config)."""
-        env_key = os.getenv("AI_API_KEY", "")
-        if env_key:
-            return env_key
-        return runtime_config.get_nested("agentic_ai", "api_key", default="")
+        return resolve_api_key()
 
     @property
     def provider(self) -> str:
@@ -383,13 +380,7 @@ class AgenticAI:
             log_info(f"AI token limit reached for user={user_id} chat={chat_id}")
             return "⏳ AI daily limit reached. Try again tomorrow!"
 
-        if self.provider == "openai":
-            os.environ["OPENAI_API_KEY"] = self.api_key
-        elif self.provider == "anthropic":
-            os.environ["ANTHROPIC_API_KEY"] = self.api_key
-        elif self.provider == "google":
-            os.environ["GOOGLE_API_KEY"] = self.api_key
-            os.environ["GEMINI_API_KEY"] = self.api_key
+        apply_provider_env(self.provider, self.api_key)
 
         model_str = f"{self.provider}:{self.model}"
         log_info(f"AI processing with model: {model_str}")
