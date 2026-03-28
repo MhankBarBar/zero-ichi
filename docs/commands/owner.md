@@ -199,14 +199,15 @@ List all dynamically created commands.
 Add an AI skill — custom instructions that the AI follows.
 
 ```
-/addskill <name>
-<instructions>
+/addskill <name> <instructions>
+/addskill <url>
+/addskill            # with attached .md file
+/addskill <name>     # when replying to text
 ```
 
 **Example:**
 ```
-/addskill translator
-Always translate messages to English when asked.
+/addskill translator Always translate messages to English when asked.
 ```
 
 ## /delskill

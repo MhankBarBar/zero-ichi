@@ -60,7 +60,6 @@ def test_clear_memory_for_uncached_chat(tmp_path, monkeypatch):
     mem.add(role="user", content="hello")
     assert len(mem.get_history()) == 1
 
-    # Simulate uncached chat memory object
     memory_module._memory_cache.pop(chat, None)
 
     clear_memory(chat)
