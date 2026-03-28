@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from core import symbols as sym
 from core.command import Command, CommandContext
+from core.config_ops import apply_config_operation
 from core.i18n import t, t_error, t_success
+from core.presentation import format_command_card
 from core.runtime_config import runtime_config
 
 
@@ -22,7 +24,7 @@ class SetupCommand(Command):
     async def execute(self, ctx: CommandContext) -> None:
         args = ctx.args
         if not args:
-            await self._show_status(ctx, started=False)
+            await self._show_help(ctx)
             return
 
         action = args[0].lower()
@@ -51,19 +53,36 @@ class SetupCommand(Command):
             await self._show_done(ctx)
             return
 
-        await ctx.client.reply(ctx.message, t_error("setup.usage", prefix=ctx.prefix))
+        await self._show_help(ctx)
+
+    async def _show_help(self, ctx: CommandContext) -> None:
+        """Show setup command help using command-card style."""
+        card = format_command_card(
+            ctx.prefix,
+            self.name,
+            self.description,
+            self.get_usage(ctx.prefix),
+            category="owner",
+            restrictions=["Owner only"],
+        )
+        lines = [
+            f"`{ctx.prefix}setup start`",
+            f"`{ctx.prefix}setup status`",
+            f"`{ctx.prefix}setup owner me`",
+            f"`{ctx.prefix}setup prefix !`",
+            f"`{ctx.prefix}setup anti-link on warn`",
+            f"`{ctx.prefix}setup anti-spam on warn`",
+            f"`{ctx.prefix}setup ai-key <key>`",
+            f"`{ctx.prefix}setup ai on`",
+            f"`{ctx.prefix}setup done`",
+        ]
+        await ctx.client.reply(
+            ctx.message, card + "\n\n" + sym.section(t("setup.next_steps"), lines)
+        )
 
     async def _apply_change(self, ctx: CommandContext, operation) -> bool:
         """Apply a setup mutation with validation-friendly errors."""
-        try:
-            operation()
-            return True
-        except ValueError as e:
-            await ctx.client.reply(ctx.message, t_error("config.validation_failed", details=str(e)))
-            return False
-        except Exception as e:
-            await ctx.client.reply(ctx.message, t_error("config.update_failed", error=str(e)))
-            return False
+        return bool(await apply_config_operation(ctx, operation))
 
     async def _show_status(self, ctx: CommandContext, *, started: bool) -> None:
         owner = runtime_config.get_owner_jid()

@@ -6,7 +6,11 @@ from core import symbols as sym
 from core.command import Command, CommandContext
 from core.i18n import t, t_error
 
-from ._ai_text import ensure_ai_ready_or_reply, run_text_prompt
+from ._ai_text import (
+    ensure_ai_ready_or_reply,
+    extract_text_from_quoted_or_args,
+    run_prompt_with_progress,
+)
 
 _ALLOWED_STYLES = {
     "formal",
@@ -41,18 +45,11 @@ class RewriteCommand(Command):
             )
             return
 
-        source_text = ""
-        quoted = ctx.message.quoted_message
-        if quoted and quoted.get("text"):
-            source_text = quoted["text"]
-        elif len(ctx.args) > 1:
-            source_text = " ".join(ctx.args[1:]).strip()
+        source_text = extract_text_from_quoted_or_args(ctx, ctx.args, start=1)
 
         if not source_text:
             await ctx.client.reply(ctx.message, t_error("rewrite.no_text", prefix=ctx.prefix))
             return
-
-        progress = await ctx.client.reply(ctx.message, f"{sym.LOADING} {t('rewrite.processing')}")
 
         prompt = (
             "You are a writing assistant. Rewrite the following text in a "
@@ -61,16 +58,7 @@ class RewriteCommand(Command):
             f"Text:\n{source_text[:3000]}"
         )
 
-        try:
-            rewritten = await run_text_prompt(prompt)
-            if not rewritten:
-                await ctx.client.edit_message(
-                    ctx.message.chat_jid,
-                    progress.ID,
-                    t_error("rewrite.failed"),
-                )
-                return
-
+        def _render(rewritten: str) -> str:
             output = sym.box(
                 t("rewrite.title"),
                 [
@@ -79,10 +67,12 @@ class RewriteCommand(Command):
                     rewritten,
                 ],
             )
-            await ctx.client.edit_message(ctx.message.chat_jid, progress.ID, output)
-        except Exception:
-            await ctx.client.edit_message(
-                ctx.message.chat_jid,
-                progress.ID,
-                t_error("rewrite.failed"),
-            )
+            return output
+
+        await run_prompt_with_progress(
+            ctx,
+            processing_key="rewrite.processing",
+            failure_key="rewrite.failed",
+            prompt=prompt,
+            render_output=_render,
+        )

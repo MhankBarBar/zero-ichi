@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from core import symbols as sym
 from core.command import Command, CommandContext
+from core.config_ops import apply_config_operation
 from core.i18n import t, t_error, t_success
 from core.runtime_config import runtime_config
 
@@ -13,6 +14,9 @@ class AutoDlCommand(Command):
     description = "Configure automatic link download"
     usage = "autodl [status | on | off | mode <auto|audio|video|photo> | cooldown <seconds> | maxlinks <count> | album <count> | photolimit <count>]"
     owner_only = True
+
+    async def _apply_change(self, ctx: CommandContext, operation):
+        return await apply_config_operation(ctx, operation)
 
     async def execute(self, ctx: CommandContext) -> None:
         args = ctx.args
@@ -59,7 +63,14 @@ class AutoDlCommand(Command):
 
         action = args[0].lower()
         if action in {"on", "off"}:
-            runtime_config.set_nested("downloader", "auto_link_download", "enabled", action == "on")
+            changed = await self._apply_change(
+                ctx,
+                lambda: runtime_config.set_nested(
+                    "downloader", "auto_link_download", "enabled", action == "on"
+                ),
+            )
+            if changed is None:
+                return
             await ctx.client.reply(
                 ctx.message,
                 t_success("autodl.enabled" if action == "on" else "autodl.disabled"),
@@ -70,7 +81,14 @@ class AutoDlCommand(Command):
             if len(args) < 2 or args[1].lower() not in {"auto", "audio", "video", "photo"}:
                 await ctx.client.reply(ctx.message, t_error("autodl.mode_usage", prefix=ctx.prefix))
                 return
-            runtime_config.set_nested("downloader", "auto_link_download", "mode", args[1].lower())
+            changed = await self._apply_change(
+                ctx,
+                lambda: runtime_config.set_nested(
+                    "downloader", "auto_link_download", "mode", args[1].lower()
+                ),
+            )
+            if changed is None:
+                return
             await ctx.client.reply(ctx.message, t_success("autodl.mode_set", mode=args[1].lower()))
             return
 
@@ -80,9 +98,14 @@ class AutoDlCommand(Command):
                     ctx.message, t_error("autodl.cooldown_usage", prefix=ctx.prefix)
                 )
                 return
-            runtime_config.set_nested(
-                "downloader", "auto_link_download", "cooldown_seconds", int(args[1])
+            changed = await self._apply_change(
+                ctx,
+                lambda: runtime_config.set_nested(
+                    "downloader", "auto_link_download", "cooldown_seconds", int(args[1])
+                ),
             )
+            if changed is None:
+                return
             await ctx.client.reply(ctx.message, t_success("autodl.cooldown_set", seconds=args[1]))
             return
 
@@ -92,9 +115,14 @@ class AutoDlCommand(Command):
                     ctx.message, t_error("autodl.maxlinks_usage", prefix=ctx.prefix)
                 )
                 return
-            runtime_config.set_nested(
-                "downloader", "auto_link_download", "max_links_per_message", int(args[1])
+            changed = await self._apply_change(
+                ctx,
+                lambda: runtime_config.set_nested(
+                    "downloader", "auto_link_download", "max_links_per_message", int(args[1])
+                ),
             )
+            if changed is None:
+                return
             await ctx.client.reply(ctx.message, t_success("autodl.maxlinks_set", count=args[1]))
             return
 
@@ -108,9 +136,14 @@ class AutoDlCommand(Command):
             if count < 2 or count > 30:
                 await ctx.client.reply(ctx.message, t_error("autodl.album_range"))
                 return
-            runtime_config.set_nested(
-                "downloader", "auto_link_download", "photo", "max_images_per_album", count
+            changed = await self._apply_change(
+                ctx,
+                lambda: runtime_config.set_nested(
+                    "downloader", "auto_link_download", "photo", "max_images_per_album", count
+                ),
             )
+            if changed is None:
+                return
             await ctx.client.reply(ctx.message, t_success("autodl.album_set", count=count))
             return
 
@@ -124,9 +157,14 @@ class AutoDlCommand(Command):
             if count < 1 or count > 100:
                 await ctx.client.reply(ctx.message, t_error("autodl.photolimit_range"))
                 return
-            runtime_config.set_nested(
-                "downloader", "auto_link_download", "photo", "max_images_per_link", count
+            changed = await self._apply_change(
+                ctx,
+                lambda: runtime_config.set_nested(
+                    "downloader", "auto_link_download", "photo", "max_images_per_link", count
+                ),
             )
+            if changed is None:
+                return
             await ctx.client.reply(ctx.message, t_success("autodl.photolimit_set", count=count))
             return
 

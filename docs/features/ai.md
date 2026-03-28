@@ -80,17 +80,31 @@ Skills are custom instructions that the AI follows. They let you customize the A
 ### Adding a Skill
 
 ```
-/addskill <name>
-<instructions>
+/addskill <name> <instructions>
 ```
 
 **Example:**
 
 ```
-/addskill translator
-When someone asks you to translate, translate the text
-to the requested language. If no language is specified,
-translate to English.
+/addskill translator When someone asks you to translate, translate to requested language.
+```
+
+Alternative methods:
+
+```
+/addskill <url-to-markdown-skill>
+```
+
+or attach a `.md` skill file and send:
+
+```
+/addskill
+```
+
+You can also reply to a text message and send:
+
+```
+/addskill <name>
 ```
 
 ### Managing Skills

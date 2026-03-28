@@ -2,41 +2,33 @@
 
 from __future__ import annotations
 
-import os
-
 from pydantic_ai import Agent
 
+from core import symbols as sym
+from core.ai_runtime import (
+    apply_provider_env,
+    resolve_api_key,
+    resolve_model_name,
+    resolve_provider,
+)
 from core.command import CommandContext
-from core.i18n import t_error
+from core.i18n import t, t_error
 from core.runtime_config import runtime_config
 
 
 def get_ai_model() -> str:
     """Build provider:model string from runtime config."""
-    provider = runtime_config.get_nested("agentic_ai", "provider", default="openai")
-    model = runtime_config.get_nested("agentic_ai", "model", default="gpt-5-mini")
-    return f"{provider}:{model}"
+    return resolve_model_name()
 
 
 def get_api_key() -> str:
     """Get AI API key from env first, then runtime config."""
-    env_key = os.getenv("AI_API_KEY", "")
-    if env_key:
-        return env_key
-    return runtime_config.get_nested("agentic_ai", "api_key", default="")
+    return resolve_api_key()
 
 
 def ensure_provider_key(provider: str, api_key: str) -> None:
     """Set provider-specific API key env vars for pydantic-ai."""
-    if provider == "openai":
-        os.environ["OPENAI_API_KEY"] = api_key
-    elif provider == "anthropic":
-        os.environ["ANTHROPIC_API_KEY"] = api_key
-    elif provider == "google":
-        os.environ["GOOGLE_API_KEY"] = api_key
-        os.environ["GEMINI_API_KEY"] = api_key
-    elif provider == "groq":
-        os.environ["GROQ_API_KEY"] = api_key
+    apply_provider_env(provider, api_key)
 
 
 async def ensure_ai_ready_or_reply(ctx: CommandContext, disabled_key: str) -> bool:
@@ -56,9 +48,40 @@ async def ensure_ai_ready_or_reply(ctx: CommandContext, disabled_key: str) -> bo
 async def run_text_prompt(prompt: str) -> str:
     """Execute a single text prompt with configured AI provider/model."""
     api_key = get_api_key()
-    provider = runtime_config.get_nested("agentic_ai", "provider", default="openai")
+    provider = resolve_provider()
     ensure_provider_key(provider, api_key)
 
     agent = Agent(get_ai_model(), output_type=str)
     result = await agent.run(prompt)
     return result.output.strip() if result.output else ""
+
+
+def extract_text_from_quoted_or_args(ctx: CommandContext, args: list[str], start: int = 0) -> str:
+    """Extract source text from quoted message or command args."""
+    quoted = ctx.message.quoted_message
+    if quoted and quoted.get("text"):
+        return str(quoted["text"])
+    if len(args) > start:
+        return " ".join(args[start:]).strip()
+    return ""
+
+
+async def run_prompt_with_progress(
+    ctx: CommandContext,
+    *,
+    processing_key: str,
+    failure_key: str,
+    prompt: str,
+    render_output,
+) -> None:
+    """Run an AI prompt and edit one progress message with result or error."""
+    progress = await ctx.client.reply(ctx.message, f"{sym.LOADING} {t(processing_key)}")
+
+    try:
+        output = await run_text_prompt(prompt)
+        if not output:
+            await ctx.client.edit_message(ctx.message.chat_jid, progress.ID, t_error(failure_key))
+            return
+        await ctx.client.edit_message(ctx.message.chat_jid, progress.ID, render_output(output))
+    except Exception:
+        await ctx.client.edit_message(ctx.message.chat_jid, progress.ID, t_error(failure_key))

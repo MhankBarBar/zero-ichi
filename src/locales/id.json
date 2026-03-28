@@ -325,6 +325,7 @@
     "rollback_desc": "Balikin config ke snapshot sebelumnya",
     "diff_title": "Perbedaan Config",
     "diff_no_changes": "Gak ada perbedaan dari default config.",
+    "diff_image_caption": "Diff config (mode gambar). Pake `config diff text` buat teks biasa.",
     "diff_truncated": "... dan {count} perbedaan lagi",
     "validate_ok": "Config valid.",
     "validate_failed": "Validasi config gagal: {details}",

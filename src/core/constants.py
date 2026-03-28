@@ -43,6 +43,7 @@ TEXT_SOURCES = (
     ("extendedTextMessage", "text"),
     ("imageMessage", "caption"),
     ("videoMessage", "caption"),
+    ("documentMessage", "caption"),
 )
 
 PHOTO_IMAGE_EXTENSIONS = frozenset(

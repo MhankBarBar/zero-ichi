@@ -4,8 +4,11 @@ from __future__ import annotations
 
 from core.automations import (
     get_automation_runtime,
+    is_valid_action,
+    is_valid_trigger,
     load_rules,
     next_rule_id,
+    normalize_action,
     rule_matches,
     save_rules,
     set_automation_dry_run,
@@ -116,14 +119,13 @@ class AutomationCommand(Command):
         action_type = right_parts[0].lower()
         action_value = right_parts[1].strip() if len(right_parts) > 1 else ""
 
-        valid_trigger = {"contains", "starts_with", "exact_match", "regex", "link", "media_type"}
-        valid_action = {"reply", "warn", "delete", "kick", "mute"}
-        if trigger_type not in valid_trigger:
+        if not is_valid_trigger(trigger_type):
             await ctx.client.reply(ctx.message, t_error("automation.invalid_trigger"))
             return
-        if action_type not in valid_action:
+        if not is_valid_action(action_type):
             await ctx.client.reply(ctx.message, t_error("automation.invalid_action"))
             return
+        action_type = normalize_action(action_type)
         if trigger_type not in {"link"} and not trigger_value:
             await ctx.client.reply(ctx.message, t_error("automation.missing_trigger_value"))
             return

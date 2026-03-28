@@ -5,12 +5,121 @@ Owner config command - Manage bot configuration at runtime.
 from __future__ import annotations
 
 from copy import deepcopy
+from io import BytesIO
 from typing import Any
+
+from PIL import Image, ImageDraw, ImageFont
 
 from core import symbols as sym
 from core.command import Command, CommandContext, command_loader
+from core.config_ops import apply_config_operation
 from core.i18n import t, t_error, t_info, t_success
+from core.presentation import format_command_card
 from core.runtime_config import DEFAULT_CONFIG, runtime_config
+
+_SENSITIVE_KEYWORDS = {
+    "api_key",
+    "key",
+    "token",
+    "secret",
+    "password",
+    "pass",
+    "auth",
+    "credential",
+}
+
+
+def _is_sensitive_path(path: str) -> bool:
+    lowered = path.lower()
+    for part in lowered.replace("-", "_").split("."):
+        if any(k in part for k in _SENSITIVE_KEYWORDS):
+            return True
+    return False
+
+
+def _mask_value(path: str, value: Any) -> str:
+    if _is_sensitive_path(path):
+        return "[redacted]"
+    text = str(value)
+    return text if len(text) <= 120 else text[:117] + "..."
+
+
+def _resolve_diff_mode(args: list[str] | None) -> str:
+    """Resolve config diff mode (image by default, text if explicitly requested)."""
+    if args and args[0].strip().lower() in {"text", "txt"}:
+        return "text"
+    return "image"
+
+
+def _load_mono_font(size: int = 16):
+    candidates = [
+        "C:/Windows/Fonts/consola.ttf",
+        "C:/Windows/Fonts/Consolas.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+        "/System/Library/Fonts/Menlo.ttc",
+    ]
+    for path in candidates:
+        try:
+            return ImageFont.truetype(path, size)
+        except Exception:
+            continue
+    return ImageFont.load_default()
+
+
+def render_diff_image(title: str, rows: list[tuple[str, str]]) -> bytes:
+    """Render colored diff lines into PNG bytes."""
+    palette = {
+        "header": (232, 234, 237),
+        "meta": (156, 163, 175),
+        "changed": (245, 158, 11),
+        "added": (34, 197, 94),
+        "missing": (239, 68, 68),
+        "default": (229, 231, 235),
+    }
+
+    font = _load_mono_font(16)
+    padding_x = 28
+    padding_y = 24
+    line_gap = 8
+    bbox = font.getbbox("Ag")
+    line_height = (bbox[3] - bbox[1]) + line_gap
+
+    wrapped: list[tuple[str, str]] = []
+    max_chars = 100
+    for text, tone in rows:
+        chunks = [text[i : i + max_chars] for i in range(0, len(text), max_chars)] or [""]
+        for chunk in chunks:
+            wrapped.append((chunk, tone))
+
+    canvas_rows = [
+        (title, "header"),
+        ("Legend: ~ changed | + custom | - missing", "meta"),
+        ("", "default"),
+        *wrapped,
+    ]
+
+    max_width = 700
+    for text, _ in canvas_rows:
+        sample_w = int(font.getlength(text))
+        if sample_w > max_width:
+            max_width = sample_w
+
+    width = max_width + (padding_x * 2)
+    height = (len(canvas_rows) * line_height) + (padding_y * 2)
+
+    bg_color: Any = (17, 24, 39)
+    image = Image.new("RGB", (width, height), bg_color)
+    draw = ImageDraw.Draw(image)
+
+    y = padding_y
+    for text, tone in canvas_rows:
+        color = palette.get(tone, palette["default"])
+        draw.text((padding_x, y), text, fill=color, font=font)
+        y += line_height
+
+    buffer = BytesIO()
+    image.save(buffer, format="PNG", optimize=True)
+    return buffer.getvalue()
 
 
 class ConfigCommand(Command):
@@ -46,7 +155,7 @@ class ConfigCommand(Command):
         elif action == "all":
             await self._show_all(ctx)
         elif action == "diff":
-            await self._show_diff(ctx)
+            await self._show_diff(ctx, args[1:])
         elif action == "validate":
             await self._validate_config(ctx)
         elif action == "history":
@@ -67,26 +176,36 @@ class ConfigCommand(Command):
     async def _show_help(self, ctx: CommandContext) -> None:
         """Show config command help."""
         p = ctx.prefix
-        help_text = f"""*{t("config.title")}*
-
-*{t("config.usage_label")}:*
-- `{p}config features` - {t("config.show_features")}
-- `{p}config toggle <feature>` - {t("config.toggle_feature")}
-- `{p}config cmd list` - {t("config.list_commands")}
-- `{p}config cmd enable <name>` - {t("config.enable_command")}
-- `{p}config cmd disable <name>` - {t("config.disable_command")}
-- `{p}config autoread [on/off]` - {t("config.autoread_desc")}
-- `{p}config react [emoji/off]` - {t("config.react_desc")}
-- `{p}config selfmode [on/off]` - {t("config.selfmode_desc")}
-- `{p}config ai [on/off/key/mode]` - {t("config.ai_desc")}
-- `{p}config owner` - {t("config.show_owner")}
-- `{p}config all` - {t("config.show_all")}
-- `{p}config diff` - {t("config.show_diff")}
-- `{p}config validate` - {t("config.validate_desc")}
-- `{p}config history [limit]` - {t("config.history_desc")}
-- `{p}config rollback <id>` - {t("config.rollback_desc")}"""
-
-        await ctx.client.reply(ctx.message, help_text)
+        card = format_command_card(
+            p,
+            self.name,
+            self.description,
+            self.get_usage(p),
+            aliases=self.aliases,
+            category="owner",
+            restrictions=["Owner only"],
+        )
+        actions = [
+            f"`{p}config features` - {t('config.show_features')}",
+            f"`{p}config toggle <feature>` - {t('config.toggle_feature')}",
+            f"`{p}config cmd list` - {t('config.list_commands')}",
+            f"`{p}config cmd enable <name>` - {t('config.enable_command')}",
+            f"`{p}config cmd disable <name>` - {t('config.disable_command')}",
+            f"`{p}config autoread [on/off]` - {t('config.autoread_desc')}",
+            f"`{p}config react [emoji/off]` - {t('config.react_desc')}",
+            f"`{p}config selfmode [on/off]` - {t('config.selfmode_desc')}",
+            f"`{p}config ai [on/off/key/mode]` - {t('config.ai_desc')}",
+            f"`{p}config owner` - {t('config.show_owner')}",
+            f"`{p}config all` - {t('config.show_all')}",
+            f"`{p}config diff [image|text]` - {t('config.show_diff')}",
+            f"`{p}config validate` - {t('config.validate_desc')}",
+            f"`{p}config history [limit]` - {t('config.history_desc')}",
+            f"`{p}config rollback <id>` - {t('config.rollback_desc')}",
+        ]
+        await ctx.client.reply(
+            ctx.message,
+            card + "\n\n" + sym.section(t("config.usage_label"), actions),
+        )
 
     async def _show_features(self, ctx: CommandContext) -> None:
         """Show all feature flags."""
@@ -290,34 +409,59 @@ class ConfigCommand(Command):
 
         await ctx.client.reply(ctx.message, "\n".join(lines))
 
-    async def _show_diff(self, ctx: CommandContext) -> None:
-        """Show diff between runtime config and defaults."""
+    async def _show_diff(self, ctx: CommandContext, args: list[str] | None = None) -> None:
+        """Show diff between runtime config and defaults (image by default)."""
         current = deepcopy(runtime_config.all_config())
         current.pop("$schema", None)
         defaults = deepcopy(DEFAULT_CONFIG)
+
+        mode = _resolve_diff_mode(args)
 
         diffs = self._collect_diff(defaults, current)
         if not diffs:
             await ctx.client.reply(ctx.message, t_info("config.diff_no_changes"))
             return
 
-        lines = [f"*{t('config.diff_title')}*", ""]
-        for item in diffs[:50]:
+        rows: list[tuple[str, str]] = []
+        text_lines = [f"*{t('config.diff_title')}*", ""]
+        for item in diffs[:200]:
             kind = item["kind"]
             path = item["path"]
             if kind == "changed":
-                lines.append(
-                    f"{sym.BULLET} `~ {path}`: `{self._fmt(item['default'])}` {sym.ARROW} `{self._fmt(item['current'])}`"
+                default_val = _mask_value(path, item["default"])
+                current_val = _mask_value(path, item["current"])
+                text_lines.append(
+                    f"{sym.BULLET} `~ {path}`: `{default_val}` {sym.ARROW} `{current_val}`"
                 )
+                rows.append((f"~ {path}: {default_val} -> {current_val}", "changed"))
             elif kind == "custom":
-                lines.append(f"{sym.BULLET} `+ {path}`: `{self._fmt(item['current'])}`")
+                current_val = _mask_value(path, item["current"])
+                text_lines.append(f"{sym.BULLET} `+ {path}`: `{current_val}`")
+                rows.append((f"+ {path}: {current_val}", "added"))
             elif kind == "missing":
-                lines.append(f"{sym.BULLET} `- {path}`: `{self._fmt(item['default'])}`")
+                default_val = _mask_value(path, item["default"])
+                text_lines.append(f"{sym.BULLET} `- {path}`: `{default_val}`")
+                rows.append((f"- {path}: {default_val}", "missing"))
 
-        if len(diffs) > 50:
-            lines.append(t("config.diff_truncated", count=str(len(diffs) - 50)))
+        if len(diffs) > 200:
+            extra = len(diffs) - 200
+            text_lines.append(t("config.diff_truncated", count=str(extra)))
+            rows.append((f"... and {extra} more differences", "meta"))
 
-        await ctx.client.reply(ctx.message, "\n".join(lines))
+        if mode == "text":
+            await ctx.client.reply(ctx.message, "\n".join(text_lines))
+            return
+
+        try:
+            image_bytes = render_diff_image(t("config.diff_title"), rows)
+            await ctx.client.send_image(
+                to=ctx.message.chat_jid,
+                file=image_bytes,
+                caption=t("config.diff_image_caption"),
+                quoted=ctx.message.event,
+            )
+        except Exception:
+            await ctx.client.reply(ctx.message, "\n".join(text_lines))
 
     async def _validate_config(self, ctx: CommandContext) -> None:
         """Validate current runtime config against schema."""
@@ -434,20 +578,7 @@ class ConfigCommand(Command):
 
     async def _apply_change(self, ctx: CommandContext, operation) -> Any:
         """Run preflight validation then apply a config mutation safely."""
-        ok, details = runtime_config.validate_current()
-        if not ok:
-            await ctx.client.reply(ctx.message, t_error("config.preflight_failed", details=details))
-            return None
-
-        try:
-            result = operation()
-            return True if result is None else result
-        except ValueError as e:
-            await ctx.client.reply(ctx.message, t_error("config.validation_failed", details=str(e)))
-            return None
-        except Exception as e:
-            await ctx.client.reply(ctx.message, t_error("config.update_failed", error=str(e)))
-            return None
+        return await apply_config_operation(ctx, operation)
 
     async def _handle_autoread(self, ctx: CommandContext, args: list[str]) -> None:
         """Handle auto-read configuration."""
