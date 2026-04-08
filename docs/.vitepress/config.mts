@@ -2,14 +2,24 @@ import { defineConfig } from 'vitepress'
 
 export default defineConfig({
     title: 'Zero Ichi',
-    description: 'Documentation for the Zero Ichi WhatsApp Bot',
+    description: 'A powerful WhatsApp bot built with Python + Neonize — packed with AI, media downloader, group management, and a web dashboard.',
     base: '/',
+    appearance: 'dark',
+    lastUpdated: true,
 
     head: [
         ['link', { rel: 'icon', href: '/logo.png' }],
         ['link', { rel: 'preconnect', href: 'https://fonts.googleapis.com' }],
         ['link', { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' }],
-        ['link', { href: 'https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=IBM+Plex+Mono:wght@400;500;600&display=swap', rel: 'stylesheet' }],
+        ['link', { href: 'https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap', rel: 'stylesheet' }],
+        ['meta', { name: 'theme-color', content: '#201d1d' }],
+        ['meta', { property: 'og:type', content: 'website' }],
+        ['meta', { property: 'og:title', content: 'Zero Ichi — WhatsApp Bot' }],
+        ['meta', { property: 'og:description', content: 'A powerful WhatsApp bot built with Python + Neonize — packed with AI, media downloader, group management, and a web dashboard.' }],
+        ['meta', { property: 'og:image', content: '/logo.png' }],
+        ['meta', { name: 'twitter:card', content: 'summary' }],
+        ['meta', { name: 'twitter:title', content: 'Zero Ichi — WhatsApp Bot' }],
+        ['meta', { name: 'twitter:description', content: 'A powerful WhatsApp bot built with Python + Neonize — packed with AI, media downloader, group management, and a web dashboard.' }],
     ],
 
     markdown: {
@@ -21,6 +31,12 @@ export default defineConfig({
 
     themeConfig: {
         logo: '/logo.png',
+        siteTitle: 'Zero Ichi',
+
+        outline: {
+            level: [2, 3],
+            label: 'On this page',
+        },
 
         nav: [
             { text: 'Guide', link: '/getting-started/installation' },
@@ -100,13 +116,17 @@ export default defineConfig({
         },
 
         footer: {
-            message: 'Built with 💖',
+            message: 'Built with ❤️',
             copyright: '© 2026 MhankBarBar',
         },
 
         editLink: {
             pattern: 'https://github.com/MhankBarBar/zero-ichi/edit/master/docs/:path',
             text: 'Edit this page on GitHub',
+        },
+
+        lastUpdated: {
+            text: 'Last updated',
         },
     },
 })

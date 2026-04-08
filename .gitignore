@@ -64,3 +64,5 @@ htmlcov/
 .mypy_cache/
 
 clean_*
+
+target/
