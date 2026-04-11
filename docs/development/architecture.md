@@ -6,64 +6,28 @@ Overview of Zero Ichi's internal architecture and project structure.
 
 ```
 zero-ichi/
-├── main.py                     # Entry point wrapper (delegates to src/main.py)
-├── config.json                 # Bot configuration
-├── config.schema.json          # JSON Schema for validation
-├── pyproject.toml              # Project metadata, dependencies, scripts
-│
-├── src/                        # Application source
-│   ├── main.py                 # Core entry point, message handler
-│   ├── dashboard_api.py        # FastAPI dashboard backend
-│   │
-│   ├── ai/                     # Agentic AI module
-│   │   ├── agent.py            # Main AI agent logic
-│   │   ├── config.py           # AI configuration
-│   │   ├── context.py          # Message context builder
-│   │   ├── memory.py           # Conversation memory
-│   │   ├── skills.py           # Skill management
-│   │   └── tools/              # AI tool definitions
-│   │
-│   ├── commands/               # Command modules (auto-discovered)
-│   │   ├── admin/
-│   │   ├── content/
-│   │   ├── downloader/
-│   │   ├── fun/
-│   │   ├── general/
-│   │   ├── group/
-│   │   ├── moderation/
-│   │   ├── owner/
-│   │   └── utility/
-│   │
-│   ├── config/                 # Configuration loading
-│   │   └── settings.py         # Static settings from config.json
-│   │
-│   ├── core/                   # Core modules
+├── config.schema.json          # Runtime config schema
+├── CONTRIBUTING.md             # Canonical contribution guide
+├── docs/                       # VitePress docs site
+├── src/
+│   ├── main.py                 # CLI entrypoint + bot bootstrap
+│   ├── dashboard_api.py        # FastAPI dashboard/backend API
+│   ├── ai/                     # AI agent, memory, context, skills
+│   ├── commands/               # Auto-discovered command modules
+│   ├── config/                 # Static app settings
+│   ├── core/                   # Runtime internals
 │   │   ├── client.py           # WhatsApp client wrapper
-│   │   ├── command.py          # Command base class & loader
-│   │   ├── constants.py        # Project constants
-│   │   ├── db.py               # SQLAlchemy database layer + migration bridge
-│   │   ├── downloader.py       # Media downloader logic
-│   │   ├── errors.py           # Error handling utilities
-│   │   ├── event_bus.py        # Event system
-│   │   ├── i18n.py             # Internationalization
-│   │   ├── jid_resolver.py     # JID / LID resolution
-│   │   ├── logger.py           # Logging utility (Rich-based)
-│   │   ├── message.py          # Message helper class
-│   │   ├── middleware.py       # Middleware base class
-│   │   ├── middlewares/        # Middleware implementations
-│   │   ├── permissions.py      # Permission checks
-│   │   ├── rate_limiter.py     # Rate limiting
-│   │   ├── runtime_config.py   # Live configuration manager
-│   │   ├── scheduler.py        # Task scheduler
-│   │   ├── storage.py          # Per-group/global runtime storage API (DB-backed)
-│   │   ├── symbols.py          # Unicode symbols
-│   │   ├── webhooks.py         # Webhook dispatcher worker
+│   │   ├── command.py          # Command loader/base types
+│   │   ├── config_ops.py       # Shared config mutation helper
+│   │   ├── db.py               # SQLAlchemy persistence layer
+│   │   ├── middlewares/        # Message pipeline
+│   │   ├── permissions.py      # Role/owner/admin checks
+│   │   ├── runtime_config.py   # Live config + history/rollback
+│   │   ├── storage.py          # DB-backed scoped storage
+│   │   ├── webhooks.py         # Outgoing webhook worker
 │   │   └── handlers/           # Event handlers
-│   │
-│   └── locales/                # Translation files (en, id)
-│
-├── dashboard/                  # Next.js admin dashboard
-├── data/                       # Runtime data (SQLite DB, media files, caches)
+│   └── locales/                # Translation files
+├── data/                       # Runtime DB/history/media caches
 └── logs/                       # Log files
 ```
 
@@ -77,9 +41,9 @@ WhatsApp -> Neonize -> src/main.py -> Middleware Pipeline -> Command Loader -> C
 
 1. **Neonize** receives the WhatsApp message
 2. **`src/main.py`** wraps it in a `MessageHelper` and passes it through the middleware pipeline
-3. **Middleware** runs in sequence (stats, group actions, mute check, blacklist, anti-link, anti-delete, self mode)
+3. **Middleware** runs in sequence and can stop pipeline early
 4. **Command Loader** matches the prefix + command name
-5. **Permissions** are checked (admin, owner, bot-admin, rate limit)
+5. **Permissions** are checked (role override, admin, owner, bot-admin, rate limit)
 6. **Command.execute()** runs the command logic
 
 ### Middleware Pipeline
@@ -88,17 +52,23 @@ Zero Ichi uses a middleware pipeline to process messages before command executio
 
 ```mermaid
 graph LR
-    A[Message] --> B[Stats]
-    B --> C[Group Actions]
-    C --> D[Mute Check]
-    D --> E[Blacklist]
-    E --> F[Anti-Link]
-    F --> G[Anti-Delete]
-    G --> H[Self Mode]
-    H --> I[Command Execution]
+    A[Message] --> B[Self Mode]
+    B --> C[Stats]
+    C --> D[Auto Actions]
+    D --> E[Anti-Delete]
+    E --> F[Blacklist]
+    F --> G[Anti-Link]
+    G --> H[Mute]
+    H --> I[Anti-Spam]
+    I --> J[Feature Gates]
+    J --> K[Automations]
+    K --> L[Auto Download]
+    L --> M[Download Reply]
+    M --> N[AI]
+    N --> O[Command Execution]
 ```
 
-Each middleware can modify the message context or stop processing (e.g., if a user is muted or blacklisted).
+Each middleware can mutate context or stop processing early.
 
 ### Event System
 
@@ -130,6 +100,13 @@ class Command:
 
 Commands are auto-discovered from `src/commands/*/` directories.
 
+Recent owner/runtime additions built on top of this system:
+
+- `/setup` for guided first-run config
+- `/permission` for role overrides per command
+- `/privacy` for retention and AI memory controls
+- `/config history` and `/config rollback <id>` for config recovery
+
 ### Storage
 
 Runtime state uses a SQL database through `core/db.py`:
@@ -149,6 +126,10 @@ rules = storage.load("rules", {"text": ""})
 
 Other runtime modules (`scheduler`, `analytics`, `token_tracker`, `afk`, `i18n` chat language state, AI memory) are also persisted in the database.
 
+`runtime_config.py` merges user config with defaults, backfills newly added
+keys, validates against `config.schema.json`, and records config history for
+rollback.
+
 ### Webhooks
 
 `core/event_bus.py` emits internal events for dashboard live updates and webhook fanout.
@@ -165,6 +146,7 @@ Incoming webhooks are exposed via dashboard API endpoint `POST /api/incoming-web
 - HMAC signature validation
 - per-key allowed actions
 - per-key rate limits
+- idempotency key deduplication
 
 Audit entries for sensitive operations are stored in `audit_logs` and surfaced in dashboard.
 

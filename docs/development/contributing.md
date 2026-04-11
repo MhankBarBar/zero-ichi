@@ -1,103 +1,45 @@
 # Contributing
 
-Contributions are welcome. Here's how to get started.
+Canonical guide lives in root repo:
 
-## Getting Started
+- [`CONTRIBUTING.md`](https://github.com/MhankBarBar/zero-ichi/blob/master/CONTRIBUTING.md)
 
-1.  **Fork** the repository
-2.  **Clone** your fork:
-    ```bash
-    git clone https://github.com/your-username/zero-ichi
-    cd zero-ichi
-    ```
-3.  **Install dependencies**:
-    ```bash
-    pip install uv
-    uv sync
-    ```
+Use that file as source of truth. This page stays short on purpose so docs and
+repo guide do not drift.
 
-## Development Workflow
+## Short Version
 
-1.  Create a new branch for your feature or fix:
-    ```bash
-    git checkout -b feature/my-cool-feature
-    ```
-2.  Make your changes. All source code lives under `src/`.
-3.  **Format and Lint** your code:
-    ```bash
-    uv run ruff format .
-    uv run ruff check .
-    ```
-    > [!IMPORTANT]
-    > CI will fail if code is not formatted or has lint errors.
-
-4.  **Run the bot** to test your changes:
-    ```bash
-    uv run zero-ichi --debug --auto-reload
-    ```
-    The bot supports auto-reload — file changes are picked up without restarting.
-
-## Project Structure
-
-See [Architecture](/development/architecture) for a full breakdown.
-
--   `src/commands/` — Add new commands here.
--   `src/core/` — Core logic (client, middleware, logger, etc.).
--   `src/ai/` — AI agent, context, memory, and tools.
--   `src/locales/` — Translation JSON files.
--   `src/config/` — Static settings loaded from `config.json`.
-
-## Pull Requests
-
--   Keep PRs focused on a single feature or fix.
--   Use clear, descriptive titles.
--   Describe what you changed and why.
--   If you added a feature, include a screenshot or usage example.
-
-## Database Migrations (Alembic)
-
-Runtime persistence uses SQLAlchemy with Alembic migration support.
+1. Branch from `dev`
+2. Keep PR focused on one change
+3. Update docs/locales/schema when behavior changes
+4. Run validation before PR:
 
 ```bash
-# Apply migrations
-uv run alembic upgrade head
-
-# Create a new migration
-uv run alembic revision -m "your migration message"
+uv run ruff format .
+uv run ruff check .
+uv run pytest -q
 ```
 
-Default database is SQLite (`data/zeroichi.db`) unless `DATABASE_URL` is set.
+Docs changes should also build:
 
-## Adding a Command
-
-Create a new file in the appropriate `src/commands/<category>/` directory:
-
-```python
-from core.command import Command
-
-class MyCommand(Command):
-    name = "mycommand"
-    description = "Does something cool"
-    usage = "/mycommand <arg>"
-
-    async def execute(self, msg, bot, args, prefix):
-        await bot.reply(msg, "Hello!")
+```bash
+cd docs
+bun run docs:build
 ```
 
-Commands are auto-discovered — no registration needed.
+## Release PR Automation
 
-## Adding Translations
+- Push to `dev` triggers release PR workflow automatically
+- Workflow uses `release-pr` environment
+- Add required reviewers on that environment if you want approval before PR
+  creation
 
-Translation files live in `src/locales/`.
+## Before Opening PR
 
-1.  Copy `src/locales/en.json` to `src/locales/<code>.json`.
-2.  Update `_meta.label` with the language name.
-3.  Translate the values.
-4.  Submit a PR.
+- explain problem
+- explain fix
+- list checks you ran
+- include screenshots when UI/docs changed
 
-## Reporting Bugs
-
-Please use [GitHub Issues](https://github.com/MhankBarBar/zero-ichi/issues) to report bugs. Include:
--   Steps to reproduce
--   Expected vs actual behavior
--   Logs or screenshots
+For command, config, workflow, and architecture rules, read root
+`CONTRIBUTING.md`.

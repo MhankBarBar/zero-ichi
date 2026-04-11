@@ -91,10 +91,10 @@ Everything you need to know, neatly organized:
 
 - `src/commands/`: Where the magic happens
 - `src/core/`: The brain
-- `src/dashboard/`: The pretty face
+- `src/dashboard_api.py`: Dashboard backend
 - `src/locales/`: The dictionary
 
-[Contributing Guide →](https://zeroichi.mhankbarbar.dev/development/contributing)
+[Contributing Guide →](./CONTRIBUTING.md)
 
 ---
 
