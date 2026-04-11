@@ -1,7 +1,13 @@
 name: Create Release PR
 
 on:
+  push:
+    branches: [dev]
   workflow_dispatch:
+
+concurrency:
+  group: release-pr
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -9,6 +15,8 @@ permissions:
 
 jobs:
   create-pr:
+    environment:
+      name: release-pr
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,6 +31,10 @@ jobs:
           pr_title: "chore: merge dev → master"
           pr_body: |
             Automated PR to merge `dev` into `master`.
+
+            This workflow runs on every push to `dev`, but job execution can
+            be gated by required reviewers on the `release-pr` environment.
+            That keeps PR creation automatic while still requiring approval.
 
             ---
             _Created via Release PR workflow._
