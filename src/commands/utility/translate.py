@@ -22,7 +22,11 @@ class TranslateCommand(Command):
     cooldown = 10
 
     async def execute(self, ctx: CommandContext) -> None:
-        if not await ensure_ai_ready_or_reply(ctx, "translate.ai_disabled"):
+        if not await ensure_ai_ready_or_reply(
+            ctx,
+            "translate.ai_disabled",
+            no_key_key="translate.no_api_key",
+        ):
             return
 
         if not ctx.args:

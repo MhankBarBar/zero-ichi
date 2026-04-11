@@ -31,7 +31,12 @@ def ensure_provider_key(provider: str, api_key: str) -> None:
     apply_provider_env(provider, api_key)
 
 
-async def ensure_ai_ready_or_reply(ctx: CommandContext, disabled_key: str) -> bool:
+async def ensure_ai_ready_or_reply(
+    ctx: CommandContext,
+    disabled_key: str,
+    *,
+    no_key_key: str = "summarize.no_api_key",
+) -> bool:
     """Validate AI enabled + API key; reply with localized error when invalid."""
     ai_enabled = runtime_config.get_nested("agentic_ai", "enabled", default=False)
     if not ai_enabled:
@@ -40,7 +45,7 @@ async def ensure_ai_ready_or_reply(ctx: CommandContext, disabled_key: str) -> bo
 
     api_key = get_api_key()
     if not api_key:
-        await ctx.client.reply(ctx.message, t_error("summarize.no_api_key"))
+        await ctx.client.reply(ctx.message, t_error(no_key_key))
         return False
     return True
 

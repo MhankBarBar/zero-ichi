@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import time
 
 from sqlalchemy import text
@@ -22,19 +23,26 @@ class StatusCommand(Command):
     usage = "status"
     category = "general"
 
-    async def execute(self, ctx: CommandContext) -> None:
-        from commands.general.uptime import _start_time
+    def _ping_db(self) -> bool:
+        """Run blocking DB ping outside event loop."""
         from core.db import get_engine
 
-        uptime = format_uptime(time.time() - _start_time)
-
-        db_ok = False
         try:
             engine = get_engine()
             with engine.connect() as conn:
                 conn.execute(text("SELECT 1"))
-            db_ok = True
+            return True
         except Exception:
+            return False
+
+    async def execute(self, ctx: CommandContext) -> None:
+        from commands.general.uptime import _start_time
+
+        uptime = format_uptime(time.time() - _start_time)
+
+        try:
+            db_ok = await asyncio.wait_for(asyncio.to_thread(self._ping_db), timeout=2.0)
+        except TimeoutError:
             db_ok = False
 
         webhook = webhook_dispatcher_status()
