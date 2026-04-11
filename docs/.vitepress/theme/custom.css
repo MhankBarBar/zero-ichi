@@ -1023,6 +1023,34 @@ select:focus {
 /* ─── Responsive ───────────────────────────────────────────────── */
 
 @media (max-width: 960px) {
+    html,
+    body,
+    .Layout,
+    .VPDoc {
+        overflow-x: hidden;
+    }
+
+    .vp-doc table {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        table-layout: auto;
+    }
+
+    .vp-doc table thead,
+    .vp-doc table tbody {
+        display: table;
+        width: max-content;
+        min-width: 100%;
+    }
+
+    .vp-doc th,
+    .vp-doc td {
+        white-space: nowrap;
+    }
+
     .stats-section {
         grid-template-columns: 1fr;
     }

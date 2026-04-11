@@ -44,6 +44,14 @@ def build_inline_skill(raw_args: str, quoted_text: str = "") -> dict[str, Any] |
     }
 
 
+def decode_skill_document(media_data: bytes) -> str:
+    """Decode markdown skill document bytes.
+
+    `utf-8-sig` handles both plain UTF-8 and UTF-8 BOM files.
+    """
+    return media_data.decode("utf-8-sig")
+
+
 class AddSkillCommand(Command):
     name = "addskill"
     aliases = ["skill"]
@@ -92,7 +100,7 @@ class AddSkillCommand(Command):
             try:
                 media_data = await ctx.client._client.download_any(msg_obj)
                 if media_data:
-                    content = media_data.decode("utf-8")
+                    content = decode_skill_document(media_data)
                     skill = parse_skill_markdown(content)
                     if skill:
                         save_skill_to_file(skill)

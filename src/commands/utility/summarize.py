@@ -30,7 +30,11 @@ class SummarizeCommand(Command):
 
     async def execute(self, ctx: CommandContext) -> None:
         """Summarize quoted text or recent chat memory."""
-        if not await ensure_ai_ready_or_reply(ctx, "summarize.ai_disabled"):
+        if not await ensure_ai_ready_or_reply(
+            ctx,
+            "summarize.ai_disabled",
+            no_key_key="summarize.no_api_key",
+        ):
             return
 
         text_to_summarize = ""
