@@ -16,7 +16,6 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from config.settings import FILE_LOGGING, LOG_LEVEL, VERBOSE_LOGGING
 from core import symbols as sym
 from core.constants import LOGS_DIR
 from core.runtime_config import runtime_config
@@ -33,10 +32,37 @@ LOG_LEVELS = {
     "ERROR": logging.ERROR,
 }
 
-if FILE_LOGGING:
+bot_file_logger = None
+message_logger = None
+
+
+def _file_logging_enabled() -> bool:
+    """Return whether file logging is currently enabled."""
+    return bool(runtime_config.get_nested("logging", "file_logging", default=True))
+
+
+def _verbose_logging_enabled() -> bool:
+    """Return whether verbose console logging is currently enabled."""
+    return bool(runtime_config.get_nested("logging", "verbose", default=False))
+
+
+def _log_level_name() -> str:
+    """Return current configured logging level name."""
+    return str(runtime_config.get_nested("logging", "level", default="INFO")).upper()
+
+
+def _ensure_file_loggers() -> None:
+    """Lazily initialize file loggers when file logging is enabled."""
+    global bot_file_logger, message_logger
+    if not _file_logging_enabled():
+        return
+    if bot_file_logger is not None and message_logger is not None:
+        return
+
     bot_file_logger = logging.getLogger("bot_file")
     bot_file_logger.setLevel(logging.DEBUG)
     bot_file_logger.propagate = False
+    bot_file_logger.handlers.clear()
     bot_file_handler = RotatingFileHandler(
         LOGS_DIR / "bot.log",
         maxBytes=5 * 1024 * 1024,
@@ -51,6 +77,7 @@ if FILE_LOGGING:
     message_logger = logging.getLogger("messages")
     message_logger.setLevel(logging.DEBUG)
     message_logger.propagate = False
+    message_logger.handlers.clear()
     message_handler = RotatingFileHandler(
         LOGS_DIR / "messages.log",
         maxBytes=10 * 1024 * 1024,
@@ -59,13 +86,14 @@ if FILE_LOGGING:
     )
     message_handler.setFormatter(logging.Formatter("%(message)s"))
     message_logger.addHandler(message_handler)
-else:
-    bot_file_logger = None
-    message_logger = None
 
-if VERBOSE_LOGGING:
+
+def _configure_root_logging() -> None:
+    """Configure stdlib/Rich logging from live runtime config."""
+    if not _verbose_logging_enabled():
+        return
     logging.basicConfig(
-        level=LOG_LEVELS.get(LOG_LEVEL, logging.INFO),
+        level=LOG_LEVELS.get(_log_level_name(), logging.INFO),
         format="%(message)s",
         datefmt="[%X]",
         handlers=[
@@ -79,7 +107,12 @@ if VERBOSE_LOGGING:
                 markup=True,
             )
         ],
+        force=True,
     )
+
+
+_ensure_file_loggers()
+_configure_root_logging()
 
 
 def strip_rich_markup(text: str) -> str:
@@ -89,6 +122,9 @@ def strip_rich_markup(text: str) -> str:
 
 def log_to_file(message: str, level: str = "INFO") -> None:
     """Log a message to bot.log file (strips Rich markup)."""
+    if not _file_logging_enabled():
+        return
+    _ensure_file_loggers()
     if bot_file_logger:
         clean_message = strip_rich_markup(message)
         getattr(bot_file_logger, level.lower(), bot_file_logger.info)(clean_message)
@@ -199,7 +235,7 @@ def log_command_execution(
         msg += f" | error={error}"
     log_to_file(msg, "INFO" if success else "ERROR")
 
-    if VERBOSE_LOGGING:
+    if _verbose_logging_enabled():
         icon = f"[green]{sym.SUCCESS}[/green]" if success else f"[red]{sym.ERROR}[/red]"
         _sub(
             f"{icon} [dim]{duration_ms:.0f}ms[/dim]"
@@ -209,14 +245,16 @@ def log_command_execution(
 
 def log_raw_message(event_data: dict) -> None:
     """Log raw message event data to messages.log as JSON."""
-    if message_logger:
+    if _file_logging_enabled():
+        _ensure_file_loggers()
+    if message_logger and _file_logging_enabled():
         entry = {
             "timestamp": datetime.now().isoformat(),
             "data": event_data,
         }
         message_logger.info(json.dumps(entry, ensure_ascii=False, default=str))
 
-    if VERBOSE_LOGGING:
+    if _verbose_logging_enabled():
         sender = event_data.get("sender_name") or event_data.get("sender", "?")
         text = str(event_data.get("text", "") or "")
         preview = text[:60] + "…" if len(text) > 60 else text or "[dim]<media>[/dim]"

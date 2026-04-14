@@ -173,28 +173,46 @@ def _get_dashboard_credentials() -> tuple[str, str]:
     return username, password
 
 
+def _normalize_origins(origins: list[str] | tuple[str, ...] | object) -> list[str]:
+    """Normalize, filter, and dedupe origin values while preserving order."""
+    if not isinstance(origins, (list, tuple)):
+        return []
+
+    seen: set[str] = set()
+    normalized: list[str] = []
+    for origin in origins:
+        if not isinstance(origin, str):
+            continue
+        value = origin.strip()
+        if not value or value == "*" or value in seen:
+            continue
+        seen.add(value)
+        normalized.append(value)
+    return normalized
+
+
+def _resolve_cors_origins(
+    *,
+    env_raw: str,
+    config_origins: list[str] | tuple[str, ...] | object,
+    default_origins: list[str],
+) -> list[str]:
+    """Resolve effective CORS origins with env > config > defaults precedence."""
+    env_origins = _normalize_origins(str(env_raw or "").split(","))
+    cfg_origins = _normalize_origins(config_origins)
+    fallback_origins = _normalize_origins(default_origins)
+    return env_origins or cfg_origins or fallback_origins
+
+
 def _get_cors_origins() -> list[str]:
     """Resolve allowed dashboard origins from env/config with secure defaults."""
     _ensure_dotenv_loaded()
-    from_env = [
-        o.strip()
-        for o in os.getenv("DASHBOARD_CORS_ORIGINS", "").split(",")
-        if o and o.strip() and o.strip() != "*"
-    ]
-
     from_config = runtime_config.get_nested("dashboard", "cors_origins", default=[])
-    config_origins = [
-        o.strip() for o in from_config if isinstance(o, str) and o.strip() and o.strip() != "*"
-    ]
-
-    origins = from_env or config_origins or DEFAULT_CORS_ORIGINS
-    seen = set()
-    deduped = []
-    for origin in origins:
-        if origin not in seen:
-            seen.add(origin)
-            deduped.append(origin)
-    return deduped
+    return _resolve_cors_origins(
+        env_raw=os.getenv("DASHBOARD_CORS_ORIGINS", ""),
+        config_origins=from_config,
+        default_origins=DEFAULT_CORS_ORIGINS,
+    )
 
 
 def _prune_ws_tokens() -> None:
@@ -229,13 +247,8 @@ def _consume_ws_token(token: str) -> str | None:
     return str(payload.get("username", "")) or None
 
 
-async def get_current_username(request: Request) -> str:
-    """
-    Custom async HTTP Basic Auth - avoids the to_thread wrapper issue
-    from Starlette's HTTPBasic security class.
-    """
-    authorization = request.headers.get("Authorization")
-
+def _extract_basic_auth_param(authorization: str | None) -> str:
+    """Extract Basic auth payload from Authorization header."""
     if not authorization:
         raise HTTPException(
             status_code=401,
@@ -244,7 +257,6 @@ async def get_current_username(request: Request) -> str:
         )
 
     scheme, param = get_authorization_scheme_param(authorization)
-
     if scheme.lower() != "basic":
         raise HTTPException(
             status_code=401,
@@ -252,9 +264,15 @@ async def get_current_username(request: Request) -> str:
             headers={"WWW-Authenticate": "Basic"},
         )
 
+    return param
+
+
+def _parse_basic_credentials(param: str) -> tuple[str, str]:
+    """Decode HTTP Basic credentials payload into username/password."""
     try:
         decoded = base64.b64decode(param).decode("utf-8")
         cred_username, _, cred_password = decoded.partition(":")
+        return cred_username, cred_password
     except Exception as e:
         raise HTTPException(
             status_code=401,
@@ -262,18 +280,34 @@ async def get_current_username(request: Request) -> str:
             headers={"WWW-Authenticate": "Basic"},
         ) from e
 
-    expected_username, expected_password = _get_dashboard_credentials()
 
+def _verify_dashboard_credentials(
+    cred_username: str, cred_password: str, expected_username: str, expected_password: str
+) -> None:
+    """Verify provided dashboard credentials against configured values."""
     correct_username = secrets.compare_digest(cred_username, expected_username)
     correct_password = secrets.compare_digest(cred_password, expected_password)
+    if correct_username and correct_password:
+        return
 
-    if not (correct_username and correct_password):
-        raise HTTPException(
-            status_code=401,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Basic"},
-        )
+    raise HTTPException(
+        status_code=401,
+        detail="Incorrect username or password",
+        headers={"WWW-Authenticate": "Basic"},
+    )
 
+
+async def get_current_username(request: Request) -> str:
+    """
+    Custom async HTTP Basic Auth - avoids the to_thread wrapper issue
+    from Starlette's HTTPBasic security class.
+    """
+    param = _extract_basic_auth_param(request.headers.get("Authorization"))
+    cred_username, cred_password = _parse_basic_credentials(param)
+    expected_username, expected_password = _get_dashboard_credentials()
+    _verify_dashboard_credentials(
+        cred_username, cred_password, expected_username, expected_password
+    )
     return cred_username
 
 
@@ -1303,6 +1337,59 @@ async def delete_incoming_webhook_key_endpoint(key_id: int):
     return {"success": True}
 
 
+def _parse_incoming_webhook_payload(
+    raw_body: bytes, allowed_actions: list[str] | object
+) -> tuple[str, dict[str, Any]]:
+    """Decode and validate incoming webhook payload shape and action allowlist."""
+    try:
+        payload = json.loads(raw_body.decode("utf-8"))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload") from exc
+
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Payload must be a JSON object")
+
+    action = str(payload.get("action", "")).strip()
+    data = payload.get("data", {})
+    if not action:
+        raise HTTPException(status_code=400, detail="Missing action")
+    if not isinstance(data, dict):
+        raise HTTPException(status_code=400, detail="data must be an object")
+
+    normalized_allowed = allowed_actions if isinstance(allowed_actions, list) else []
+    if action not in normalized_allowed:
+        raise HTTPException(status_code=403, detail=f"Action '{action}' not allowed")
+
+    return action, data
+
+
+async def _execute_incoming_webhook_action(action: str, data: dict[str, Any]) -> dict[str, Any]:
+    """Execute validated incoming webhook action payload."""
+    if action == "send_message":
+        to = str(data.get("to", "")).strip()
+        text_value = str(data.get("text", "")).strip()
+        if not to or not text_value:
+            raise HTTPException(status_code=400, detail="send_message requires 'to' and 'text'")
+
+        bot = get_bot()
+        if bot is None or not await check_bot_logged_in(bot):
+            raise HTTPException(status_code=503, detail="Bot not connected")
+        await bot.send(to, text_value)
+        return {"success": True, "action": action, "sent_to": to}
+
+    if action == "emit_event":
+        event_type = str(data.get("event_type", "")).strip()
+        event_data = data.get("event_data", {})
+        if not event_type:
+            raise HTTPException(status_code=400, detail="emit_event requires 'event_type'")
+        if not isinstance(event_data, dict):
+            raise HTTPException(status_code=400, detail="event_data must be an object")
+        await event_bus.emit(event_type, event_data)
+        return {"success": True, "action": action, "event_type": event_type}
+
+    raise HTTPException(status_code=400, detail=f"Unsupported action '{action}'")
+
+
 @app.post("/api/incoming-webhook/{token}")
 async def incoming_webhook_endpoint(token: str, request: Request):
     """Receive signed incoming webhook requests and execute allowed actions."""
@@ -1320,61 +1407,17 @@ async def incoming_webhook_endpoint(token: str, request: Request):
     if not idem_header:
         raise HTTPException(status_code=400, detail="Missing X-ZeroIchi-Incoming-Idempotency-Key")
 
-    if not _consume_incoming_rate_limit(
-        int(key_meta["id"]), int(key_meta.get("rate_limit_per_minute", 30))
-    ):
+    key_id = int(key_meta["id"])
+    if not _consume_incoming_rate_limit(key_id, int(key_meta.get("rate_limit_per_minute", 30))):
         raise HTTPException(status_code=429, detail="Incoming webhook rate limit exceeded")
 
-    if not claim_incoming_idempotency(int(key_meta["id"]), idem_header):
+    if not claim_incoming_idempotency(key_id, idem_header):
         raise HTTPException(status_code=409, detail="Duplicate idempotency key")
 
-    try:
-        payload = json.loads(raw_body.decode("utf-8"))
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail="Invalid JSON payload") from exc
+    action, data = _parse_incoming_webhook_payload(raw_body, key_meta.get("allowed_actions", []))
+    result = await _execute_incoming_webhook_action(action, data)
 
-    if not isinstance(payload, dict):
-        raise HTTPException(status_code=400, detail="Payload must be a JSON object")
-
-    action = str(payload.get("action", "")).strip()
-    data = payload.get("data", {})
-    if not action:
-        raise HTTPException(status_code=400, detail="Missing action")
-    if not isinstance(data, dict):
-        raise HTTPException(status_code=400, detail="data must be an object")
-
-    allowed_actions = key_meta.get("allowed_actions", [])
-    if not isinstance(allowed_actions, list):
-        allowed_actions = []
-    if action not in allowed_actions:
-        raise HTTPException(status_code=403, detail=f"Action '{action}' not allowed")
-
-    if action == "send_message":
-        to = str(data.get("to", "")).strip()
-        text_value = str(data.get("text", "")).strip()
-        if not to or not text_value:
-            raise HTTPException(status_code=400, detail="send_message requires 'to' and 'text'")
-
-        bot = get_bot()
-        if not await check_bot_logged_in(bot) or bot is None:
-            raise HTTPException(status_code=503, detail="Bot not connected")
-        await bot.send(to, text_value)
-        result = {"success": True, "action": action, "sent_to": to}
-
-    elif action == "emit_event":
-        event_type = str(data.get("event_type", "")).strip()
-        event_data = data.get("event_data", {})
-        if not event_type:
-            raise HTTPException(status_code=400, detail="emit_event requires 'event_type'")
-        if not isinstance(event_data, dict):
-            raise HTTPException(status_code=400, detail="event_data must be an object")
-        await event_bus.emit(event_type, event_data)
-        result = {"success": True, "action": action, "event_type": event_type}
-
-    else:
-        raise HTTPException(status_code=400, detail=f"Unsupported action '{action}'")
-
-    touch_incoming_webhook_key(int(key_meta["id"]))
+    touch_incoming_webhook_key(key_id)
     _audit(
         f"incoming_key:{key_meta['id']}",
         "incoming_webhook.execute",

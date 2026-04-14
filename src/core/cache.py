@@ -13,8 +13,8 @@ from typing import Any
 
 from google.protobuf.json_format import MessageToDict
 
-from config.settings import ANTI_DELETE_CACHE_TTL
 from core.logger import log_error, log_info
+from core.runtime_config import runtime_config
 from core.storage import DATA_DIR
 
 
@@ -28,12 +28,23 @@ class MessageCache:
     random access without loading the entire cache into memory.
     """
 
-    def __init__(self, ttl_minutes: int = ANTI_DELETE_CACHE_TTL, max_size: int = 5000):
+    def __init__(self, ttl_minutes: int | None = None, max_size: int = 5000):
         self._db_file = DATA_DIR / "messages.db"
-        self._ttl_seconds = ttl_minutes * 60
+        self._ttl_minutes_override = ttl_minutes
         self._max_size = max_size
         self._conn: sqlite3.Connection | None = None
         self._init_db()
+
+    def _get_ttl_seconds(self) -> float:
+        """Resolve cache TTL from explicit override or live runtime config."""
+        ttl_minutes = self._ttl_minutes_override
+        if ttl_minutes is None:
+            ttl_minutes = runtime_config.get_nested("anti_delete", "cache_ttl", default=60)
+        try:
+            ttl_value = float(ttl_minutes)
+        except (TypeError, ValueError):
+            ttl_value = 60.0
+        return max(0.0, ttl_value * 60.0)
 
     def _get_conn(self) -> sqlite3.Connection:
         """Get or create the persistent SQLite connection."""
@@ -77,6 +88,7 @@ class MessageCache:
             compressed = zlib.compress(serialized)
 
             timestamp = time.time()
+            ttl_seconds = self._get_ttl_seconds()
             conn = self._get_conn()
 
             conn.execute(
@@ -99,7 +111,7 @@ class MessageCache:
 
             conn.execute(
                 "DELETE FROM messages WHERE timestamp < ?",
-                (timestamp - self._ttl_seconds,),
+                (timestamp - ttl_seconds,),
             )
             conn.commit()
 
@@ -120,7 +132,8 @@ class MessageCache:
 
             timestamp, blob = row
 
-            if time.time() - timestamp > self._ttl_seconds:
+            ttl_seconds = self._get_ttl_seconds()
+            if time.time() - timestamp > ttl_seconds:
                 conn.execute("DELETE FROM messages WHERE id = ?", (message_id,))
                 conn.commit()
                 return None

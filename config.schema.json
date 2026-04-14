@@ -21,7 +21,7 @@
                 "prefix": {
                     "type": "string",
                     "description": "Command prefix. Supports regex patterns, e.g., '(!|/|.)' for multiple prefixes",
-                    "default": "(!|/|\\.)"
+                    "default": "/"
                 },
                 "login_method": {
                     "type": "string",
@@ -54,17 +54,22 @@
                 "auto_react_emoji": {
                     "type": "string",
                     "description": "Emoji to use for auto-react feature",
-                    "default": "❤️"
+                    "default": ""
                 },
                 "auto_reload": {
                     "type": "boolean",
                     "description": "For development: automatically reload bot when files change",
-                    "default": false
+                    "default": true
                 },
                 "ignore_self_messages": {
                     "type": "boolean",
                     "description": "Ignore messages sent by the bot itself",
                     "default": true
+                },
+                "self_mode": {
+                    "type": "boolean",
+                    "description": "Only process messages sent by the bot account itself",
+                    "default": false
                 }
             },
             "required": [
@@ -103,7 +108,7 @@
                 "verbose": {
                     "type": "boolean",
                     "description": "Enable verbose/detailed logging output",
-                    "default": true
+                    "default": false
                 }
             }
         },
@@ -114,7 +119,7 @@
                 "enabled": {
                     "type": "boolean",
                     "description": "Enable AI-powered responses",
-                    "default": true
+                    "default": false
                 },
                 "provider": {
                     "type": "string",
@@ -144,7 +149,7 @@
                         "reply"
                     ],
                     "description": "When AI should respond: 'always' (all messages), 'mention' (when bot is mentioned), 'reply' (when replying to bot)",
-                    "default": "reply"
+                    "default": "mention"
                 },
                 "allowed_actions": {
                     "type": "array",
@@ -161,11 +166,10 @@
                     },
                     "description": "List of command actions blocked from AI usage (for security)",
                     "default": [
-                        "aeval",
                         "eval",
+                        "aeval",
                         "addcommand",
-                        "delcommand",
-                        "shutdown"
+                        "delcommand"
                     ]
                 },
                 "owner_only": {
@@ -199,7 +203,7 @@
                 "anti_link": {
                     "type": "boolean",
                     "description": "Detect and act on links in group chats",
-                    "default": false
+                    "default": true
                 },
                 "welcome": {
                     "type": "boolean",

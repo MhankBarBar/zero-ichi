@@ -31,7 +31,7 @@ MAX_CONFIG_HISTORY = 50
 
 DEFAULT_CONFIG = {
     "bot": {
-        "name": "Zero Ichi",
+        "name": "zero_ichi_bot",
         "prefix": "/",
         "login_method": "QR",
         "phone_number": "",
@@ -620,7 +620,7 @@ class RuntimeConfig:
 
     @property
     def bot_name(self) -> str:
-        return self._config.get("bot", {}).get("name", "Zero Ichi")
+        return self._config.get("bot", {}).get("name", "zero_ichi_bot")
 
     @property
     def prefix(self) -> str:

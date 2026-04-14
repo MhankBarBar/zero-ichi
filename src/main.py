@@ -399,6 +399,126 @@ def _run_setup():
     console.print("You can now run: [bold]uv run zero-ichi[/bold]")
 
 
+def _runtime_startup_settings() -> dict[str, str | bool]:
+    """Resolve bot startup settings from live runtime config."""
+    return {
+        "bot_name": runtime_config.bot_name,
+        "login_method": runtime_config.login_method,
+        "phone_number": runtime_config.phone_number,
+        "auto_reload": runtime_config.get_nested("bot", "auto_reload", default=True),
+    }
+
+
+def _session_filename(session_name: str) -> str:
+    """Build a filesystem-safe Neonize session filename from configured session name."""
+    safe = (
+        (str(session_name or "").strip() or "zero_ichi_bot")
+        .replace(" ", "_")
+        .replace("/", "_")
+        .replace("\\", "_")
+        .replace(":", "_")
+    )
+    return f"{safe}.session"
+
+
+def _apply_cli_runtime_overrides(config, args) -> None:
+    """Apply CLI flags as transient runtime config overrides."""
+    if args.debug:
+        config._config.setdefault("logging", {})["verbose"] = True
+        config._config.setdefault("logging", {})["level"] = "DEBUG"
+
+    if args.qr:
+        config._config.setdefault("bot", {})["login_method"] = "QR"
+
+    if args.phone:
+        config._config.setdefault("bot", {})["login_method"] = "PAIR_CODE"
+        config._config.setdefault("bot", {})["phone_number"] = args.phone
+
+    if args.session:
+        config._config.setdefault("bot", {})["name"] = args.session
+
+    if args.auto_reload:
+        config._config.setdefault("bot", {})["auto_reload"] = True
+
+    if args.dashboard:
+        config._config.setdefault("dashboard", {})["enabled"] = True
+
+
+def _watch_targets(project_dir: Path) -> tuple[list[Path], list[Path]]:
+    """Return directory and file watch targets for auto-reload."""
+    locales_dir = project_dir / "locales"
+    watch_dirs = [
+        project_dir / "commands",
+        project_dir / "core",
+        project_dir / "config",
+        project_dir / "ai",
+        locales_dir,
+    ]
+    watch_files = [project_dir / "dashboard_api.py"]
+    return watch_dirs, watch_files
+
+
+def _module_name_from_path(path: Path, project_dir: Path) -> str:
+    """Convert a Python file path into an importable module name."""
+    rel_path = path.relative_to(project_dir)
+    return str(rel_path.with_suffix("")).replace("\\", ".").replace("/", ".")
+
+
+def _maybe_start_dashboard_api(
+    enabled: bool,
+    *,
+    create_task_fn=asyncio.create_task,
+    uvicorn_module=None,
+    api_app=None,
+) -> None:
+    """Start dashboard API server when enabled."""
+    if not enabled:
+        log_info("Dashboard API is disabled in config.json")
+        return
+
+    try:
+        if uvicorn_module is None:
+            import uvicorn as uvicorn_module
+        if api_app is None:
+            from dashboard_api import app as api_app
+
+        config = uvicorn_module.Config(api_app, host="0.0.0.0", port=8000, log_level="warning")
+        server = uvicorn_module.Server(config)
+        create_task_fn(server.serve())
+        log_success("Dashboard API starting on http://localhost:8000")
+    except ImportError:
+        log_warning("Dashboard API not available (install fastapi & uvicorn)")
+    except Exception as e:
+        log_warning(f"Dashboard API failed to start: {e}")
+
+
+def _start_scheduler_if_needed(scheduler) -> None:
+    """Start scheduler if present and not already running."""
+    if scheduler and not scheduler._scheduler.running:
+        scheduler.start()
+        log_success("Scheduler started")
+
+
+async def _connect_client(client, login_method: str, phone_number: str) -> bool:
+    """Connect to WhatsApp via pair code or QR flow."""
+    if login_method == "PAIR_CODE":
+        log_step(f"Initiating Pair Code login for {phone_number}...")
+        try:
+            session_state.is_pairing = True
+            session_state.phone_number = phone_number
+            x = await client.PairPhone(phone_number, True)
+            session_state.pair_code = x
+            console.print(x)
+            show_pair_help()
+            return True
+        except Exception as e:
+            log_error(f"Pairing failed: {e}")
+            return False
+
+    await client.connect()
+    return True
+
+
 def _init_bot(args):
     """Initialize the bot infrastructure. Only called when actually running the bot."""
     ensure_database_ready()
@@ -407,27 +527,14 @@ def _init_bot(args):
     if _ai_api_key and not os.getenv("OPENAI_API_KEY"):
         os.environ["OPENAI_API_KEY"] = str(_ai_api_key)
 
-    if args.debug:
-        runtime_config._config.setdefault("logging", {})["verbose"] = True
-        runtime_config._config.setdefault("logging", {})["level"] = "DEBUG"
+    _apply_cli_runtime_overrides(runtime_config, args)
 
-    if args.qr:
-        runtime_config._config.setdefault("bot", {})["login_method"] = "QR"
+    settings = _runtime_startup_settings()
+    bot_name = str(settings["bot_name"])
+    login_method = str(settings["login_method"])
+    phone_number = str(settings["phone_number"])
+    auto_reload = bool(settings["auto_reload"])
 
-    if args.phone:
-        runtime_config._config.setdefault("bot", {})["login_method"] = "PAIR_CODE"
-        runtime_config._config.setdefault("bot", {})["phone_number"] = args.phone
-
-    if args.session:
-        runtime_config._config.setdefault("bot", {})["name"] = args.session
-
-    if args.auto_reload:
-        runtime_config._config.setdefault("bot", {})["auto_reload"] = True
-
-    if args.dashboard:
-        runtime_config._config.setdefault("dashboard", {})["enabled"] = True
-
-    from config.settings import AUTO_RELOAD, BOT_NAME, LOGIN_METHOD, PHONE_NUMBER
     from core.cache import message_cache
     from core.client import BotClient
     from core.command import command_loader
@@ -439,7 +546,7 @@ def _init_bot(args):
     validate_environment()
 
     client = NewAClient(
-        f"{BOT_NAME}.session",
+        _session_filename(bot_name),
         props=DeviceProps(
             os="Zero Ichi",
             platformType=DeviceProps.SAFARI,
@@ -670,7 +777,7 @@ def _init_bot(args):
 
         show_connected(
             device=event.device.User,
-            bot_name=BOT_NAME,
+            bot_name=bot_name,
             commands_count=len(command_loader.enabled_commands),
         )
 
@@ -807,65 +914,27 @@ def _init_bot(args):
         show_banner("Zero Ichi", "WhatsApp Bot built with 💖")
 
         dashboard_enabled = runtime_config.get_nested("dashboard", "enabled", default=False)
-        if dashboard_enabled:
-            try:
-                import uvicorn
-
-                from dashboard_api import app as api_app
-
-                config = uvicorn.Config(api_app, host="0.0.0.0", port=8000, log_level="warning")
-                server = uvicorn.Server(config)
-                asyncio.create_task(server.serve())
-                log_success("Dashboard API starting on http://localhost:8000")
-            except ImportError:
-                log_warning("Dashboard API not available (install fastapi & uvicorn)")
-            except Exception as e:
-                log_warning(f"Dashboard API failed to start: {e}")
-        else:
-            log_info("Dashboard API is disabled in config.json")
+        _maybe_start_dashboard_api(dashboard_enabled)
 
         log_step("Starting bot...")
-        log_bullet(f"Session: {BOT_NAME}")
-        log_bullet(f"Login Method: {LOGIN_METHOD}")
+        log_bullet(f"Session: {bot_name}")
+        log_bullet(f"Login Method: {login_method}")
 
         num_commands = command_loader.load_commands()
         log_success(f"Loaded {num_commands} commands")
 
         log_step("Connecting to WhatsApp...")
 
-        if LOGIN_METHOD == "PAIR_CODE":
-            log_step(f"Initiating Pair Code login for {PHONE_NUMBER}...")
-            try:
-                session_state.is_pairing = True
-                session_state.phone_number = PHONE_NUMBER
-                x = await client.PairPhone(PHONE_NUMBER, True)
-                session_state.pair_code = x
-                console.print(x)
-                show_pair_help()
-            except Exception as e:
-                log_error(f"Pairing failed: {e}")
-                return
-        else:
-            await client.connect()
+        if not await _connect_client(client, login_method, phone_number):
+            return
 
-        if scheduler and not scheduler._scheduler.running:
-            scheduler.start()
-            log_success("Scheduler started")
+        _start_scheduler_if_needed(scheduler)
 
         async def watch_and_reload():
             """Watch for file changes and reload commands and core modules."""
             project_dir = _src_dir
             locales_dir = project_dir / "locales"
-            watch_dirs = [
-                project_dir / "commands",
-                project_dir / "core",
-                project_dir / "config",
-                project_dir / "ai",
-                locales_dir,
-            ]
-            watch_files = [
-                project_dir / "dashboard_api.py",
-            ]
+            watch_dirs, watch_files = _watch_targets(project_dir)
 
             log_info("Auto-reload enabled. Watching for file changes...")
 
@@ -881,10 +950,7 @@ def _init_bot(args):
                             continue
 
                         if path.suffix == ".py" and not path.name.startswith("_"):
-                            rel_path = path.relative_to(project_dir)
-                            module_name = (
-                                str(rel_path.with_suffix("")).replace("\\", ".").replace("/", ".")
-                            )
+                            module_name = _module_name_from_path(path, project_dir)
 
                             if module_name in sys.modules:
                                 importlib.reload(sys.modules[module_name])
@@ -910,7 +976,7 @@ def _init_bot(args):
                     except Exception as e:
                         log_error(f"Reload failed for {path.name}: {e}")
 
-        if AUTO_RELOAD:
+        if auto_reload:
             asyncio.create_task(watch_and_reload())
         else:
             log_info("Auto-reload disabled. Set 'auto_reload: true' in config.json to enable.")

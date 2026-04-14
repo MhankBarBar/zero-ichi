@@ -1,8 +1,8 @@
 """Stats middleware — track message stats and resolve chat type."""
 
-from config.settings import LOG_MESSAGES
 from core.event_bus import event_bus
 from core.logger import show_message
+from core.runtime_config import runtime_config
 from core.storage import Storage
 
 
@@ -16,7 +16,7 @@ async def stats_middleware(ctx, next):
         group_name = await ctx.bot.get_group_name(ctx.msg.chat_jid)
         ctx.chat_type = "Group"
 
-    if LOG_MESSAGES:
+    if runtime_config.get_nested("logging", "log_messages", default=True):
         show_message(ctx.chat_type, ctx.msg.sender_name, ctx.msg.text)
 
     await event_bus.emit(
