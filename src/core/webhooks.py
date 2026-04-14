@@ -20,6 +20,7 @@ from core.db import (
     get_active_webhooks_for_event,
     get_webhook,
     get_webhook_delivery,
+    list_webhooks,
     mark_webhook_delivery_result,
     record_webhook_delivery,
 )
@@ -45,6 +46,8 @@ class WebhookDispatcher:
         self._worker_task: asyncio.Task | None = None
         self._client: httpx.AsyncClient | None = None
         self._lock = asyncio.Lock()
+        self._last_error: str | None = None
+        self._dropped_events = 0
 
     async def _ensure_started(self) -> None:
         async with self._lock:
@@ -62,6 +65,8 @@ class WebhookDispatcher:
         try:
             self._queue.put_nowait(event)
         except asyncio.QueueFull:
+            self._dropped_events += 1
+            self._last_error = "queue_full"
             log_warning("Webhook queue full; dropping event")
 
     def _build_signature(self, secret: str, timestamp: str, payload: str) -> str:
@@ -124,6 +129,7 @@ class WebhookDispatcher:
                 )
 
                 if ok:
+                    self._last_error = None
                     mark_webhook_delivery_result(webhook_id, success=True)
                     return {
                         "success": True,
@@ -132,11 +138,13 @@ class WebhookDispatcher:
                     }
 
                 last_error = f"HTTP {response.status_code}"
+                self._last_error = last_error
 
                 if attempt < max_attempts:
                     await asyncio.sleep(BASE_RETRY_DELAY_SECONDS * (2 ** (attempt - 1)))
             except Exception as exc:
                 last_error = str(exc)
+                self._last_error = last_error
                 record_webhook_delivery(
                     webhook_id=webhook_id,
                     event_type=event.event_type,
@@ -167,6 +175,7 @@ class WebhookDispatcher:
                 for hook in hooks:
                     await self._deliver_one(hook, event, allow_retry=True)
             except Exception as exc:
+                self._last_error = str(exc)
                 log_warning(f"Webhook worker error: {exc}")
             finally:
                 self._queue.task_done()
@@ -211,9 +220,15 @@ class WebhookDispatcher:
     def get_status(self) -> dict[str, Any]:
         """Get worker status for health checks."""
         running = self._worker_task is not None and not self._worker_task.done()
+        disabled_hook_count = sum(
+            1 for hook in list_webhooks(include_disabled=True) if not hook.get("enabled", False)
+        )
         return {
             "running": running,
             "queue_size": self._queue.qsize(),
+            "last_error": self._last_error,
+            "dropped_events": self._dropped_events,
+            "disabled_hook_count": disabled_hook_count,
         }
 
 

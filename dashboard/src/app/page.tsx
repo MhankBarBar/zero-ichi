@@ -22,6 +22,7 @@ import {
     IconClock,
     IconCommand,
     IconCopy,
+    IconHeartbeat,
     IconMessage,
     IconQrcode,
     IconRefresh,
@@ -609,6 +610,14 @@ export default function DashboardPage() {
                         href="/logs"
                         color="bg-amber-500/20"
                         delay={0.55}
+                    />
+                    <QuickAction
+                        icon={IconHeartbeat}
+                        title="Ops Health"
+                        description="Webhook queue and backend health"
+                        href="/ops"
+                        color="bg-emerald-500/20"
+                        delay={0.6}
                     />
                 </div>
             </div>

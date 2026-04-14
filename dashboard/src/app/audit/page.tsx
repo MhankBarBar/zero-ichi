@@ -1,5 +1,6 @@
 "use client";
 
+import { useWebSocket } from "@/hooks/use-websocket";
 import { api, type AuditLogItem } from "@/lib/api";
 import { useCallback, useEffect, useState } from "react";
 
@@ -8,6 +9,7 @@ export default function AuditPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [actionFilter, setActionFilter] = useState("");
+    const { lastEvent } = useWebSocket(40);
 
     const fetchLogs = useCallback(async () => {
         setLoading(true);
@@ -25,6 +27,13 @@ export default function AuditPage() {
     useEffect(() => {
         void fetchLogs();
     }, [fetchLogs]);
+
+    useEffect(() => {
+        if (!lastEvent) return;
+        if (["config_update", "command_update", "group_update", "webhook_test"].includes(lastEvent.type)) {
+            void fetchLogs();
+        }
+    }, [lastEvent, fetchLogs]);
 
     return (
         <div className="space-y-6 text-white">

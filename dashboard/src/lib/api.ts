@@ -234,6 +234,22 @@ export interface AuditLogItem {
     created_at: string;
 }
 
+export interface HealthStatus {
+    status: string;
+    database: {
+        ok: boolean;
+        url: string;
+        error?: string | null;
+    };
+    webhooks: {
+        running: boolean;
+        queue_size: number;
+        last_error?: string | null;
+        dropped_events?: number;
+        disabled_hook_count?: number;
+    };
+}
+
 function getStoredAuth(): string | null {
     if (typeof window === "undefined") {
         return null;
@@ -666,12 +682,7 @@ export const api = {
         fetchAPI<{ logs: AuditLogItem[]; count: number }>(
             `/api/audit-logs?limit=${limit}${action ? `&action=${encodeURIComponent(action)}` : ""}`,
         ),
-    getHealth: () =>
-        fetchAPI<{
-            status: string;
-            database: { ok: boolean; url: string; error?: string | null };
-            webhooks: { running: boolean; queue_size: number };
-        }>("/api/health"),
+    getHealth: () => fetchAPI<HealthStatus>("/api/health"),
 
     getTopCommands: (days = 7, groupId?: string) => {
         const query = new URLSearchParams({ days: days.toString() });
