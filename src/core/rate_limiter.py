@@ -171,3 +171,8 @@ def load_rate_limit_config() -> RateLimitConfig:
 
 
 rate_limiter = RateLimiter(load_rate_limit_config())
+
+
+def refresh_rate_limiter_from_runtime() -> None:
+    """Reload rate limiter config from live runtime configuration."""
+    rate_limiter.update_config(load_rate_limit_config())

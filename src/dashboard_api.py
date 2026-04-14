@@ -72,7 +72,7 @@ from core.handlers.welcome import (
     set_goodbye_config,
     set_welcome_config,
 )
-from core.rate_limiter import RateLimitConfig, rate_limiter
+from core.rate_limiter import rate_limiter, refresh_rate_limiter_from_runtime
 from core.reports import create_report, get_report, list_reports, update_report_status
 from core.runtime_config import runtime_config
 from core.scheduler import get_scheduler
@@ -1052,7 +1052,7 @@ async def update_rate_limit(settings: RateLimitSettings):
     }
 
     runtime_config.set("rate_limit", rate_limit_config)
-    rate_limiter.update_config(RateLimitConfig(**rate_limit_config))
+    refresh_rate_limiter_from_runtime()
     await event_bus.emit("config_update", {"section": "rate_limit", "key": "all"})
     _audit("dashboard", "rate_limit.update", "rate_limit", rate_limit_config)
 
@@ -1363,6 +1363,15 @@ def _parse_incoming_webhook_payload(
     return action, data
 
 
+def _validate_incoming_event_type(event_type: str) -> str:
+    """Validate and restrict incoming webhook event names."""
+    if not event_type:
+        raise HTTPException(status_code=400, detail="emit_event requires 'event_type'")
+    if not event_type.startswith("external."):
+        raise HTTPException(status_code=403, detail="Event type not allowed")
+    return event_type
+
+
 async def _execute_incoming_webhook_action(action: str, data: dict[str, Any]) -> dict[str, Any]:
     """Execute validated incoming webhook action payload."""
     if action == "send_message":
@@ -1378,10 +1387,8 @@ async def _execute_incoming_webhook_action(action: str, data: dict[str, Any]) ->
         return {"success": True, "action": action, "sent_to": to}
 
     if action == "emit_event":
-        event_type = str(data.get("event_type", "")).strip()
+        event_type = _validate_incoming_event_type(str(data.get("event_type", "")).strip())
         event_data = data.get("event_data", {})
-        if not event_type:
-            raise HTTPException(status_code=400, detail="emit_event requires 'event_type'")
         if not isinstance(event_data, dict):
             raise HTTPException(status_code=400, detail="event_data must be an object")
         await event_bus.emit(event_type, event_data)
@@ -1427,6 +1434,19 @@ async def incoming_webhook_endpoint(token: str, request: Request):
     return result
 
 
+def _mask_database_url(url: str) -> str:
+    """Mask database credentials for operator-facing health output."""
+    value = str(url or "").strip()
+    if not value or "://" not in value or "@" not in value:
+        return value
+
+    scheme, rest = value.split("://", 1)
+    credentials, remainder = rest.split("@", 1)
+    if ":" not in credentials:
+        return value
+    return f"{scheme}://***:***@{remainder}"
+
+
 @app.get("/healthz")
 async def healthz():
     """Public lightweight liveness endpoint."""
@@ -1449,7 +1469,7 @@ async def api_health():
         "status": "ok" if db_ok else "degraded",
         "database": {
             "ok": db_ok,
-            "url": get_database_url(),
+            "url": _mask_database_url(get_database_url()),
             "error": db_error or None,
         },
         "webhooks": webhook_status,

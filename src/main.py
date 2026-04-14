@@ -52,6 +52,7 @@ from core.logger import (
     show_qr_prompt,
 )
 from core.runtime_config import runtime_config
+from core.runtime_service_manager import RuntimeServiceManager
 from core.scheduler import init_scheduler
 from core.session import session_state
 from core.shared import set_bot
@@ -464,6 +465,74 @@ def _module_name_from_path(path: Path, project_dir: Path) -> str:
     return str(rel_path.with_suffix("")).replace("\\", ".").replace("/", ".")
 
 
+def _build_live_pipeline(*, import_module=importlib.import_module):
+    """Build the middleware pipeline from the current imported module state."""
+    middlewares_module = import_module("core.middlewares")
+    return middlewares_module.build_pipeline()
+
+
+def _message_runtime_bindings(*, import_module=importlib.import_module):
+    """Resolve fresh MessageHelper and MessageContext bindings from current modules."""
+    message_module = import_module("core.message")
+    middleware_module = import_module("core.middleware")
+    return message_module.MessageHelper, middleware_module.MessageContext
+
+
+def _register_runtime_service_callbacks(service_manager, *, rate_limiter_module):
+    """Register config-sensitive runtime refresh callbacks with the service manager."""
+
+    def refresh_rate_limiter():
+        rate_limiter_module.refresh_rate_limiter_from_runtime()
+
+    service_manager.register_config_callback(refresh_rate_limiter)
+
+
+def _build_dashboard_server(*, uvicorn_module, api_app):
+    """Build a dashboard server instance using the current uvicorn module."""
+    config = uvicorn_module.Config(api_app, host="0.0.0.0", port=8000, log_level="warning")
+    return uvicorn_module.Server(config)
+
+
+def _start_dashboard_via_manager(
+    service_manager,
+    *,
+    enabled: bool,
+    create_task_fn=asyncio.create_task,
+    uvicorn_module=None,
+    api_app=None,
+):
+    """Start dashboard API through the runtime service manager."""
+    if not enabled:
+        log_info("Dashboard API is disabled in config.json")
+        return service_manager.start_dashboard(
+            enabled=False,
+            create_task_fn=create_task_fn,
+            server_factory=lambda: None,
+        )
+
+    try:
+        if uvicorn_module is None:
+            import uvicorn as uvicorn_module
+        if api_app is None:
+            from dashboard_api import app as api_app
+
+        task = service_manager.start_dashboard(
+            enabled=True,
+            create_task_fn=create_task_fn,
+            server_factory=lambda: _build_dashboard_server(
+                uvicorn_module=uvicorn_module, api_app=api_app
+            ),
+        )
+        log_success("Dashboard API starting on http://localhost:8000")
+        return task
+    except ImportError:
+        log_warning("Dashboard API not available (install fastapi & uvicorn)")
+        return None
+    except Exception as e:
+        log_warning(f"Dashboard API failed to start: {e}")
+        return None
+
+
 def _maybe_start_dashboard_api(
     enabled: bool,
     *,
@@ -535,13 +604,11 @@ def _init_bot(args):
     phone_number = str(settings["phone_number"])
     auto_reload = bool(settings["auto_reload"])
 
+    from core import rate_limiter as rate_limiter_module
     from core.cache import message_cache
     from core.client import BotClient
     from core.command import command_loader
     from core.env import validate_environment
-    from core.message import MessageHelper
-    from core.middleware import MessageContext
-    from core.middlewares import build_pipeline
 
     validate_environment()
 
@@ -559,7 +626,13 @@ def _init_bot(args):
     set_bot(bot)
 
     scheduler = init_scheduler(bot)
-    pipeline = build_pipeline()
+    service_manager = RuntimeServiceManager(runtime_config)
+    service_manager.bot = bot
+    service_manager.message_cache = message_cache
+    service_manager.scheduler = scheduler
+    _register_runtime_service_callbacks(service_manager, rate_limiter_module=rate_limiter_module)
+    service_manager.notify_config_changed()
+    pipeline = service_manager.rebuild_pipeline(factory=_build_live_pipeline)
 
     _handled_call_ids: dict[str, float] = {}
     _CALL_GUARD_DEDUP_TTL_SECONDS = 120.0
@@ -784,9 +857,7 @@ def _init_bot(args):
         log_info(
             f"Connected event fired, scheduler: {scheduler}, running: {scheduler._scheduler.running if scheduler else 'N/A'}"
         )
-        if scheduler and not scheduler._scheduler.running:
-            scheduler.start()
-            log_success("Scheduler start() called")
+        service_manager.start_scheduler_if_needed()
 
         owner_jid = runtime_config.get_owner_jid()
         if owner_jid:
@@ -873,7 +944,8 @@ def _init_bot(args):
     @client.event(MessageEv)
     async def message_handler(c: NewAClient, event: MessageEv) -> None:
         """Handle incoming messages through the middleware pipeline."""
-        msg = MessageHelper(event)
+        message_helper_cls, message_context_cls = _message_runtime_bindings()
+        msg = message_helper_cls(event)
 
         try:
             raw_msg_dict = MessageToDict(event.Message)
@@ -898,7 +970,7 @@ def _init_bot(args):
             log_error(f"Failed to log raw message: {e}")
 
         try:
-            ctx = MessageContext(bot=bot, msg=msg, event=event)
+            ctx = message_context_cls(bot=bot, msg=msg, event=event)
             await pipeline.execute(ctx)
         except Exception as e:
             log_error(f"Unhandled error in message handler: {e}")
@@ -914,7 +986,7 @@ def _init_bot(args):
         show_banner("Zero Ichi", "WhatsApp Bot built with 💖")
 
         dashboard_enabled = runtime_config.get_nested("dashboard", "enabled", default=False)
-        _maybe_start_dashboard_api(dashboard_enabled)
+        _start_dashboard_via_manager(service_manager, enabled=dashboard_enabled)
 
         log_step("Starting bot...")
         log_bullet(f"Session: {bot_name}")
@@ -928,7 +1000,7 @@ def _init_bot(args):
         if not await _connect_client(client, login_method, phone_number):
             return
 
-        _start_scheduler_if_needed(scheduler)
+        service_manager.start_scheduler_if_needed()
 
         async def watch_and_reload():
             """Watch for file changes and reload commands and core modules."""
@@ -960,14 +1032,17 @@ def _init_bot(args):
                                     importlib.reload(sys.modules["dashboard_api"])
                                 log_success(f"[b]↻ Reloaded:[/b] {path.name} (API module)")
                             elif module_name.startswith("core."):
-                                importlib.reload(sys.modules["core.client"])
                                 from core.client import BotClient as ReloadedBotClient
-                                from core.shared import set_bot as set_bot_reload
 
-                                nonlocal bot
-                                bot = ReloadedBotClient(client)
-                                bot.message_cache = message_cache
-                                set_bot_reload(bot)
+                                service_manager.reload_core_module(
+                                    client=client,
+                                    message_cache=message_cache,
+                                    core_client_module=sys.modules["core.client"],
+                                    bot_client_cls=ReloadedBotClient,
+                                )
+                                nonlocal bot, pipeline
+                                bot = service_manager.bot
+                                pipeline = service_manager.pipeline
                                 log_success(f"[b]↻ Reloaded:[/b] {path.name} (core module)")
                             else:
                                 command_loader._commands.clear()

@@ -419,6 +419,61 @@ def kv_get_scope_keys(scope: str) -> list[str]:
     return [str(row[0]) for row in rows]
 
 
+def create_pending_item(
+    key: str,
+    *,
+    kind: str,
+    payload: Any,
+    expires_at: float,
+    chat_jid: str = "",
+    sender_jid: str = "",
+) -> None:
+    """Persist one pending interaction payload."""
+    kv_set_json(
+        "pending_items",
+        key,
+        {
+            "key": key,
+            "kind": str(kind),
+            "payload": payload,
+            "expires_at": float(expires_at),
+            "chat_jid": str(chat_jid),
+            "sender_jid": str(sender_jid),
+            "created_at": time.time(),
+        },
+    )
+
+
+def get_pending_item(key: str) -> dict[str, Any] | None:
+    """Read one pending interaction payload by key."""
+    row = kv_get_json("pending_items", key, default=None)
+    if not isinstance(row, dict):
+        return None
+    return row
+
+
+def delete_pending_item(key: str) -> None:
+    """Delete one pending interaction payload."""
+    kv_delete("pending_items", key)
+
+
+def delete_expired_pending_items(now_ts: float) -> int:
+    """Delete expired pending interaction payloads and return removed count."""
+    removed = 0
+    for key in kv_get_scope_keys("pending_items"):
+        item = get_pending_item(key)
+        if not isinstance(item, dict):
+            continue
+        try:
+            expires_at = float(item.get("expires_at", 0.0))
+        except (TypeError, ValueError):
+            expires_at = 0.0
+        if expires_at <= float(now_ts):
+            delete_pending_item(key)
+            removed += 1
+    return removed
+
+
 def _normalize_webhook_events(events: list[str]) -> list[str]:
     cleaned = [str(event).strip() for event in events if str(event).strip()]
     deduped: list[str] = []

@@ -21,6 +21,7 @@ from neonize.proto.waE2E.WAWebProtobufsE2E_pb2 import Message
 
 from core.db import kv_get_json, kv_set_json
 from core.logger import log_error, log_info, log_success, log_warning
+from core.pending_store import pending_downloads
 
 if TYPE_CHECKING:
     from core.client import BotClient
@@ -116,6 +117,8 @@ class ScheduledTask:
 
 class Scheduler:
     """Task scheduler for the bot."""
+
+    PENDING_CLEANUP_JOB_ID = "pending_cleanup_maintenance"
 
     def __init__(self, bot: BotClient):
         self.bot = bot
@@ -242,6 +245,8 @@ class Scheduler:
         self._started = True
 
         self._cleanup_expired()
+        pending_downloads.cleanup_expired()
+        self._schedule_pending_cleanup_maintenance()
 
         scheduled_count = 0
         for task in list(self._tasks.values()):
@@ -250,6 +255,15 @@ class Scheduler:
                     scheduled_count += 1
 
         log_info(f"Scheduled {scheduled_count}/{len(self._tasks)} tasks")
+
+    def _schedule_pending_cleanup_maintenance(self) -> None:
+        """Schedule periodic cleanup for persisted pending interactions."""
+        self._scheduler.add_job(
+            pending_downloads.cleanup_expired,
+            trigger=IntervalTrigger(minutes=5),
+            id=self.PENDING_CLEANUP_JOB_ID,
+            replace_existing=True,
+        )
 
     def _cleanup_expired(self) -> None:
         """Remove reminders that have already passed."""
