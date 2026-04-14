@@ -78,9 +78,12 @@ async def check_bot_admin(client: BotClient, group_jid: str) -> bool:
 class PermissionResult:
     """Result of a permission check."""
 
-    def __init__(self, allowed: bool, error_message: str | None = None):
+    def __init__(
+        self, allowed: bool, error_message: str | None = None, current_role: str = "member"
+    ):
         self.allowed = allowed
         self.error_message = error_message
+        self.current_role = current_role
 
     def __bool__(self) -> bool:
         return self.allowed
@@ -174,12 +177,12 @@ async def check_command_permissions(
 
     if cmd.bot_admin_required and msg.is_group:
         if not await check_bot_admin(bot, msg.chat_jid):
-            return PermissionResult(False, t_error("errors.bot_admin_required"))
+            return PermissionResult(False, t_error("errors.bot_admin_required"), current_role)
 
     if not runtime_config.is_command_enabled(cmd.name):
-        return PermissionResult(False, None)
+        return PermissionResult(False, None, current_role)
 
-    return PermissionResult(True)
+    return PermissionResult(True, current_role=current_role)
 
 
 async def is_owner_for_bypass(msg: MessageHelper, bot: BotClient) -> bool:

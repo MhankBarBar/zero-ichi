@@ -55,6 +55,7 @@ async def command_middleware(ctx, next):
 
     start = time.perf_counter()
     try:
+        current_role = getattr(perm_result, "current_role", "member")
         cmd_ctx = CommandContext(
             client=ctx.bot,
             message=ctx.msg,
@@ -62,6 +63,8 @@ async def command_middleware(ctx, next):
             raw_args=raw_args,
             command_name=command_name,
             prefix=used_prefix,
+            is_owner=is_owner,
+            is_admin=current_role in {"admin", "owner"},
         )
         await cmd.execute(cmd_ctx)
         elapsed = (time.perf_counter() - start) * 1000

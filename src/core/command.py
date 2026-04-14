@@ -42,6 +42,8 @@ class CommandContext:
         raw_args: The raw argument string after command name
         command_name: The command that was invoked
         prefix: The actual prefix the user typed
+        is_admin: Whether sender has admin-level privileges in current context
+        is_owner: Whether sender is the configured bot owner
     """
 
     client: BotClient
@@ -50,6 +52,8 @@ class CommandContext:
     raw_args: str = ""
     command_name: str = ""
     prefix: str = ""
+    is_admin: bool = False
+    is_owner: bool = False
 
 
 class Command(ABC):
