@@ -1,5 +1,6 @@
 "use client";
 
+import { api, API_BASE } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -18,20 +19,15 @@ export default function LoginPage() {
         setLoading(true);
         setError(null);
 
-        const auth = btoa(`${username}:${password}`);
-
         try {
-            const res = await fetch(
-                `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/status`,
-                {
-                    headers: {
-                        Authorization: `Basic ${auth}`,
-                    },
-                },
-            );
+            const res = await fetch(`${API_BASE}/api/login`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ username, password }),
+                credentials: "include",
+            });
 
             if (res.ok) {
-                localStorage.setItem("dashboard_auth", auth);
                 window.location.href = "/";
             } else {
                 let detail = "";

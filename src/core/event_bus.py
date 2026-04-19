@@ -34,15 +34,19 @@ class EventBus:
             "timestamp": datetime.now().isoformat(),
         }
 
-        dead_queues = []
         for queue in self._subscribers:
             try:
                 queue.put_nowait(event)
             except asyncio.QueueFull:
-                dead_queues.append(queue)
-
-        for q in dead_queues:
-            self._subscribers.remove(q)
+                # Drain oldest event to make room instead of dropping subscriber
+                try:
+                    queue.get_nowait()
+                except asyncio.QueueEmpty:
+                    pass
+                try:
+                    queue.put_nowait(event)
+                except asyncio.QueueFull:
+                    pass
 
         try:
             from core.webhooks import dispatch_event

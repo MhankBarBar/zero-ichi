@@ -112,7 +112,7 @@ class AppleMusicCommand(Command):
             dlink = await applemusic_client.get_download_link(track)
 
             last_edit = [0.0]
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             msg_id = progress_msg.ID
 
             def _on_progress(downloaded: int, total: int):

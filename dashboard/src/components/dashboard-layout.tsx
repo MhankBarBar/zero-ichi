@@ -1,5 +1,6 @@
 "use client";
 
+import { API_BASE } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import {
     IconBan,
@@ -142,8 +143,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                             <div className="border-t border-neutral-800 bg-neutral-900/50 p-4 backdrop-blur-md">
                                 <button
                                     onClick={() => {
-                                        localStorage.removeItem("dashboard_auth");
-                                        window.location.href = "/login";
+                                        fetch(`${API_BASE}/api/logout`, { method: "POST", credentials: "include" })
+                                            .finally(() => { window.location.href = "/login"; });
                                     }}
                                     className="flex w-full items-center gap-3 rounded-lg border border-transparent px-3 py-3 text-neutral-400 transition-all hover:border-red-500/20 hover:bg-red-500/10 hover:text-red-400"
                                 >
@@ -214,8 +215,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     <div className="space-y-2 border-t border-neutral-700 p-4">
                         <button
                             onClick={() => {
-                                localStorage.removeItem("dashboard_auth");
-                                window.location.href = "/login";
+                                fetch(`${API_BASE}/api/logout`, { method: "POST", credentials: "include" })
+                                    .finally(() => { window.location.href = "/login"; });
                             }}
                             className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-neutral-400 transition-all hover:bg-red-500/10 hover:text-red-400"
                         >

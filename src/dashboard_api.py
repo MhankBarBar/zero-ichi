@@ -89,6 +89,9 @@ from core.webhooks import (
 BOT_START_TIME = datetime.now()
 _DOTENV_PATH = Path(__file__).parent.parent / ".env"
 _dotenv_loaded = False
+SESSION_COOKIE_NAME = "zi_session"
+SESSION_TTL_SECONDS = max(3600, int(os.getenv("DASHBOARD_SESSION_TTL_SECONDS", "86400")))
+_session_tokens: dict[str, dict[str, Any]] = {}
 DEFAULT_CORS_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
@@ -297,12 +300,64 @@ def _verify_dashboard_credentials(
     )
 
 
+def _prune_sessions() -> None:
+    """Remove expired session tokens."""
+    now_ts = datetime.now().timestamp()
+    for token in list(_session_tokens.keys()):
+        if _session_tokens[token].get("expires_at", 0.0) <= now_ts:
+            _session_tokens.pop(token, None)
+
+
+def _create_session(username: str) -> str:
+    """Create a new session token for an authenticated user."""
+    _prune_sessions()
+    token = secrets.token_urlsafe(32)
+    _session_tokens[token] = {
+        "username": username,
+        "expires_at": datetime.now().timestamp() + float(SESSION_TTL_SECONDS),
+    }
+    return token
+
+
+def _validate_session(token: str) -> str | None:
+    """Validate a session token and return the username, or None if invalid."""
+    _prune_sessions()
+    payload = _session_tokens.get(token)
+    if not payload:
+        return None
+    if float(payload.get("expires_at", 0.0)) <= datetime.now().timestamp():
+        _session_tokens.pop(token, None)
+        return None
+    return str(payload.get("username", "")) or None
+
+
+def _destroy_session(token: str) -> None:
+    """Destroy a session token."""
+    _session_tokens.pop(token, None)
+
+
 async def get_current_username(request: Request) -> str:
     """
-    Custom async HTTP Basic Auth - avoids the to_thread wrapper issue
-    from Starlette's HTTPBasic security class.
+    Authenticate via httpOnly session cookie OR HTTP Basic Auth (backward compat).
+    Cookie auth is preferred and checked first.
     """
-    param = _extract_basic_auth_param(request.headers.get("Authorization"))
+    # 1. Try session cookie
+    session_token = request.cookies.get(SESSION_COOKIE_NAME)
+    if session_token:
+        username = _validate_session(session_token)
+        if username:
+            return username
+
+    # 2. Fall back to Basic auth
+    authorization = request.headers.get("Authorization")
+    if not authorization:
+        raise HTTPException(
+            status_code=401,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+
+    param = _extract_basic_auth_param(authorization)
     cred_username, cred_password = _parse_basic_credentials(param)
     expected_username, expected_password = _get_dashboard_credentials()
     _verify_dashboard_credentials(
@@ -328,6 +383,54 @@ app.add_middleware(
 _api = APIRouter(dependencies=[Depends(get_current_username)])
 
 storage = Storage()
+
+
+class LoginRequest(BaseModel):
+    """Model for login request."""
+
+    username: str
+    password: str
+
+
+from fastapi.responses import JSONResponse
+
+
+@app.post("/api/login")
+async def login(req: LoginRequest):
+    """Authenticate and set httpOnly session cookie."""
+    try:
+        expected_username, expected_password = _get_dashboard_credentials()
+    except HTTPException as e:
+        raise e
+
+    correct_username = secrets.compare_digest(req.username, expected_username)
+    correct_password = secrets.compare_digest(req.password, expected_password)
+    if not (correct_username and correct_password):
+        raise HTTPException(status_code=401, detail="Incorrect username or password")
+
+    session_token = _create_session(req.username)
+    response = JSONResponse(content={"success": True, "username": req.username})
+    response.set_cookie(
+        key=SESSION_COOKIE_NAME,
+        value=session_token,
+        httponly=True,
+        secure=False,  # Set True in production with HTTPS
+        samesite="lax",
+        max_age=SESSION_TTL_SECONDS,
+        path="/",
+    )
+    return response
+
+
+@app.post("/api/logout")
+async def logout(request: Request):
+    """Clear session cookie and destroy server-side session."""
+    session_token = request.cookies.get(SESSION_COOKIE_NAME)
+    if session_token:
+        _destroy_session(session_token)
+    response = JSONResponse(content={"success": True})
+    response.delete_cookie(key=SESSION_COOKIE_NAME, path="/")
+    return response
 
 
 async def check_bot_logged_in(bot) -> bool:

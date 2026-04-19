@@ -36,7 +36,7 @@ class MemoryEntry:
             dt = datetime.fromisoformat(self.timestamp)
             return (datetime.now() - dt).total_seconds() / 3600
         except (ValueError, TypeError):
-            return 0.0
+            return float("inf")  # Corrupted timestamps should be evicted, not kept forever
 
 
 class AIMemory:
@@ -166,6 +166,7 @@ class AIMemory:
 
 
 _memory_cache: dict[str, AIMemory] = {}
+_MEMORY_CACHE_MAX_SIZE = 200
 
 
 def get_memory(chat_id: str, ttl_hours: float | None = None) -> AIMemory:
@@ -179,6 +180,10 @@ def get_memory(chat_id: str, ttl_hours: float | None = None) -> AIMemory:
             ttl_hours = DEFAULT_TTL_HOURS
 
     if chat_id not in _memory_cache:
+        # Evict oldest entries if cache is full
+        if len(_memory_cache) >= _MEMORY_CACHE_MAX_SIZE:
+            oldest_key = next(iter(_memory_cache))
+            del _memory_cache[oldest_key]
         _memory_cache[chat_id] = AIMemory(chat_id, ttl_hours)
     elif _memory_cache[chat_id].ttl_hours != ttl_hours:
         _memory_cache[chat_id].ttl_hours = ttl_hours

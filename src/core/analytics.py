@@ -5,6 +5,7 @@ Tracks per-command usage with timestamps for dashboard charts.
 
 from __future__ import annotations
 
+import threading
 import time
 from datetime import datetime, timedelta
 
@@ -25,6 +26,7 @@ class CommandAnalytics:
         self._data: dict = {}
         self._dirty = False
         self._last_save_ts = 0.0
+        self._lock = threading.Lock()
         self._load()
 
     def _load(self) -> None:
@@ -54,22 +56,23 @@ class CommandAnalytics:
 
     def record_command(self, name: str, user_jid: str = "", chat_jid: str = "") -> None:
         """Record a command execution."""
-        if "commands" not in self._data:
-            self._data["commands"] = {}
+        with self._lock:
+            if "commands" not in self._data:
+                self._data["commands"] = {}
 
-        if name not in self._data["commands"]:
-            self._data["commands"][name] = []
+            if name not in self._data["commands"]:
+                self._data["commands"][name] = []
 
-        self._data["commands"][name].append(
-            {
-                "ts": datetime.now().isoformat(),
-                "user": user_jid.split("@")[0] if user_jid else "",
-                "chat": chat_jid,
-            }
-        )
+            self._data["commands"][name].append(
+                {
+                    "ts": datetime.now().isoformat(),
+                    "user": user_jid.split("@")[0] if user_jid else "",
+                    "chat": chat_jid,
+                }
+            )
 
-        self._prune()
-        self._schedule_save()
+            self._prune()
+            self._schedule_save()
         log_debug(f"Analytics: recorded {name}")
 
     def _prune(self) -> None:

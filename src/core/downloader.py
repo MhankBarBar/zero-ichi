@@ -21,7 +21,9 @@ from core.constants import DOWNLOADS_DIR
 from core.logger import log_debug, log_error, log_info, log_warning
 from core.runtime_config import runtime_config
 
-MAX_FILE_SIZE_MB = runtime_config.get_nested("downloader", "max_file_size_mb", default=180)
+def _get_max_file_size_mb() -> float:
+    """Get max file size from runtime config (read dynamically, not cached at import)."""
+    return runtime_config.get_nested("downloader", "max_file_size_mb", default=180)
 
 
 def _format_size(size_bytes: int | float) -> str:
@@ -139,11 +141,18 @@ class DownloadAbortedError(DownloadError):
 class Downloader:
     """yt-dlp wrapper for downloading media."""
 
-    def __init__(self, download_dir: Path | None = None, max_size_mb: float = MAX_FILE_SIZE_MB):
+    def __init__(self, download_dir: Path | None = None, max_size_mb: float | None = None):
         self.download_dir = download_dir or DOWNLOADS_DIR
-        self.max_size_mb = max_size_mb
+        self._max_size_mb_override = max_size_mb
         self.download_dir.mkdir(parents=True, exist_ok=True)
         self._active_downloads: dict[str, bool] = {}
+
+    @property
+    def max_size_mb(self) -> float:
+        """Get max file size, reading from runtime config if not overridden."""
+        if self._max_size_mb_override is not None:
+            return self._max_size_mb_override
+        return _get_max_file_size_mb()
 
     def _make_output_path(self, prefix: str = "dl") -> str:
         """Generate a unique output path template for yt-dlp."""

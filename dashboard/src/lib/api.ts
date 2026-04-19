@@ -250,13 +250,6 @@ export interface HealthStatus {
     };
 }
 
-function getStoredAuth(): string | null {
-    if (typeof window === "undefined") {
-        return null;
-    }
-    return localStorage.getItem("dashboard_auth");
-}
-
 async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
@@ -270,16 +263,12 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> 
         Object.assign(headers, customHeaders);
     }
 
-    const auth = getStoredAuth();
-    if (auth) {
-        headers["Authorization"] = `Basic ${auth}`;
-    }
-
     try {
         const res = await fetch(`${API_BASE}${endpoint}`, {
             ...options,
             signal: controller.signal,
             headers,
+            credentials: "include",
         });
         if (res.status === 401) {
             if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
@@ -311,6 +300,14 @@ export interface WelcomeConfig {
 }
 
 export const api = {
+    login: (username: string, password: string) =>
+        fetchAPI<{ success: boolean; username: string }>("/api/login", {
+            method: "POST",
+            body: JSON.stringify({ username, password }),
+        }),
+    logout: () =>
+        fetchAPI<{ success: boolean }>("/api/logout", { method: "POST" }),
+
     getStatus: () => fetchAPI<BotStatus>("/api/status"),
 
     getConfig: () => fetchAPI<Config>("/api/config"),
@@ -358,16 +355,10 @@ export const api = {
         formData.append("caption", caption);
         formData.append("file", file);
 
-        const auth = getStoredAuth();
-        const headers: Record<string, string> = {};
-        if (auth) {
-            headers["Authorization"] = `Basic ${auth}`;
-        }
-
         return fetch(`${API_BASE}/api/send-media`, {
             method: "POST",
             body: formData,
-            headers,
+            credentials: "include",
         }).then((res) => {
             if (res.status === 401) {
                 if (typeof window !== "undefined") window.location.href = "/login";
@@ -469,14 +460,9 @@ export const api = {
     uploadNoteMedia: async (groupId: string, noteName: string, file: File) => {
         const formData = new FormData();
         formData.append("file", file);
-        const headers: Record<string, string> = {};
-        const auth = getStoredAuth();
-        if (auth) {
-            headers["Authorization"] = `Basic ${auth}`;
-        }
         const res = await fetch(
             `${API_BASE}/api/groups/${encodeURIComponent(groupId)}/notes/${encodeURIComponent(noteName)}/media`,
-            { method: "POST", body: formData, headers },
+            { method: "POST", body: formData, credentials: "include" },
         );
         if (!res.ok) throw new Error(await res.text());
         return res.json() as Promise<{ success: boolean; media_type: string; media_path: string }>;

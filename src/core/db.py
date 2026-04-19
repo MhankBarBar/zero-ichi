@@ -73,8 +73,19 @@ def get_engine() -> Engine:
     return _engine
 
 
+import re as _re
+
+_SAFE_IDENTIFIER = _re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
+
+
 def _ensure_column(engine: Engine, table_name: str, column_name: str, column_sql: str) -> None:
-    """Add a column if it does not exist."""
+    """Add a column if it does not exist. Table/column names are validated."""
+    # Validate identifiers to prevent SQL injection
+    if not _SAFE_IDENTIFIER.match(table_name):
+        raise ValueError(f"Invalid table name: {table_name}")
+    if not _SAFE_IDENTIFIER.match(column_name):
+        raise ValueError(f"Invalid column name: {column_name}")
+
     inspector = inspect(engine)
     table_names = set(inspector.get_table_names())
     if table_name not in table_names:

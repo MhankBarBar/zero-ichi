@@ -80,10 +80,19 @@ class Command(ABC):
     """
 
     name: str = ""
-    aliases: list[str] = []
     description: str = ""
     usage: str = ""
     category: str = ""
+
+    def __init_subclass__(cls, **kwargs):
+        """Ensure mutable class defaults are not shared across subclasses."""
+        super().__init_subclass__(**kwargs)
+        if "aliases" not in cls.__dict__:
+            cls.aliases = []
+        if "examples" not in cls.__dict__:
+            cls.examples = []
+
+    aliases: list[str] = []
     examples: list[str] = []
 
     enabled: bool = True

@@ -112,8 +112,13 @@ def rule_matches(rule: dict[str, Any], text: str, media_type: str | None = None)
     if trigger_type == "starts_with":
         return lower_text.startswith(trigger_value.lower())
     if trigger_type == "regex":
+        if len(trigger_value) > 200:
+            return False
         try:
-            return re.search(trigger_value, text, re.IGNORECASE) is not None
+            pattern = re.compile(trigger_value, re.IGNORECASE)
+            # Limit input length to prevent ReDoS on pathological patterns
+            safe_text = text[:5000] if len(text) > 5000 else text
+            return pattern.search(safe_text) is not None
         except re.error:
             return False
     if trigger_type == "link":

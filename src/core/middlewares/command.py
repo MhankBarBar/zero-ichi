@@ -53,6 +53,7 @@ async def command_middleware(ctx, next):
 
     log_command(command_name, ctx.msg.sender_name, ctx.chat_type, prefix=used_prefix)
 
+    cmd_ctx = None
     start = time.perf_counter()
     try:
         current_role = getattr(perm_result, "current_role", "member")
@@ -101,6 +102,9 @@ async def command_middleware(ctx, next):
             prefix=used_prefix,
         )
 
-        await report_error(cmd_ctx.client, cmd_ctx.message, command_name, e)
+        if cmd_ctx:
+            await report_error(cmd_ctx.client, cmd_ctx.message, command_name, e)
+        else:
+            await report_error(ctx.bot, ctx.msg, command_name, e)
 
     await next()

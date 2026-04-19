@@ -9,6 +9,7 @@ See config.schema.json for the schema definition.
 
 import json
 import re
+import threading
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
@@ -151,12 +152,15 @@ class RuntimeConfig:
     """
 
     _instance = None
+    _lock = threading.Lock()
 
     def __new__(cls):
-        """Singleton pattern - only one config instance."""
+        """Thread-safe singleton pattern - only one config instance."""
         if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._initialized = False
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+                    cls._instance._initialized = False
         return cls._instance
 
     def __init__(self):

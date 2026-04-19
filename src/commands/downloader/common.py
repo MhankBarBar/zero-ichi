@@ -40,6 +40,7 @@ class BaseMediaCommand(Command):
             f"{sym.LOADING} {t(self.downloading_key)}",
         )
 
+        header = ""
         try:
             info = await downloader.get_info(url)
 
@@ -56,7 +57,7 @@ class BaseMediaCommand(Command):
 
             progress_msg_id = progress_msg.ID
             last_edit_time = [0.0]
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
 
             def _progress_hook(downloaded_bytes, total_bytes, speed, eta):
                 now = time.time()

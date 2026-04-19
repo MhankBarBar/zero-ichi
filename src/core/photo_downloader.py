@@ -338,7 +338,7 @@ class PhotoDownloader:
     async def _run_gallery_dl(self, target_url: str) -> tuple[list[tuple[str, dict]], dict]:
         """Run gallery-dl JSON mode and return URL+metadata pairs and source metadata."""
         options, cleanup_paths = self._gallery_dl_options()
-        cmd = [*self._gallery_dl_cmd(), *options, "--no-download", "-j", target_url]
+        cmd = [*self._gallery_dl_cmd(), *options, "--no-download", "-j", "--", target_url]
         log_debug(f"[PHOTO] Running: {' '.join(cmd)}")
 
         try:
@@ -446,6 +446,7 @@ class PhotoDownloader:
             f"1-{max_items}",
             "-D",
             temp_dir,
+            "--",
             source_url,
         ]
         log_debug(f"[PHOTO] Download fallback: {' '.join(cmd)}")

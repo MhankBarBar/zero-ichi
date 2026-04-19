@@ -45,6 +45,14 @@ async def anti_spam_middleware(ctx, next):
 
     now = time.time()
 
+    # Prune stale entries to prevent unbounded memory growth
+    if len(_spam_windows) > 1000:
+        stale_keys = [
+            k for k, v in _spam_windows.items() if not v or (now - v[-1]) > window_seconds * 2
+        ]
+        for k in stale_keys:
+            del _spam_windows[k]
+
     timestamps = _spam_windows.get(sender, [])
     timestamps = _cleanup_window(timestamps, window_seconds, now)
     timestamps.append(now)

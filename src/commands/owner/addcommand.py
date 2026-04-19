@@ -7,6 +7,7 @@ which will be verified, saved, and registered.
 
 import ast
 import importlib
+import re
 import sys
 from pathlib import Path
 
@@ -205,14 +206,20 @@ class AddCommandCommand(Command):
         return {"valid": True, "error": None, "command_name": command_name}
 
     def _save_command(self, name: str, code: str) -> Path:
-        """Save command code to a file."""
+        """Save command code to a file. Name is sanitized to prevent path traversal."""
         DYNAMIC_COMMANDS_DIR.mkdir(parents=True, exist_ok=True)
 
         init_file = DYNAMIC_COMMANDS_DIR / "__init__.py"
         if not init_file.exists():
             init_file.write_text("# Dynamic commands\n")
-        safe_name = name.replace(" ", "_").lower()
-        file_path = DYNAMIC_COMMANDS_DIR / f"{safe_name}.py"
+        # Sanitize: only allow alphanumeric and underscore
+        safe_name = re.sub(r"[^a-z0-9_]", "", name.lower().replace(" ", "_"))
+        if not safe_name:
+            raise ValueError(f"Invalid command name after sanitization: '{name}'")
+        file_path = (DYNAMIC_COMMANDS_DIR / f"{safe_name}.py").resolve()
+        # Verify path stays within dynamic commands directory
+        if not str(file_path).startswith(str(DYNAMIC_COMMANDS_DIR.resolve())):
+            raise ValueError(f"Command path escapes dynamic directory: {name}")
         file_path.write_text(code, encoding="utf-8")
 
         return file_path
@@ -259,8 +266,14 @@ class DeleteCommandCommand(Command):
 
         cmd_name = ctx.args[0].lower()
 
-        safe_name = cmd_name.replace(" ", "_")
-        file_path = DYNAMIC_COMMANDS_DIR / f"{safe_name}.py"
+        safe_name = re.sub(r"[^a-z0-9_]", "", cmd_name.replace(" ", "_"))
+        if not safe_name:
+            await ctx.client.reply(ctx.message, t_error("addcommand.not_dynamic", name=cmd_name))
+            return
+        file_path = (DYNAMIC_COMMANDS_DIR / f"{safe_name}.py").resolve()
+        if not str(file_path).startswith(str(DYNAMIC_COMMANDS_DIR.resolve())):
+            await ctx.client.reply(ctx.message, t_error("addcommand.not_dynamic", name=cmd_name))
+            return
 
         if not file_path.exists():
             await ctx.client.reply(ctx.message, t_error("addcommand.not_dynamic", name=cmd_name))

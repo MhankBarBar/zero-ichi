@@ -195,7 +195,12 @@ async def is_owner_for_bypass(msg: MessageHelper, bot: BotClient) -> bool:
 
 
 async def _allow_owner_bootstrap(cmd: Command, msg: MessageHelper) -> bool:
-    """Allow limited owner bootstrap commands when owner_jid is not configured."""
+    """Allow limited owner bootstrap commands when owner_jid is not configured.
+
+    SECURITY NOTE: This allows anyone in a private chat to claim ownership
+    when no owner is configured. This is intentional for first-time setup
+    but should be logged for audit purposes.
+    """
     if msg.is_group:
         return False
 
@@ -208,23 +213,32 @@ async def _allow_owner_bootstrap(cmd: Command, msg: MessageHelper) -> bool:
         return False
 
     command_name = cmd.name.lower()
+    allowed = False
+
     # /config owner me|set <jid>
     if command_name == "config":
         if len(parts) >= 3 and parts[1] == "owner":
             if parts[2] == "me":
-                return True
-            if parts[2] == "set" and len(parts) >= 4:
-                return True
-        return False
+                allowed = True
+            elif parts[2] == "set" and len(parts) >= 4:
+                allowed = True
 
     # /setup status|start|owner me|set <jid>
-    if command_name == "setup":
+    elif command_name == "setup":
         if parts[1] in {"status", "start"}:
-            return True
-        if len(parts) >= 3 and parts[1] == "owner":
+            allowed = True
+        elif len(parts) >= 3 and parts[1] == "owner":
             if parts[2] == "me":
-                return True
-            if parts[2] == "set" and len(parts) >= 4:
-                return True
+                allowed = True
+            elif parts[2] == "set" and len(parts) >= 4:
+                allowed = True
 
-    return False
+    if allowed:
+        from core.logger import log_warning
+
+        log_warning(
+            f"Owner bootstrap triggered by {msg.sender_jid} via /{command_name} "
+            f"(no owner configured). Command: {text}"
+        )
+
+    return allowed

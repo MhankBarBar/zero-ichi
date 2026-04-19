@@ -12,6 +12,8 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from core.logger import log_error
+
 if TYPE_CHECKING:
     from core.client import BotClient
     from core.message import MessageHelper
@@ -49,9 +51,13 @@ class MiddlewarePipeline:
         async def next_middleware() -> None:
             nonlocal index
             if index < len(self._middlewares):
-                _name, mw = self._middlewares[index]
+                name, mw = self._middlewares[index]
                 index += 1
-                await mw(ctx, next_middleware)
+                try:
+                    await mw(ctx, next_middleware)
+                except Exception as e:
+                    log_error(f"Middleware '{name}' raised: {e}")
+                    raise
 
         await next_middleware()
 

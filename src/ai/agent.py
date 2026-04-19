@@ -167,14 +167,22 @@ def _register_group_tools(agent: Agent) -> None:
 
     @agent.tool
     async def toggle_feature(ctx: RunContext[BotDependencies], feature: str, enabled: bool) -> str:
-        """Toggle a bot feature on or off. Features: anti_delete, anti_link, welcome, notes, etc."""
+        """Toggle a bot feature on or off. Features: anti_delete, anti_link, welcome, notes, etc. Requires admin/owner permission."""
+        # Permission check: only admins/owners can toggle features
+        is_owner = await runtime_config.is_owner_async(ctx.deps.msg.sender_jid, ctx.deps.bot)
+        if not is_owner:
+            is_admin = await ctx.deps.bot.is_admin(ctx.deps.msg.chat_jid, ctx.deps.msg.sender_jid)
+            if not is_admin:
+                return "Permission denied: only admins or the owner can toggle features"
         runtime_config.set_feature(feature, enabled)
         return f"Feature {feature} is now {'enabled' if enabled else 'disabled'}"
 
     @agent.tool
-    async def get_group_info(ctx: RunContext[BotDependencies], group_jid: str = "") -> str:
-        """Get information about a WhatsApp group."""
-        jid = group_jid or ctx.deps.msg.chat_jid
+    async def get_group_info(ctx: RunContext[BotDependencies]) -> str:
+        """Get information about the current WhatsApp group."""
+        jid = ctx.deps.msg.chat_jid
+        if not jid or "@g.us" not in jid:
+            return "This command only works in group chats"
         info = await ctx.deps.bot.get_group_info(jid)
         if info:
             return f"Group: {info.get('name', 'Unknown')}, Members: {len(info.get('participants', []))}"
@@ -302,8 +310,8 @@ class AgenticAI:
                     ids.append(me.JID.User)
                 if hasattr(me, "LID") and me.LID and me.LID.User:
                     ids.append(me.LID.User)
-        except Exception:
-            pass
+        except Exception as e:
+            log_warning(f"Failed to get bot identity for AI mention detection: {e}")
 
         self._bot_ids = ids
         return ids
@@ -451,7 +459,15 @@ Note: When user mentions @{bot_jid} or @{bot_lid}, they are talking TO you, not 
             user_prompt_parts.append(text_content)
 
             if image_data:
-                user_prompt_parts.append(BinaryContent(data=image_data, media_type="image/jpeg"))
+                # Detect actual MIME type from magic bytes
+                mime = "image/jpeg"
+                if image_data[:8] == b"\x89PNG\r\n\x1a\n":
+                    mime = "image/png"
+                elif image_data[:4] == b"GIF8":
+                    mime = "image/gif"
+                elif image_data[:4] == b"RIFF" and image_data[8:12] == b"WEBP":
+                    mime = "image/webp"
+                user_prompt_parts.append(BinaryContent(data=image_data, media_type=mime))
 
             result = await get_agent().run(
                 user_prompt_parts,

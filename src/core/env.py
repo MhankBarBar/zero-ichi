@@ -77,8 +77,8 @@ def validate_environment():
         ]
         api_key = config_key or next((k for k in env_keys if k), "")
 
-        if api_key and not os.getenv("OPENAI_API_KEY"):
-            os.environ["OPENAI_API_KEY"] = api_key
+        # Note: API keys are passed directly to SDK constructors via ai_runtime.py.
+        # We no longer set os.environ here to avoid leaking secrets to child processes.
 
         if not api_key:
             log_warning(f"AI is enabled but no API key found for provider '{provider}'.")

@@ -40,6 +40,8 @@ export function useCachedFetch<T>(
     const [loading, setLoading] = useState(!data);
     const [error, setError] = useState<Error | null>(null);
     const isMounted = useRef(true);
+    const fetcherRef = useRef(fetcher);
+    fetcherRef.current = fetcher;
 
     const fetchData = useCallback(async () => {
         if (!enabled) return;
@@ -48,7 +50,7 @@ export function useCachedFetch<T>(
         setError(null);
 
         try {
-            const result = await fetcher();
+            const result = await fetcherRef.current();
             if (isMounted.current) {
                 setData(result);
                 cache.set(key, { data: result, timestamp: Date.now() });
@@ -62,7 +64,7 @@ export function useCachedFetch<T>(
                 setLoading(false);
             }
         }
-    }, [key, fetcher, enabled]);
+    }, [key, enabled]);
 
     useEffect(() => {
         isMounted.current = true;

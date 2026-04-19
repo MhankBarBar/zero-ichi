@@ -7,15 +7,46 @@ They can be loaded from files or URLs.
 
 from __future__ import annotations
 
+import ipaddress
 import re
 from pathlib import Path
 from typing import TypedDict
+from urllib.parse import urlparse
 
 import httpx
 import yaml
 
 from core.constants import SKILLS_DIR
 from core.logger import log_error, log_info, log_warning
+
+MAX_SKILL_CONTENT_SIZE = 102400  # 100KB max skill content from URL
+SAFE_NAME_PATTERN = re.compile(r"^[a-z0-9_-]+$")
+
+
+def _sanitize_skill_name(name: str) -> str:
+    """Sanitize skill name to safe filesystem characters only."""
+    safe = re.sub(r"[^a-z0-9_-]", "", name.lower().strip())
+    if not safe:
+        raise ValueError(f"Invalid skill name after sanitization: '{name}'")
+    return safe
+
+
+def _validate_skill_url(url: str) -> None:
+    """Validate URL for skill loading - HTTPS only, no private IPs."""
+    parsed = urlparse(url)
+    if parsed.scheme not in ("https",):
+        raise ValueError(f"Only HTTPS URLs are allowed for skill loading, got: {parsed.scheme}")
+    if not parsed.hostname:
+        raise ValueError("URL has no hostname")
+    # Block private/reserved IPs (SSRF prevention)
+    try:
+        ip = ipaddress.ip_address(parsed.hostname)
+        if ip.is_private or ip.is_loopback or ip.is_reserved or ip.is_link_local:
+            raise ValueError(f"URL points to private/reserved IP: {parsed.hostname}")
+    except ValueError as e:
+        if "does not appear to be" not in str(e):
+            raise
+        # hostname is not an IP literal, that's fine (it's a domain name)
 
 
 class SkillData(TypedDict):
@@ -91,25 +122,36 @@ def load_skill_from_file(path: Path | str) -> SkillData | None:
 
 
 async def load_skill_from_url(url: str) -> SkillData | None:
-    """Load a skill from a URL."""
+    """Load a skill from a URL. HTTPS only, no private IPs, size-limited."""
     try:
-        async with httpx.AsyncClient() as client:
+        _validate_skill_url(url)
+        async with httpx.AsyncClient(follow_redirects=False) as client:
             response = await client.get(url, timeout=10.0)
             response.raise_for_status()
+            if len(response.content) > MAX_SKILL_CONTENT_SIZE:
+                log_error(
+                    f"Skill from URL exceeds size limit ({len(response.content)} > {MAX_SKILL_CONTENT_SIZE})"
+                )
+                return None
             content = response.text
 
         skill = parse_skill_markdown(content)
         if skill:
             log_info(f"Loaded skill from URL: {skill['name']}")
         return skill
+    except ValueError as e:
+        log_error(f"Invalid skill URL {url}: {e}")
+        return None
     except Exception as e:
         log_error(f"Failed to load skill from URL {url}: {e}")
         return None
 
 
 def save_skill_to_file(skill: SkillData) -> Path:
-    """Save a skill to a file."""
+    """Save a skill to a file. Skill name is sanitized to prevent path traversal."""
     SKILLS_DIR.mkdir(parents=True, exist_ok=True)
+
+    safe_name = _sanitize_skill_name(skill["name"])
 
     frontmatter = {
         "name": skill["name"],
@@ -125,15 +167,24 @@ def save_skill_to_file(skill: SkillData) -> Path:
 {skill["content"]}
 """
 
-    file_path = SKILLS_DIR / f"{skill['name']}.md"
+    file_path = (SKILLS_DIR / f"{safe_name}.md").resolve()
+    # Verify resolved path is within SKILLS_DIR
+    if not str(file_path).startswith(str(SKILLS_DIR.resolve())):
+        raise ValueError(f"Skill path escapes skills directory: {file_path}")
+
     file_path.write_text(content, encoding="utf-8")
     log_info(f"Saved skill to: {file_path}")
     return file_path
 
 
 def delete_skill_file(name: str) -> bool:
-    """Delete a skill file."""
-    file_path = SKILLS_DIR / f"{name}.md"
+    """Delete a skill file. Name is sanitized to prevent path traversal."""
+    safe_name = _sanitize_skill_name(name)
+    file_path = (SKILLS_DIR / f"{safe_name}.md").resolve()
+    # Verify resolved path is within SKILLS_DIR
+    if not str(file_path).startswith(str(SKILLS_DIR.resolve())):
+        log_error(f"Attempted path traversal in delete_skill_file: {name}")
+        return False
     if file_path.exists():
         file_path.unlink()
         log_info(f"Deleted skill file: {file_path}")

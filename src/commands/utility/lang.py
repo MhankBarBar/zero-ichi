@@ -29,7 +29,7 @@ class LangCommand(Command):
     async def execute(self, ctx: CommandContext) -> None:
         """Set or show current language."""
         chat_jid = ctx.message.chat_jid
-        is_group = "@g.us" in chat_jid or "@lid" in chat_jid and ctx.message.is_group
+        is_group = ("@g.us" in chat_jid or "@lid" in chat_jid) and ctx.message.is_group
 
         if is_group:
             if not await check_admin_permission(ctx.client, chat_jid, ctx.message.sender_jid):

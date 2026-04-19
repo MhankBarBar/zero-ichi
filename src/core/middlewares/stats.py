@@ -5,11 +5,12 @@ from core.logger import show_message
 from core.runtime_config import runtime_config
 from core.storage import Storage
 
+_stats_storage = Storage()
+
 
 async def stats_middleware(ctx, next):
     """Track message stats and resolve chat type."""
-    stats_storage = Storage()
-    stats_storage.increment_stat("messages_total")
+    _stats_storage.increment_stat("messages_total")
 
     group_name = ""
     if ctx.msg.is_group:
@@ -30,5 +31,5 @@ async def stats_middleware(ctx, next):
         },
     )
 
-    ctx.extras["stats_storage"] = stats_storage
+    ctx.extras["stats_storage"] = _stats_storage
     await next()

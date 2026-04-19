@@ -112,7 +112,7 @@ class TokenTracker:
         self._ensure_today()
         used = self._data.get("users", {}).get(user_id, 0)
         limit = self._user_limit
-        remaining = max(0, limit - used) if limit > 0 else 0
+        remaining = max(0, limit - used) if limit > 0 else -1  # -1 = unlimited
         return {
             "used": used,
             "limit": limit,

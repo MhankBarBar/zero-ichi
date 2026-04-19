@@ -5,8 +5,9 @@ Stores recent messages for a configurable TTL to enable
 forwarding deleted messages.
 """
 
-import pickle
+import json
 import sqlite3
+import threading
 import time
 import zlib
 from typing import Any
@@ -23,9 +24,8 @@ class MessageCache:
     SQLite-backed persistent cache for messages.
 
     Uses a single SQLite database file to store messages.
-    Data is Pickled and Zlib-compressed to minimize size.
-    This avoids Base64 overhead for media files and allows efficient
-    random access without loading the entire cache into memory.
+    Data is JSON-serialized and Zlib-compressed to minimize size.
+    Thread-safe via a reentrant lock around all DB operations.
     """
 
     def __init__(self, ttl_minutes: int | None = None, max_size: int = 5000):
@@ -33,6 +33,7 @@ class MessageCache:
         self._ttl_minutes_override = ttl_minutes
         self._max_size = max_size
         self._conn: sqlite3.Connection | None = None
+        self._lock = threading.Lock()
         self._init_db()
 
     def _get_ttl_seconds(self) -> float:
@@ -84,36 +85,38 @@ class MessageCache:
                     pass
             data_copy.pop("message", None)
 
-            serialized = pickle.dumps(data_copy)
+            serialized = json.dumps(data_copy, default=str).encode("utf-8")
             compressed = zlib.compress(serialized)
 
             timestamp = time.time()
             ttl_seconds = self._get_ttl_seconds()
-            conn = self._get_conn()
 
-            conn.execute(
-                "INSERT OR REPLACE INTO messages (id, timestamp, data) VALUES (?, ?, ?)",
-                (message_id, timestamp, compressed),
-            )
+            with self._lock:
+                conn = self._get_conn()
 
-            cursor = conn.execute("SELECT COUNT(*) FROM messages")
-            count = cursor.fetchone()[0]
-
-            if count > self._max_size:
                 conn.execute(
-                    """
-                    DELETE FROM messages WHERE id IN (
-                        SELECT id FROM messages ORDER BY timestamp ASC LIMIT ?
-                    )
-                """,
-                    (count - self._max_size,),
+                    "INSERT OR REPLACE INTO messages (id, timestamp, data) VALUES (?, ?, ?)",
+                    (message_id, timestamp, compressed),
                 )
 
-            conn.execute(
-                "DELETE FROM messages WHERE timestamp < ?",
-                (timestamp - ttl_seconds,),
-            )
-            conn.commit()
+                cursor = conn.execute("SELECT COUNT(*) FROM messages")
+                count = cursor.fetchone()[0]
+
+                if count > self._max_size:
+                    conn.execute(
+                        """
+                        DELETE FROM messages WHERE id IN (
+                            SELECT id FROM messages ORDER BY timestamp ASC LIMIT ?
+                        )
+                    """,
+                        (count - self._max_size,),
+                    )
+
+                conn.execute(
+                    "DELETE FROM messages WHERE timestamp < ?",
+                    (timestamp - ttl_seconds,),
+                )
+                conn.commit()
 
         except Exception as e:
             log_error(f"Failed to store message {message_id}: {e}")
@@ -121,26 +124,27 @@ class MessageCache:
     def get(self, message_id: str) -> dict[str, Any] | None:
         """Get a message from the cache if it exists and hasn't expired."""
         try:
-            conn = self._get_conn()
-            cursor = conn.execute(
-                "SELECT timestamp, data FROM messages WHERE id = ?", (message_id,)
-            )
-            row = cursor.fetchone()
+            with self._lock:
+                conn = self._get_conn()
+                cursor = conn.execute(
+                    "SELECT timestamp, data FROM messages WHERE id = ?", (message_id,)
+                )
+                row = cursor.fetchone()
 
-            if not row:
-                return None
+                if not row:
+                    return None
 
-            timestamp, blob = row
+                timestamp, blob = row
 
-            ttl_seconds = self._get_ttl_seconds()
-            if time.time() - timestamp > ttl_seconds:
-                conn.execute("DELETE FROM messages WHERE id = ?", (message_id,))
-                conn.commit()
-                return None
+                ttl_seconds = self._get_ttl_seconds()
+                if time.time() - timestamp > ttl_seconds:
+                    conn.execute("DELETE FROM messages WHERE id = ?", (message_id,))
+                    conn.commit()
+                    return None
 
             try:
                 decompressed = zlib.decompress(blob)
-                data = pickle.loads(decompressed)
+                data = json.loads(decompressed.decode("utf-8"))
                 return data
             except Exception as e:
                 log_error(f"Failed to deserialize message {message_id}: {e}")
@@ -155,9 +159,10 @@ class MessageCache:
         data = self.get(message_id)
         if data:
             try:
-                conn = self._get_conn()
-                conn.execute("DELETE FROM messages WHERE id = ?", (message_id,))
-                conn.commit()
+                with self._lock:
+                    conn = self._get_conn()
+                    conn.execute("DELETE FROM messages WHERE id = ?", (message_id,))
+                    conn.commit()
             except Exception:
                 pass
         return data
@@ -173,8 +178,9 @@ class MessageCache:
 
     def __len__(self) -> int:
         try:
-            conn = self._get_conn()
-            return conn.execute("SELECT COUNT(*) FROM messages").fetchone()[0]
+            with self._lock:
+                conn = self._get_conn()
+                return conn.execute("SELECT COUNT(*) FROM messages").fetchone()[0]
         except Exception:
             return 0
 

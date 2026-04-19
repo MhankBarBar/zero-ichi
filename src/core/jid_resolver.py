@@ -10,6 +10,7 @@ Uses neonize's get_lid_from_pn/get_pn_from_lid for conversion with caching.
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from typing import TYPE_CHECKING
 
 from neonize.utils.jid import build_jid
@@ -20,7 +21,7 @@ if TYPE_CHECKING:
     from core.client import BotClient
 
 
-_jid_cache: dict[str, dict[str, str | None]] = {}
+_jid_cache: OrderedDict[str, dict[str, str | None]] = OrderedDict()
 _CACHE_MAX_SIZE = 500
 
 
@@ -146,6 +147,7 @@ async def resolve_pair(jid: str, client: BotClient | None = None) -> dict[str, s
 
     if user in _jid_cache:
         log_debug(f"JID cache hit for {user}")
+        _jid_cache.move_to_end(user)  # LRU: mark as recently used
         return _jid_cache[user]
 
     result: dict[str, str | None] = {"pn": None, "lid": None}
@@ -182,10 +184,8 @@ async def resolve_pair(jid: str, client: BotClient | None = None) -> dict[str, s
             except Exception as e:
                 log_debug(f"Could not resolve PN to LID: {e}")
 
-        if len(_jid_cache) >= _CACHE_MAX_SIZE:
-            keys_to_remove = list(_jid_cache.keys())[: _CACHE_MAX_SIZE // 2]
-            for k in keys_to_remove:
-                del _jid_cache[k]
+        while len(_jid_cache) >= _CACHE_MAX_SIZE:
+            _jid_cache.popitem(last=False)  # LRU: evict least recently used
 
         _jid_cache[user] = result
         if result["pn"]:

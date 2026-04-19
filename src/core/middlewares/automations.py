@@ -2,6 +2,7 @@
 
 from core.automations import execute_rule, get_automation_runtime, load_rules, rule_matches
 from core.i18n import t
+from core.logger import log_warning
 from core.runtime_config import runtime_config
 
 
@@ -61,7 +62,10 @@ async def automations_middleware(ctx, next):
             executed = await execute_rule(rule, ctx.bot, ctx.msg)
             if executed:
                 return
-        except Exception:
+        except Exception as e:
+            log_warning(
+                f"Automation rule {rule.get('id', '?')} failed in {ctx.msg.chat_jid}: {e}"
+            )
             continue
 
     await next()

@@ -226,7 +226,7 @@ async def _handle_download_reply(ctx, pending, stanza_id, choice_num):
 
     progress_msg_id = progress_msg.ID
     last_edit_time = [0.0]
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
 
     def _progress_hook(downloaded_bytes, total_bytes, speed, eta):
         now = time.time()
@@ -369,7 +369,7 @@ async def _handle_applemusic_reply(ctx, pending, stanza_id, choice_num):
         dlink = await applemusic_client.get_download_link(selected)
 
         last_edit = [0.0]
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         msg_id = progress_msg.ID
 
         def _on_progress(downloaded: int, total: int):
@@ -463,7 +463,7 @@ async def _handle_applemusic_all(ctx, pending, stanza_id, selection=None):
             dlink = await applemusic_client.get_download_link(track)
 
             last_edit = [0.0]
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             msg_id = progress_msg.ID
 
             def _on_progress(

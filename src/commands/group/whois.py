@@ -53,11 +53,13 @@ class WhoisCommand(Command):
         warnings_data = GroupData(ctx.message.chat_jid).warnings
         warn_count = 0
         if isinstance(warnings_data, dict):
-            user_warns = warnings_data.get(target_user, {})
-            if isinstance(user_warns, dict):
-                warn_count = user_warns.get("count", 0)
+            user_warns = warnings_data.get(target_user, [])
+            if isinstance(user_warns, list):
+                warn_count = len(user_warns)
             elif isinstance(user_warns, (int, float)):
                 warn_count = int(user_warns)
+            elif isinstance(user_warns, dict):
+                warn_count = user_warns.get("count", 0)
 
         if is_superadmin:
             role = t("whois.superadmin")
