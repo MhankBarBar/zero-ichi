@@ -9,7 +9,7 @@ description = "WhatsApp Bot built with 💖"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "neonize>=0.3.14.post0",
+    "neonize==0.3.18.post0",
     "qrcode>=7.4",
     "rich>=13.0",
     "watchfiles>=1.1.1",
@@ -30,8 +30,13 @@ dependencies = [
 [project.scripts]
 zero-ichi = "main:main"
 
+[dependency-groups]
+dev = ["ruff>=0.9.0", "pytest>=8.4.0", "pytest-asyncio>=1.1.0", "alembic>=1.14.0"]
+
 [tool.uv]
-dev-dependencies = ["ruff>=0.9.0", "pytest>=8.4.0", "pytest-asyncio>=1.1.0", "alembic>=1.14.0"]
+override-dependencies = [
+    "protobuf>=7.34.1",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = [
