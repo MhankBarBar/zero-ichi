@@ -18,7 +18,7 @@ from pathlib import Path
 import segno
 from dotenv import load_dotenv
 from google.protobuf.json_format import MessageToDict
-from neonize.aioze.client import ClientFactory, NewAClient
+from neonize.aioze.client import NewAClient
 from neonize.events import (
     CallAcceptEv,
     CallOfferEv,
@@ -35,7 +35,7 @@ from watchfiles import awatch
 
 from core.db import ensure_database_ready
 from core.handlers.welcome import handle_member_join, handle_member_leave
-from core.i18n import init_i18n, reload_locales, t
+from core.i18n import init_i18n, reload_locales
 from core.jid_resolver import get_user_part, jids_match, resolve_pair
 from core.logger import (
     console,
@@ -799,137 +799,152 @@ def _init_bot(args):
 
     async def start_bot() -> None:
         """Main async entry point execution."""
-        session_state.is_logged_in = False
-        session_state.qr_code = None
-        session_state.pair_code = None
-        session_state.is_pairing = False
+        try:
+            stop_event = asyncio.Event()
+            session_state.is_logged_in = False
+            session_state.qr_code = None
+            session_state.pair_code = None
+            session_state.is_pairing = False
 
-        show_banner("Zero Ichi", "WhatsApp Bot built with 💖")
+            show_banner("Zero Ichi", "WhatsApp Bot built with 💖")
 
-        dashboard_enabled = runtime_config.get_nested("dashboard", "enabled", default=False)
-        if dashboard_enabled:
+            dashboard_enabled = runtime_config.get_nested("dashboard", "enabled", default=False)
+            if dashboard_enabled:
+                try:
+                    import uvicorn
+
+                    from dashboard_api import app as api_app
+
+                    config = uvicorn.Config(api_app, host="0.0.0.0", port=8000, log_level="warning")
+                    server = uvicorn.Server(config)
+                    asyncio.create_task(server.serve())
+                    log_success("Dashboard API starting on http://localhost:8000")
+                except ImportError:
+                    log_warning("Dashboard API not available (install fastapi & uvicorn)")
+                except Exception as e:
+                    log_warning(f"Dashboard API failed to start: {e}")
+            else:
+                log_info("Dashboard API is disabled in config.json")
+
+            log_step("Starting bot...")
+            log_bullet(f"Session: {BOT_NAME}")
+            log_bullet(f"Login Method: {LOGIN_METHOD}")
+
+            num_commands = command_loader.load_commands()
+            log_success(f"Loaded {num_commands} commands")
+
+            log_step("Connecting to WhatsApp...")
+
+            if LOGIN_METHOD == "PAIR_CODE":
+                log_step(f"Initiating Pair Code login for {PHONE_NUMBER}...")
+                try:
+                    session_state.is_pairing = True
+                    session_state.phone_number = PHONE_NUMBER
+                    x = await client.PairPhone(PHONE_NUMBER, True)
+                    session_state.pair_code = x
+                    console.print(x)
+                    show_pair_help()
+                except Exception as e:
+                    log_error(f"Pairing failed: {e}")
+                    return
+            else:
+                await client.connect()
+
+            if scheduler and not scheduler._scheduler.running:
+                scheduler.start()
+                log_success("Scheduler started")
+
+            async def watch_and_reload():
+                """Watch for file changes and reload commands and core modules."""
+                project_dir = _src_dir
+                locales_dir = project_dir / "locales"
+                watch_dirs = [
+                    project_dir / "commands",
+                    project_dir / "core",
+                    project_dir / "config",
+                    project_dir / "ai",
+                    locales_dir,
+                ]
+                watch_files = [
+                    project_dir / "dashboard_api.py",
+                ]
+
+                log_info("Auto-reload enabled. Watching for file changes...")
+
+                async for changes in awatch(*watch_dirs, *watch_files, stop_event=stop_event):
+                    for _, path in changes:
+                        path = Path(path)
+                        try:
+                            if path.suffix == ".json" and (
+                                path.parent == locales_dir or path.parent.name == "locales"
+                            ):
+                                reload_locales()
+                                log_success(f"[b]↻ Reloaded:[/b] {path.name} (locales)")
+                                continue
+
+                            if path.suffix == ".py" and not path.name.startswith("_"):
+                                rel_path = path.relative_to(project_dir)
+                                module_name = (
+                                    str(rel_path.with_suffix("")).replace("\\", ".").replace("/", ".")
+                                )
+
+                                if module_name in sys.modules:
+                                    importlib.reload(sys.modules[module_name])
+
+                                if module_name == "dashboard_api":
+                                    if "dashboard_api" in sys.modules:
+                                        importlib.reload(sys.modules["dashboard_api"])
+                                    log_success(f"[b]↻ Reloaded:[/b] {path.name} (API module)")
+                                elif module_name.startswith("core."):
+                                    importlib.reload(sys.modules["core.client"])
+                                    from core.client import BotClient as ReloadedBotClient
+                                    from core.shared import set_bot as set_bot_reload
+
+                                    nonlocal bot
+                                    bot = ReloadedBotClient(client)
+                                    bot.message_cache = message_cache
+                                    set_bot_reload(bot)
+                                    log_success(f"[b]↻ Reloaded:[/b] {path.name} (core module)")
+                                else:
+                                    command_loader._commands.clear()
+                                    count = command_loader.load_commands()
+                                    log_success(f"[b]↻ Reloaded:[/b] {path.name} ({count} commands)")
+                        except Exception as e:
+                            log_error(f"Reload failed for {path.name}: {e}")
+
+            if AUTO_RELOAD:
+                asyncio.create_task(watch_and_reload())
+            else:
+                log_info("Auto-reload disabled. Set 'auto_reload: true' in config.json to enable.")
+
+            log_success("Bot is running! Press Ctrl+C to stop.")
+            await client.idle()
+        finally:
+            console.print("\n\n[yellow]■[/yellow] Bot stopping...")
+            stop_event.set()
             try:
-                import uvicorn
-
-                from dashboard_api import app as api_app
-
-                config = uvicorn.Config(api_app, host="0.0.0.0", port=8000, log_level="warning")
-                server = uvicorn.Server(config)
-                asyncio.create_task(server.serve())
-                log_success("Dashboard API starting on http://localhost:8000")
-            except ImportError:
-                log_warning("Dashboard API not available (install fastapi & uvicorn)")
-            except Exception as e:
-                log_warning(f"Dashboard API failed to start: {e}")
-        else:
-            log_info("Dashboard API is disabled in config.json")
-
-        log_step("Starting bot...")
-        log_bullet(f"Session: {BOT_NAME}")
-        log_bullet(f"Login Method: {LOGIN_METHOD}")
-
-        num_commands = command_loader.load_commands()
-        log_success(f"Loaded {num_commands} commands")
-
-        log_step("Connecting to WhatsApp...")
-
-        if LOGIN_METHOD == "PAIR_CODE":
-            log_step(f"Initiating Pair Code login for {PHONE_NUMBER}...")
-            try:
-                session_state.is_pairing = True
-                session_state.phone_number = PHONE_NUMBER
-                x = await client.PairPhone(PHONE_NUMBER, True)
-                session_state.pair_code = x
-                console.print(x)
-                show_pair_help()
-            except Exception as e:
-                log_error(f"Pairing failed: {e}")
-                return
-        else:
-            await client.connect()
-
-        if scheduler and not scheduler._scheduler.running:
-            scheduler.start()
-            log_success("Scheduler started")
-
-        async def watch_and_reload():
-            """Watch for file changes and reload commands and core modules."""
-            project_dir = _src_dir
-            locales_dir = project_dir / "locales"
-            watch_dirs = [
-                project_dir / "commands",
-                project_dir / "core",
-                project_dir / "config",
-                project_dir / "ai",
-                locales_dir,
-            ]
-            watch_files = [
-                project_dir / "dashboard_api.py",
-            ]
-
-            log_info("Auto-reload enabled. Watching for file changes...")
-
-            async for changes in awatch(*watch_dirs, *watch_files):
-                for _, path in changes:
-                    path = Path(path)
-                    try:
-                        if path.suffix == ".json" and (
-                            path.parent == locales_dir or path.parent.name == "locales"
-                        ):
-                            reload_locales()
-                            log_success(f"[b]↻ Reloaded:[/b] {path.name} (locales)")
-                            continue
-
-                        if path.suffix == ".py" and not path.name.startswith("_"):
-                            rel_path = path.relative_to(project_dir)
-                            module_name = (
-                                str(rel_path.with_suffix("")).replace("\\", ".").replace("/", ".")
-                            )
-
-                            if module_name in sys.modules:
-                                importlib.reload(sys.modules[module_name])
-
-                            if module_name == "dashboard_api":
-                                if "dashboard_api" in sys.modules:
-                                    importlib.reload(sys.modules["dashboard_api"])
-                                log_success(f"[b]↻ Reloaded:[/b] {path.name} (API module)")
-                            elif module_name.startswith("core."):
-                                importlib.reload(sys.modules["core.client"])
-                                from core.client import BotClient as ReloadedBotClient
-                                from core.shared import set_bot as set_bot_reload
-
-                                nonlocal bot
-                                bot = ReloadedBotClient(client)
-                                bot.message_cache = message_cache
-                                set_bot_reload(bot)
-                                log_success(f"[b]↻ Reloaded:[/b] {path.name} (core module)")
-                            else:
-                                command_loader._commands.clear()
-                                count = command_loader.load_commands()
-                                log_success(f"[b]↻ Reloaded:[/b] {path.name} ({count} commands)")
-                    except Exception as e:
-                        log_error(f"Reload failed for {path.name}: {e}")
-
-        if AUTO_RELOAD:
-            asyncio.create_task(watch_and_reload())
-        else:
-            log_info("Auto-reload disabled. Set 'auto_reload: true' in config.json to enable.")
-
-        log_success("Bot is running! Press Ctrl+C to stop.")
-        await client.idle()
+                await client.stop()
+            except Exception:
+                pass
+            if scheduler and scheduler._scheduler.running:
+                scheduler.stop()
+                log_success("Scheduler stopped")
+            os._exit(0)
 
     def interrupt_handler(sig, frame):
-        """Graceful shutdown handler."""
-        console.print("\n\n[yellow]■[/yellow] Bot stopping...")
-        loop = asyncio.get_event_loop()
-        asyncio.run_coroutine_threadsafe(ClientFactory.stop(), loop)
+        raise KeyboardInterrupt
 
     signal.signal(signal.SIGINT, interrupt_handler)
 
     try:
-        client.loop.run_until_complete(start_bot())
+        asyncio.run(start_bot())
     except KeyboardInterrupt:
         pass
+    finally:
+        import threading
+        print("Active threads at exit:")
+        for t in threading.enumerate():
+            print(f"  Thread: {t.name}, Daemon: {t.daemon}, Alive: {t.is_alive()}")
 
 
 def main():
