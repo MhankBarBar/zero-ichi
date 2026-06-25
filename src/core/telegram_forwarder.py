@@ -84,6 +84,12 @@ class TelegramForwarder:
             log_error("Telegram forwarder: api_id and api_hash are required")
             return
 
+        session_file = f"{session}.session"
+        import os
+        if not os.path.exists(session_file):
+            log_error(f"Telegram forwarder: Session file '{session_file}' not found. Please run the login script on your VPS or upload the file.")
+            return
+
         self._tg_app = Client(
             session,
             api_id=api_id,
@@ -100,9 +106,12 @@ class TelegramForwarder:
         async def _handler(client, message):
             await self._on_message(message)
 
-        await self._tg_app.start()
-        self._started = True
-        log_success(f"Telegram forwarder connected (watching {len(source_ids)} sources)")
+        try:
+            await self._tg_app.start()
+            self._started = True
+            log_success(f"Telegram forwarder connected (watching {len(source_ids)} sources)")
+        except Exception as e:
+            log_error(f"Telegram forwarder failed to start: {e}")
 
     async def stop(self) -> None:
         """Disconnect Pyrogram gracefully."""
