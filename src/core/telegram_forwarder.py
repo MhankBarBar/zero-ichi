@@ -108,10 +108,23 @@ class TelegramForwarder:
         async def _handler(client, message):
             await self._on_message(message)
 
+        @self._tg_app.on_message()
+        async def _debug_handler(client, message):
+            chat = message.chat
+            log_info(
+                f"TG message received: chat_id={chat.id} "
+                f"title={getattr(chat, 'title', '') or ''} "
+                f"type={chat.type} "
+                f"text={message.text[:50] if message.text else '(media)'}..."
+            )
+
         try:
             await self._tg_app.start()
             self._started = True
-            log_success(f"Telegram forwarder connected (watching {len(source_ids)} sources)")
+            log_success(
+                f"Telegram forwarder connected "
+                f"(watching {len(source_ids)} sources: {source_ids})"
+            )
         except Exception as e:
             log_error(f"Telegram forwarder failed to start: {e}")
 
@@ -128,7 +141,20 @@ class TelegramForwarder:
     async def _on_message(self, message) -> None:
         """Handle an incoming Telegram message."""
         chat_id = message.chat.id
+        chat_title = getattr(message.chat, "title", "") or ""
         rules = self._rules_by_source.get(chat_id, [])
+
+        if not rules:
+            log_warning(
+                f"TG forwarder: message from chat_id={chat_id} ({chat_title}) "
+                f"but no rules match. Configured sources: {list(self._rules_by_source.keys())}"
+            )
+            return
+
+        log_info(
+            f"TG forwarder: forwarding message from chat_id={chat_id} ({chat_title}) "
+            f"to {len(rules)} rule(s)"
+        )
 
         for rule in rules:
             try:
