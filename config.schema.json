@@ -608,6 +608,68 @@
                     ]
                 }
             }
+        },
+        "telegram_forwarder": {
+            "type": "object",
+            "description": "Auto-forward messages from Telegram channels to WhatsApp chats or channels (newsletters)",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Enable the Telegram to WhatsApp forwarder",
+                    "default": false
+                },
+                "api_id": {
+                    "type": "integer",
+                    "description": "Telegram API ID (from my.telegram.org)",
+                    "default": 0
+                },
+                "api_hash": {
+                    "type": "string",
+                    "description": "Telegram API Hash (from my.telegram.org)",
+                    "default": ""
+                },
+                "phone": {
+                    "type": "string",
+                    "description": "Phone number for Telegram user account login (e.g. +628xxx)",
+                    "default": ""
+                },
+                "session_name": {
+                    "type": "string",
+                    "description": "Pyrogram session file name (no extension)",
+                    "default": "tg_forwarder"
+                },
+                "rules": {
+                    "type": "array",
+                    "description": "List of forwarding rules mapping Telegram sources to WhatsApp targets",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "source_chat_id": {
+                                "type": "integer",
+                                "description": "Telegram channel/group chat ID (negative for channels, e.g. -100123456789)"
+                            },
+                            "target_jids": {
+                                "type": "array",
+                                "description": "WhatsApp JIDs to forward to (supports @s.whatsapp.net, @g.us, @newsletter)",
+                                "items": {"type": "string"},
+                                "minItems": 1
+                            },
+                            "caption_prefix": {
+                                "type": "string",
+                                "description": "Optional prefix prepended to every caption/message (e.g. '[ChannelName] ')",
+                                "default": ""
+                            },
+                            "enabled": {
+                                "type": "boolean",
+                                "description": "Enable or disable this specific rule",
+                                "default": true
+                            }
+                        },
+                        "required": ["source_chat_id", "target_jids"]
+                    },
+                    "default": []
+                }
+            }
         }
     },
     "required": [

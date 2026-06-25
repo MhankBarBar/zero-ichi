@@ -6,7 +6,6 @@ Provides easy-to-use methods for common WhatsApp operations.
 
 from __future__ import annotations
 
-import json
 import re
 import time
 from typing import TYPE_CHECKING
@@ -15,11 +14,8 @@ from neonize.aioze.client import NewAClient
 from neonize.proto.Neonize_pb2 import JID
 from neonize.proto.waE2E.WAWebProtobufsE2E_pb2 import (
     ContextInfo,
-    DeviceListMetadata,
     ExtendedTextMessage,
-    InteractiveMessage,
     Message,
-    MessageContextInfo,
 )
 from neonize.utils.enum import VoteType
 from neonize.utils.jid import build_jid
@@ -568,6 +564,42 @@ class BotClient:
             self._apply_forwarded(message)
         return await self._client.send_message(self.to_jid(to), message, **kwargs)
 
+    @staticmethod
+    def _apply_buttons(msg, buttons: list[dict]) -> None:
+        """Helper to apply button dicts to a ButtonMessage builder."""
+        for btn in buttons:
+            b_type = btn.get("type", "reply").lower()
+            b_text = btn.get("text", "Button")
+            b_id = btn.get("id", f"btn_{b_text}")
+
+            if b_type == "url":
+                msg.add_url(b_text, btn.get("url", ""))
+            elif b_type == "call":
+                msg.add_call(b_text, btn.get("phone", ""))
+            elif b_type == "copy":
+                msg.add_copy(b_text, btn.get("code", ""))
+            elif b_type == "reminder":
+                msg.add_reminder(b_text, b_id)
+            elif b_type == "cancel_reminder":
+                msg.add_cancel_reminder(b_text, b_id)
+            elif b_type == "address":
+                msg.add_address(b_text, b_id)
+            elif b_type == "location":
+                msg.add_location()
+            elif b_type == "selection":
+                msg.add_selection(btn.get("title", "Options"))
+                for section in btn.get("sections", []):
+                    msg.add_section(section.get("title", "Section"), section.get("highlight", ""))
+                    for row in section.get("rows", []):
+                        msg.add_row(
+                            row.get("title", "Row"),
+                            row.get("description", ""),
+                            row.get("id", f"row_{row.get('title')}"),
+                            row.get("header", ""),
+                        )
+            else:
+                msg.add_reply(b_text, b_id)
+
     async def send_buttons(
         self,
         to: str | JID,
@@ -575,253 +607,221 @@ class BotClient:
         buttons: list[dict],
         footer: str = "",
         title: str = "",
+        image: str | bytes | None = None,
         forwarded: bool = False,
     ) -> SendResponse:
         """
-        Send a message with interactive buttons.
+        Send a message with interactive buttons using the modern API.
 
         Args:
             to: Recipient JID
             text: Body text
             buttons: List of button dicts. Supported types:
-                - {"type": "copy", "text": "Copy Code", "code": "123"}
+                - {"type": "reply", "text": "OK", "id": "btn1"} (default)
                 - {"type": "url", "text": "Open Link", "url": "https://..."}
                 - {"type": "call", "text": "Call Me", "phone": "+123456"}
+                - {"type": "copy", "text": "Copy Code", "code": "123"}
+                - {"type": "reminder", "text": "Set Reminder", "id": "remind_1"}
+                - {"type": "cancel_reminder", "text": "Cancel Reminder", "id": "cancel_remind_1"}
+                - {"type": "address", "text": "Address Info", "id": "address_1"}
+                - {"type": "location"}
+                - {"type": "selection", "title": "Menu", "sections": [{"title": "Sec 1", "highlight": "Opt", "rows": [{"title": "Row 1", "id": "r1", "description": "desc", "header": "hdr"}]}]}
             footer: Optional footer text
             title: Optional title text
+            image: Optional image bytes or url string
             forwarded: Whether to mark the message as forwarded
 
         Returns:
             SendResponse
         """
-        native_buttons = []
+        from neonize.ext.interactive_message.button import ButtonMessage
 
-        for btn in buttons:
-            b_type = btn.get("type", "").lower()
-            b_text = btn.get("text", "Button")
+        msg = ButtonMessage().set_body(text)
 
-            if b_type == "copy":
-                native_buttons.append(
-                    InteractiveMessage.NativeFlowMessage.NativeFlowButton(
-                        name="cta_copy",
-                        buttonParamsJSON=json.dumps(
-                            {
-                                "display_text": b_text,
-                                "id": f"copy_{b_text}",
-                                "copy_code": btn.get("code", ""),
-                            },
-                            separators=(",", ":"),
-                        ),
-                    )
-                )
-            elif b_type == "url":
-                native_buttons.append(
-                    InteractiveMessage.NativeFlowMessage.NativeFlowButton(
-                        name="cta_url",
-                        buttonParamsJSON=json.dumps(
-                            {
-                                "display_text": b_text,
-                                "url": btn.get("url", ""),
-                                "merchant_url": btn.get("url", ""),
-                            },
-                            separators=(",", ":"),
-                        ),
-                    )
-                )
-            elif b_type == "call":
-                native_buttons.append(
-                    InteractiveMessage.NativeFlowMessage.NativeFlowButton(
-                        name="cta_call",
-                        buttonParamsJSON=json.dumps(
-                            {"display_text": b_text, "id": f"call_{b_text}"},
-                            separators=(",", ":"),
-                        ),
-                    )
-                )
+        if title:
+            msg.set_title(title)
+        if footer:
+            msg.set_footer(footer)
+        if image:
+            msg.set_image(image)
 
-        context_info = (
-            ContextInfo(isForwarded=True, forwardingScore=999) if forwarded else ContextInfo()
-        )
+        self._apply_buttons(msg, buttons)
 
-        message = Message(
-            messageContextInfo=MessageContextInfo(
-                deviceListMetadata=DeviceListMetadata(),
-                deviceListMetadataVersion=2,
-            ),
-            interactiveMessage=InteractiveMessage(
-                body=InteractiveMessage.Body(text=text),
-                footer=InteractiveMessage.Footer(text=footer),
-                header=InteractiveMessage.Header(title=title, hasMediaAttachment=False),
-                nativeFlowMessage=InteractiveMessage.NativeFlowMessage(buttons=native_buttons),
-                contextInfo=context_info,
-            ),
-        )
+        proto = await msg.prepare_asend(self._client)
+        if forwarded:
+            self._apply_forwarded(proto)
 
-        return await self._client.send_message(self.to_jid(to), message)
+        return await self._client.send_message(self.to_jid(to), proto)
 
-    async def send_buttons_classic(
+    async def send_carousel(
+        self,
+        to: str | JID,
+        text: str,
+        cards: list[dict],
+        footer: str = "",
+        forwarded: bool = False,
+    ) -> SendResponse:
+        """
+        Send a carousel message with multiple cards.
+
+        Args:
+            to: Recipient JID
+            text: Body text for the carousel
+            cards: List of card dicts. Each card must have:
+                - title: str
+                - body: str
+                - footer: str
+                - image: str | bytes
+                - buttons: list[dict] (same format as send_buttons)
+            footer: Optional footer text for the carousel
+            forwarded: Whether to mark the message as forwarded
+
+        Returns:
+            SendResponse
+        """
+        from neonize.ext.interactive_message.button import ButtonMessage
+        from neonize.ext.interactive_message.carousel import CarouselMessage
+
+        carousel = CarouselMessage().set_body(text)
+        if footer:
+            carousel.set_footer(footer)
+
+        for card_data in cards:
+            card = ButtonMessage()
+
+            if "title" in card_data:
+                card.set_title(card_data["title"])
+            if "body" in card_data:
+                card.set_body(card_data["body"])
+            if "footer" in card_data:
+                card.set_footer(card_data["footer"])
+            if "image" in card_data:
+                card.set_image(card_data["image"])
+
+            self._apply_buttons(card, card_data.get("buttons", []))
+
+            carousel.add_card(await card.to_acard(self._client))
+
+        proto = await carousel.prepare_asend(self._client)
+
+        if forwarded:
+            self._apply_forwarded(proto)
+
+        return await self._client.send_message(self.to_jid(to), proto)
+
+    async def send_legacy_buttons(
         self,
         to: str | JID,
         text: str,
         buttons: list[dict],
         footer: str = "",
-        image: bytes | None = None,
+        title: str = "",
+        subtitle: str = "",
+        thumbnail: bytes | str | None = None,
         forwarded: bool = False,
     ) -> SendResponse:
         """
-        Send a message with classic response buttons.
-
-        This uses the older ButtonsMessage format which is more reliable.
+        Send a legacy interactive message using ButtonsMessage (V2 location hack).
 
         Args:
             to: Recipient JID
-            text: Body/content text
-            buttons: List of button dicts with format:
-                - {"id": ".command", "text": "Button Label"}
+            text: Body text
+            buttons: List of button dicts. Format: {"id": "cmd", "text": "Label"}
             footer: Optional footer text
-            image: Optional image bytes for header
-            forwarded: Whether to mark as forwarded
+            title: Optional title text (used as location name)
+            subtitle: Optional subtitle text (used as location address)
+            thumbnail: Optional thumbnail bytes or URL (must be a small JPEG)
+            forwarded: Whether to mark the message as forwarded
 
         Returns:
             SendResponse
         """
-        import json
+        from neonize.ext.interactive_message.buttonv2 import ButtonV2Message
 
-        from neonize.proto.waE2E.WAWebProtobufsE2E_pb2 import (
-            ButtonsMessage,
-            DocumentMessage,
-        )
+        msg = ButtonV2Message().set_body(text)
 
-        button_objects = []
+        if title:
+            msg.set_title(title)
+        if subtitle:
+            msg.set_subtitle(subtitle)
+        if footer:
+            msg.set_footer(footer)
+        if thumbnail:
+            msg.set_thumbnail(thumbnail)
+
         for btn in buttons:
             btn_id = btn.get("id", "")
             btn_text = btn.get("text", "Button")
+            msg.add_button(btn_text, btn_id)
 
-            if btn.get("type") == "list" and btn.get("sections"):
-                button_objects.append(
-                    ButtonsMessage.Button(
-                        buttonID="action",
-                        buttonText=ButtonsMessage.Button.ButtonText(displayText=btn_text),
-                        type=ButtonsMessage.Button.Type.NATIVE_FLOW,
-                        nativeFlowInfo=ButtonsMessage.Button.NativeFlowInfo(
-                            name="single_select",
-                            paramsJSON=json.dumps(
-                                {
-                                    "title": btn.get("title", "Select"),
-                                    "sections": btn.get("sections", []),
-                                },
-                                separators=(",", ":"),
-                            ),
-                        ),
-                    )
-                )
-            else:
-                button_objects.append(
-                    ButtonsMessage.Button(
-                        buttonID=btn_id,
-                        buttonText=ButtonsMessage.Button.ButtonText(displayText=btn_text),
-                        type=ButtonsMessage.Button.Type.RESPONSE,
-                    )
-                )
+        proto = await msg.prepare_asend(self._client)
 
-        if image:
-            image_msg = await self._client.build_image_message(image, caption=text, viewonce=True)
+        if forwarded:
+            self._apply_forwarded(proto)
 
-            context = ContextInfo(
-                isForwarded=True,
-                forwardingScore=1,
-                externalAdReply=ContextInfo.ExternalAdReplyInfo(
-                    title="Zero Ichi Bot",
-                    body="Menu",
-                    mediaType=ContextInfo.ExternalAdReplyInfo.MediaType.IMAGE,
-                    renderLargerThumbnail=True,
-                ),
-            )
+        return await self._client.send_message(self.to_jid(to), proto)
 
-            image_msg.imageMessage.contextInfo.MergeFrom(context)
+    async def send_ai_rich(
+        self,
+        to: str | JID,
+        elements: list[dict],
+        title: str = "",
+        footer: str = "",
+        forwarded: bool = False,
+    ) -> SendResponse:
+        """
+        Send an AI Rich Response message.
 
-            buttons_msg = ButtonsMessage(
-                contentText=text,
-                footerText=footer,
-                headerType=ButtonsMessage.HeaderType.IMAGE,
-                imageMessage=image_msg.imageMessage,
-                buttons=button_objects,
-            )
-        else:
-            xlsx_bytes = bytes(
-                [
-                    0x50,
-                    0x4B,
-                    0x03,
-                    0x04,
-                    0x14,
-                    0x00,
-                    0x00,
-                    0x00,
-                    0x08,
-                    0x00,
-                    0x00,
-                    0x00,
-                    0x21,
-                    0x00,
-                    0xB5,
-                    0x55,
-                    0x30,
-                    0x23,
-                    0xF4,
-                    0x00,
-                    0x00,
-                    0x00,
-                    0x4C,
-                    0x01,
-                    0x00,
-                    0x00,
-                    0x13,
-                    0x00,
-                    0x00,
-                    0x00,
-                ]
-                + [0x00] * 200
-            )
+        Args:
+            to: Recipient JID
+            elements: List of content elements. Example formats:
+                - {"type": "text", "text": "Hello *World*"}
+                - {"type": "code", "language": "python", "code": "print('hi')"}
+                - {"type": "table", "table": [["Header 1", "Header 2"], ["Row 1", "Row 2"]]}
+                - {"type": "image", "urls": ["https://..."]}
+                - {"type": "video", "urls": ["https://..."], "duration": 10}
+                - {"type": "source", "sources": [{"display_name": "Site", "url": "...", "favicon_url": "..."}]}
+                - {"type": "reel", "reels": [{"username": "user", "video_url": "...", "thumbnail_url": "...", "profile_icon_url": "..."}]}
+                - {"type": "product", "products": [{"title": "Shirt", "price": "$10", "product_url": "...", "image_url": "...", "icon_url": "..."}]}
+            title: Optional title
+            footer: Optional footer
+            forwarded: Whether to mark as forwarded
+        """
+        from neonize.ext.interactive_message.ai_rich import AIRichMessage, Product, Reel, Source
 
-            upload = await self._client.upload(xlsx_bytes)
+        msg = AIRichMessage()
+        if title:
+            msg.set_title(title)
+        if footer:
+            msg.set_footer(footer)
 
-            doc_context = ContextInfo(
-                isForwarded=True,
-                forwardingScore=1,
-                externalAdReply=ContextInfo.ExternalAdReplyInfo(
-                    title="┈──┈──┈──┈──┈──┈──┈──┈──┈",
-                    body="Zero Ichi",
-                    mediaType=ContextInfo.ExternalAdReplyInfo.MediaType.IMAGE,
-                    thumbnailURL="https://files.catbox.moe/cbmsvs.png",
-                    renderLargerThumbnail=True,
-                ),
-            )
+        for el in elements:
+            e_type = el.get("type", "").lower()
+            if e_type == "text":
+                msg.add_text(el.get("text", ""))
+            elif e_type == "code":
+                msg.add_code(el.get("language", "javascript"), el.get("code", ""))
+            elif e_type == "table":
+                msg.add_table(el.get("table", []))
+            elif e_type == "image":
+                msg.add_image(el.get("urls", []))
+            elif e_type == "video":
+                msg.add_video(el.get("urls", []), duration=el.get("duration", 0))
+            elif e_type == "source":
+                sources = [Source(**s) for s in el.get("sources", [])]
+                msg.add_source(sources)
+            elif e_type == "reel":
+                reels = [Reel(**r) for r in el.get("reels", [])]
+                msg.add_reels(reels)
+            elif e_type == "product":
+                products = [Product(**p) for p in el.get("products", [])]
+                msg.add_product(products)
 
-            doc_msg = DocumentMessage(
-                URL=upload.url,
-                mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                fileSHA256=upload.FileSHA256,
-                fileLength=len(xlsx_bytes),
-                mediaKey=upload.MediaKey,
-                fileName="─ ─┈⟢ Zero Ichi Bot ⟣┈─ ─",
-                fileEncSHA256=upload.FileEncSHA256,
-                directPath=upload.DirectPath,
-                caption=text,
-                contextInfo=doc_context,
-            )
+        proto = await msg.prepare_asend(self._client)
+        if forwarded:
+            self._apply_forwarded(proto)
 
-            buttons_msg = ButtonsMessage(
-                documentMessage=doc_msg,
-                contentText=text,
-                footerText=footer,
-                headerType=ButtonsMessage.HeaderType.DOCUMENT,
-                buttons=button_objects,
-            )
-
-        message = Message(buttonsMessage=buttons_msg)
-
-        return await self._client.send_message(self.to_jid(to), message)
+        return await self._client.send_message(self.to_jid(to), proto)
 
     async def send_image(
         self,

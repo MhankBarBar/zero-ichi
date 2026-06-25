@@ -66,6 +66,11 @@ class MessageHelper:
                 value = getattr(field, attr_name, None)
                 if value:
                     return value
+
+        ir = self.interactive_response
+        if ir:
+            return ir.get("id") or ir.get("text") or ir.get("title") or ""
+
         return ""
 
     @property
@@ -250,6 +255,78 @@ class MessageHelper:
                 pass
 
             return quoted
+        except Exception:
+            pass
+
+        return None
+
+    @property
+    def interactive_response(self) -> dict | None:
+        """
+        Get the interactive button/list response data.
+
+        Returns:
+            Dict containing 'id' and 'type' if this is a button response,
+            or None if it's not a response.
+
+            Format for Native Flow: {"id": "button_id", "type": "native_flow", "name": "quick_reply"}
+            Format for Legacy Buttons: {"id": "button_id", "type": "legacy_button", "text": "Label"}
+        """
+        try:
+            msg = self._message
+
+            # Unwrap viewOnceMessage if present
+            if msg.HasField("viewOnceMessage"):
+                msg = msg.viewOnceMessage.message
+            elif msg.HasField("viewOnceMessageV2"):
+                msg = msg.viewOnceMessageV2.message
+
+            if msg.HasField("interactiveResponseMessage"):
+                irm = msg.interactiveResponseMessage
+                if irm.HasField("nativeFlowResponseMessage"):
+                    nfrm = irm.nativeFlowResponseMessage
+                    params = {}
+                    if getattr(nfrm, "paramsJSON", None) or getattr(nfrm, "paramsJson", None):
+                        import json
+
+                        try:
+                            json_str = getattr(nfrm, "paramsJSON", None) or getattr(
+                                nfrm, "paramsJson", ""
+                            )
+                            params = json.loads(json_str)
+                        except Exception:
+                            pass
+
+                    return {
+                        "id": params.get("id", ""),
+                        "type": "native_flow",
+                        "name": nfrm.name,
+                        "params": params,
+                    }
+
+            elif msg.HasField("buttonsResponseMessage"):
+                brm = msg.buttonsResponseMessage
+                return {
+                    "id": getattr(brm, "selectedButtonID", getattr(brm, "selectedButtonId", "")),
+                    "type": "legacy_button",
+                    "text": brm.selectedDisplayText,
+                }
+
+            elif msg.HasField("templateButtonReplyMessage"):
+                trm = msg.templateButtonReplyMessage
+                return {
+                    "id": getattr(trm, "selectedID", getattr(trm, "selectedId", "")),
+                    "type": "template_button",
+                    "text": trm.selectedDisplayText,
+                }
+
+            elif msg.HasField("listResponseMessage"):
+                lrm = msg.listResponseMessage
+                return {
+                    "id": getattr(lrm.singleSelectReply, "selectedRowId", ""),
+                    "type": "list",
+                    "title": lrm.title,
+                }
         except Exception:
             pass
 

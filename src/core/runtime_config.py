@@ -141,6 +141,14 @@ DEFAULT_CONFIG = {
         "enabled": False,
         "cors_origins": ["http://localhost:3000", "http://127.0.0.1:3000"],
     },
+    "telegram_forwarder": {
+        "enabled": False,
+        "api_id": 0,
+        "api_hash": "",
+        "phone": "",
+        "session_name": "tg_forwarder",
+        "rules": [],
+    },
 }
 
 
@@ -905,6 +913,10 @@ class RuntimeConfig:
         if changed:
             self._save_candidate(updated)
         return changed
+
+    def get_telegram_forwarder(self) -> dict[str, Any]:
+        """Get the telegram_forwarder config block."""
+        return self._config.get("telegram_forwarder", {})
 
     def get(self, key: str, default: Any = None) -> Any:
         """Get a top-level config value."""
