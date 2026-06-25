@@ -212,12 +212,10 @@ class AddCommandCommand(Command):
         init_file = DYNAMIC_COMMANDS_DIR / "__init__.py"
         if not init_file.exists():
             init_file.write_text("# Dynamic commands\n")
-        # Sanitize: only allow alphanumeric and underscore
         safe_name = re.sub(r"[^a-z0-9_]", "", name.lower().replace(" ", "_"))
         if not safe_name:
             raise ValueError(f"Invalid command name after sanitization: '{name}'")
         file_path = (DYNAMIC_COMMANDS_DIR / f"{safe_name}.py").resolve()
-        # Verify path stays within dynamic commands directory
         if not str(file_path).startswith(str(DYNAMIC_COMMANDS_DIR.resolve())):
             raise ValueError(f"Command path escapes dynamic directory: {name}")
         file_path.write_text(code, encoding="utf-8")

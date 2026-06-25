@@ -147,7 +147,7 @@ async def resolve_pair(jid: str, client: BotClient | None = None) -> dict[str, s
 
     if user in _jid_cache:
         log_debug(f"JID cache hit for {user}")
-        _jid_cache.move_to_end(user)  # LRU: mark as recently used
+        _jid_cache.move_to_end(user)
         return _jid_cache[user]
 
     result: dict[str, str | None] = {"pn": None, "lid": None}
@@ -185,7 +185,7 @@ async def resolve_pair(jid: str, client: BotClient | None = None) -> dict[str, s
                 log_debug(f"Could not resolve PN to LID: {e}")
 
         while len(_jid_cache) >= _CACHE_MAX_SIZE:
-            _jid_cache.popitem(last=False)  # LRU: evict least recently used
+            _jid_cache.popitem(last=False)
 
         _jid_cache[user] = result
         if result["pn"]:

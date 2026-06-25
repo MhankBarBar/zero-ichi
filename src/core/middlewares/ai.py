@@ -18,7 +18,6 @@ async def ai_middleware(ctx, next):
             return
         except Exception as e:
             log_error(f"AI agent error: {e}")
-            # AI claimed this message but failed — don't fall through to command parsing
             return
 
     await next()

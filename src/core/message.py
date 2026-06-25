@@ -275,7 +275,6 @@ class MessageHelper:
         try:
             msg = self._message
 
-            # Unwrap viewOnceMessage if present
             if msg.HasField("viewOnceMessage"):
                 msg = msg.viewOnceMessage.message
             elif msg.HasField("viewOnceMessageV2"):

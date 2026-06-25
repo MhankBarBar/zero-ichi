@@ -22,7 +22,8 @@ class TgForwardCommand(Command):
                 f"Usage:\n"
                 f"• `{ctx.prefix}tgforward status` — Show forwarder status\n"
                 f"• `{ctx.prefix}tgforward reload` — Reload rules from config\n"
-                f"• `{ctx.prefix}tgforward test <rule#>` — Send test message to a rule",
+                f"• `{ctx.prefix}tgforward test <rule#>` — Send test message to a rule\n"
+                f"• `{ctx.prefix}tgforward fetchlast <rule#>` — Fetch last TG message and forward it",
             )
             return
 
@@ -34,6 +35,8 @@ class TgForwardCommand(Command):
             await self._reload(ctx)
         elif action == "test":
             await self._test(ctx)
+        elif action == "fetchlast":
+            await self._fetchlast(ctx)
         else:
             await ctx.client.reply(
                 ctx.message,
@@ -160,3 +163,56 @@ class TgForwardCommand(Command):
             f"• Sent: {success}/{len(targets)}\n"
             f"• Failed: {fail}",
         )
+
+    async def _fetchlast(self, ctx: CommandContext) -> None:
+        """Fetch the last message from a rule's source channel and forward it."""
+        from core.shared import get_tg_forwarder
+
+        forwarder = get_tg_forwarder()
+        if not forwarder:
+            await ctx.client.reply(ctx.message, "❌ Telegram forwarder is not initialized.")
+            return
+
+        if not forwarder.is_running:
+            await ctx.client.reply(ctx.message, "❌ Telegram forwarder is not connected.")
+            return
+
+        if len(ctx.args) < 2:
+            await ctx.client.reply(
+                ctx.message,
+                f"Usage: `{ctx.prefix}tgforward fetchlast <rule#>`\n"
+                f"Example: `{ctx.prefix}tgforward fetchlast 1`",
+            )
+            return
+
+        try:
+            rule_idx = int(ctx.args[1]) - 1
+        except ValueError:
+            await ctx.client.reply(ctx.message, "❌ Rule number must be a number.")
+            return
+
+        await ctx.client.reply(ctx.message, "⏳ Fetching last message from Telegram channel...")
+
+        result = await forwarder.test_forward_last(rule_idx)
+
+        if result.get("error") and "forwarded" not in result:
+            await ctx.client.reply(
+                ctx.message,
+                f"❌ Failed: {result['error']}",
+            )
+            return
+
+        lines = [
+            f"📡 *Fetch Last — Rule #{rule_idx + 1}*",
+            "",
+            f"• Chat ID: `{result.get('chat_id', '?')}`",
+            f"• Type: `{result.get('chat_type', '?')}`",
+            f"• Title: {result.get('chat_title', '?')}",
+            f"• Message: _{result.get('message_text', '?')}_",
+            "",
+            f"• Forwarded: {'✅ Yes' if result.get('forwarded') else '❌ No'}",
+        ]
+        if result.get("error"):
+            lines.append(f"• Error: {result['error']}")
+
+        await ctx.client.reply(ctx.message, "\n".join(lines))

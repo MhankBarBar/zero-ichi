@@ -122,7 +122,6 @@ def _resolve_required_role(cmd: Command, chat_jid: str) -> str:
     if override is None:
         return intrinsic
 
-    # Never allow overriding an intrinsic owner-only command to lower role.
     if intrinsic == "owner" and override != "owner":
         return "owner"
     return override
@@ -215,7 +214,6 @@ async def _allow_owner_bootstrap(cmd: Command, msg: MessageHelper) -> bool:
     command_name = cmd.name.lower()
     allowed = False
 
-    # /config owner me|set <jid>
     if command_name == "config":
         if len(parts) >= 3 and parts[1] == "owner":
             if parts[2] == "me":
@@ -223,7 +221,6 @@ async def _allow_owner_bootstrap(cmd: Command, msg: MessageHelper) -> bool:
             elif parts[2] == "set" and len(parts) >= 4:
                 allowed = True
 
-    # /setup status|start|owner me|set <jid>
     elif command_name == "setup":
         if parts[1] in {"status", "start"}:
             allowed = True

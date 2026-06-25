@@ -45,7 +45,6 @@ async def anti_spam_middleware(ctx, next):
 
     now = time.time()
 
-    # Prune stale entries to prevent unbounded memory growth
     if len(_spam_windows) > 1000:
         stale_keys = [
             k for k, v in _spam_windows.items() if not v or (now - v[-1]) > window_seconds * 2

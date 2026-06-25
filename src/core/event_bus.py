@@ -38,7 +38,6 @@ class EventBus:
             try:
                 queue.put_nowait(event)
             except asyncio.QueueFull:
-                # Drain oldest event to make room instead of dropping subscriber
                 try:
                     queue.get_nowait()
                 except asyncio.QueueEmpty:

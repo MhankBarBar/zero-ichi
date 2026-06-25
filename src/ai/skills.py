@@ -19,7 +19,7 @@ import yaml
 from core.constants import SKILLS_DIR
 from core.logger import log_error, log_info, log_warning
 
-MAX_SKILL_CONTENT_SIZE = 102400  # 100KB max skill content from URL
+MAX_SKILL_CONTENT_SIZE = 102400
 SAFE_NAME_PATTERN = re.compile(r"^[a-z0-9_-]+$")
 
 
@@ -38,7 +38,6 @@ def _validate_skill_url(url: str) -> None:
         raise ValueError(f"Only HTTPS URLs are allowed for skill loading, got: {parsed.scheme}")
     if not parsed.hostname:
         raise ValueError("URL has no hostname")
-    # Block private/reserved IPs (SSRF prevention)
     try:
         ip = ipaddress.ip_address(parsed.hostname)
         if ip.is_private or ip.is_loopback or ip.is_reserved or ip.is_link_local:
@@ -46,7 +45,6 @@ def _validate_skill_url(url: str) -> None:
     except ValueError as e:
         if "does not appear to be" not in str(e):
             raise
-        # hostname is not an IP literal, that's fine (it's a domain name)
 
 
 class SkillData(TypedDict):
@@ -181,7 +179,6 @@ def delete_skill_file(name: str) -> bool:
     """Delete a skill file. Name is sanitized to prevent path traversal."""
     safe_name = _sanitize_skill_name(name)
     file_path = (SKILLS_DIR / f"{safe_name}.md").resolve()
-    # Verify resolved path is within SKILLS_DIR
     if not str(file_path).startswith(str(SKILLS_DIR.resolve())):
         log_error(f"Attempted path traversal in delete_skill_file: {name}")
         return False

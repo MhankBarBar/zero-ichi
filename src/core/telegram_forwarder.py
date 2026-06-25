@@ -53,13 +53,11 @@ class TelegramForwarder:
         ids = []
         for src in self._rules_by_source.keys():
             ids.append(src)
-            # If it's a positive ID, also listen to the -100 version
             if src > 0:
                 try:
                     ids.append(int(f"-100{src}"))
                 except ValueError:
                     pass
-            # If it's a negative ID starting with -100, also listen to the positive version
             elif str(src).startswith("-100"):
                 try:
                     ids.append(int(str(src)[4:]))
@@ -153,15 +151,75 @@ class TelegramForwarder:
             self._started = False
             log_info("Telegram forwarder disconnected")
 
+    async def test_forward_last(self, rule_index: int) -> dict[str, Any]:
+        """Fetch the last message from a rule's source channel and forward it.
+
+        Returns a dict with status info: chat_id, chat_type, chat_title,
+        forwarded (bool), error (str or None).
+        """
+        rules = self._config.get("rules", [])
+        if rule_index < 0 or rule_index >= len(rules):
+            return {"error": f"Invalid rule index {rule_index + 1}"}
+
+        rule = rules[rule_index]
+        src = rule.get("source_chat_id")
+        if src is None:
+            return {"error": "Rule has no source_chat_id"}
+
+        if not self._tg_app or not self._started:
+            return {"error": "Pyrogram client is not connected"}
+
+        chat_ids_to_try = [src]
+        if src > 0:
+            chat_ids_to_try.append(int(f"-100{src}"))
+        elif str(src).startswith("-100"):
+            try:
+                chat_ids_to_try.append(int(str(src)[4:]))
+            except ValueError:
+                pass
+
+        last_error = None
+        for try_id in chat_ids_to_try:
+            try:
+                messages = []
+                async for msg in self._tg_app.get_chat_history(try_id, limit=1):
+                    messages.append(msg)
+
+                if not messages:
+                    last_error = f"No messages found in chat {try_id}"
+                    continue
+
+                message = messages[0]
+                chat = message.chat
+                chat_info = {
+                    "chat_id": chat.id,
+                    "chat_type": str(chat.type),
+                    "chat_title": getattr(chat, "title", "") or "",
+                    "message_text": (message.text or message.caption or "(media)")[:100],
+                }
+
+                try:
+                    await self._dispatch(rule, message)
+                    chat_info["forwarded"] = True
+                    chat_info["error"] = None
+                except Exception as e:
+                    chat_info["forwarded"] = False
+                    chat_info["error"] = str(e)
+
+                return chat_info
+            except Exception as e:
+                last_error = f"chat_id={try_id}: {e}"
+                continue
+
+        return {"error": f"Could not fetch from source. {last_error}"}
+
     async def _on_message(self, message) -> None:
         """Handle an incoming Telegram message."""
         chat_id = message.chat.id
         chat_title = getattr(message.chat, "title", "") or ""
         
-        # Get rules matching this chat ID
         rules = self._rules_by_source.get(chat_id, [])
         
-        # If no rules found, try finding rules by the alternative ID format
         if not rules:
             if str(chat_id).startswith("-100"):
                 try:

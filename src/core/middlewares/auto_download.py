@@ -158,7 +158,6 @@ async def auto_download_middleware(ctx, next):
     cooldown = max(0, int(cfg.get("cooldown_seconds", 30) or 0))
     now = time.time()
 
-    # Prune stale cooldown entries to prevent unbounded memory growth
     if len(_cooldown_map) > 500:
         stale = [k for k, v in _cooldown_map.items() if now - v > cooldown * 2 + 60]
         for k in stale:

@@ -342,14 +342,12 @@ async def get_current_username(request: Request) -> str:
     Authenticate via httpOnly session cookie OR HTTP Basic Auth (backward compat).
     Cookie auth is preferred and checked first.
     """
-    # 1. Try session cookie
     session_token = request.cookies.get(SESSION_COOKIE_NAME)
     if session_token:
         username = _validate_session(session_token)
         if username:
             return username
 
-    # 2. Fall back to Basic auth
     authorization = request.headers.get("Authorization")
     if not authorization:
         raise HTTPException(
@@ -412,7 +410,7 @@ async def login(req: LoginRequest):
         key=SESSION_COOKIE_NAME,
         value=session_token,
         httponly=True,
-        secure=False,  # Set True in production with HTTPS
+        secure=False,
         samesite="lax",
         max_age=SESSION_TTL_SECONDS,
         path="/",

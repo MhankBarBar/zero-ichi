@@ -116,7 +116,6 @@ def rule_matches(rule: dict[str, Any], text: str, media_type: str | None = None)
             return False
         try:
             pattern = re.compile(trigger_value, re.IGNORECASE)
-            # Limit input length to prevent ReDoS on pathological patterns
             safe_text = text[:5000] if len(text) > 5000 else text
             return pattern.search(safe_text) is not None
         except re.error:

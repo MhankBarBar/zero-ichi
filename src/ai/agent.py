@@ -168,7 +168,6 @@ def _register_group_tools(agent: Agent) -> None:
     @agent.tool
     async def toggle_feature(ctx: RunContext[BotDependencies], feature: str, enabled: bool) -> str:
         """Toggle a bot feature on or off. Features: anti_delete, anti_link, welcome, notes, etc. Requires admin/owner permission."""
-        # Permission check: only admins/owners can toggle features
         is_owner = await runtime_config.is_owner_async(ctx.deps.msg.sender_jid, ctx.deps.bot)
         if not is_owner:
             is_admin = await ctx.deps.bot.is_admin(ctx.deps.msg.chat_jid, ctx.deps.msg.sender_jid)
