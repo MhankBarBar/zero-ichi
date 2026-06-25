@@ -18,7 +18,7 @@ from pathlib import Path
 import segno
 from dotenv import load_dotenv
 from google.protobuf.json_format import MessageToDict
-from neonize.aioze.client import ClientFactory, NewAClient
+from neonize.aioze.client import NewAClient
 from neonize.events import (
     CallAcceptEv,
     CallOfferEv,
@@ -35,7 +35,7 @@ from watchfiles import awatch
 
 from core.db import ensure_database_ready
 from core.handlers.welcome import handle_member_join, handle_member_leave
-from core.i18n import init_i18n, reload_locales, t
+from core.i18n import init_i18n, reload_locales
 from core.jid_resolver import get_user_part, jids_match, resolve_pair
 from core.logger import (
     console,
@@ -978,99 +978,114 @@ def _init_bot(args):
 
     async def start_bot() -> None:
         """Main async entry point execution."""
-        session_state.is_logged_in = False
-        session_state.qr_code = None
-        session_state.pair_code = None
-        session_state.is_pairing = False
+        try:
+            session_state.is_logged_in = False
+            session_state.qr_code = None
+            session_state.pair_code = None
+            session_state.is_pairing = False
 
-        show_banner("Zero Ichi", "WhatsApp Bot built with 💖")
+            show_banner("Zero Ichi", "WhatsApp Bot built with 💖")
 
-        dashboard_enabled = runtime_config.get_nested("dashboard", "enabled", default=False)
-        _start_dashboard_via_manager(service_manager, enabled=dashboard_enabled)
+            dashboard_enabled = runtime_config.get_nested("dashboard", "enabled", default=False)
+            _start_dashboard_via_manager(service_manager, enabled=dashboard_enabled)
 
-        log_step("Starting bot...")
-        log_bullet(f"Session: {bot_name}")
-        log_bullet(f"Login Method: {login_method}")
+            log_step("Starting bot...")
+            log_bullet(f"Session: {bot_name}")
+            log_bullet(f"Login Method: {login_method}")
 
-        num_commands = command_loader.load_commands()
-        log_success(f"Loaded {num_commands} commands")
+            num_commands = command_loader.load_commands()
+            log_success(f"Loaded {num_commands} commands")
 
-        log_step("Connecting to WhatsApp...")
+            log_step("Connecting to WhatsApp...")
 
-        if not await _connect_client(client, login_method, phone_number):
-            return
+            if not await _connect_client(client, login_method, phone_number):
+                return
 
-        service_manager.start_scheduler_if_needed()
+            service_manager.start_scheduler_if_needed()
 
-        async def watch_and_reload():
-            """Watch for file changes and reload commands and core modules."""
-            project_dir = _src_dir
-            locales_dir = project_dir / "locales"
-            watch_dirs, watch_files = _watch_targets(project_dir)
+            async def watch_and_reload():
+                """Watch for file changes and reload commands and core modules."""
+                project_dir = _src_dir
+                locales_dir = project_dir / "locales"
+                watch_dirs, watch_files = _watch_targets(project_dir)
 
-            log_info("Auto-reload enabled. Watching for file changes...")
+                log_info("Auto-reload enabled. Watching for file changes...")
 
-            async for changes in awatch(*watch_dirs, *watch_files):
-                for _, path in changes:
-                    path = Path(path)
-                    try:
-                        if path.suffix == ".json" and (
-                            path.parent == locales_dir or path.parent.name == "locales"
-                        ):
-                            reload_locales()
-                            log_success(f"[b]↻ Reloaded:[/b] {path.name} (locales)")
-                            continue
+                async for changes in awatch(*watch_dirs, *watch_files):
+                    for _, path in changes:
+                        path = Path(path)
+                        try:
+                            if path.suffix == ".json" and (
+                                path.parent == locales_dir or path.parent.name == "locales"
+                            ):
+                                reload_locales()
+                                log_success(f"[b]↻ Reloaded:[/b] {path.name} (locales)")
+                                continue
 
-                        if path.suffix == ".py" and not path.name.startswith("_"):
-                            module_name = _module_name_from_path(path, project_dir)
+                            if path.suffix == ".py" and not path.name.startswith("_"):
+                                module_name = _module_name_from_path(path, project_dir)
 
-                            if module_name in sys.modules:
-                                importlib.reload(sys.modules[module_name])
+                                if module_name in sys.modules:
+                                    importlib.reload(sys.modules[module_name])
 
-                            if module_name == "dashboard_api":
-                                if "dashboard_api" in sys.modules:
-                                    importlib.reload(sys.modules["dashboard_api"])
-                                log_success(f"[b]↻ Reloaded:[/b] {path.name} (API module)")
-                            elif module_name.startswith("core."):
-                                from core.client import BotClient as ReloadedBotClient
+                                if module_name == "dashboard_api":
+                                    if "dashboard_api" in sys.modules:
+                                        importlib.reload(sys.modules["dashboard_api"])
+                                    log_success(f"[b]↻ Reloaded:[/b] {path.name} (API module)")
+                                elif module_name.startswith("core."):
+                                    from core.client import BotClient as ReloadedBotClient
 
-                                service_manager.reload_core_module(
-                                    client=client,
-                                    message_cache=message_cache,
-                                    core_client_module=sys.modules["core.client"],
-                                    bot_client_cls=ReloadedBotClient,
-                                )
-                                nonlocal bot, pipeline
-                                bot = service_manager.bot
-                                pipeline = service_manager.pipeline
-                                log_success(f"[b]↻ Reloaded:[/b] {path.name} (core module)")
-                            else:
-                                command_loader._commands.clear()
-                                count = command_loader.load_commands()
-                                log_success(f"[b]↻ Reloaded:[/b] {path.name} ({count} commands)")
-                    except Exception as e:
-                        log_error(f"Reload failed for {path.name}: {e}")
+                                    service_manager.reload_core_module(
+                                        client=client,
+                                        message_cache=message_cache,
+                                        core_client_module=sys.modules["core.client"],
+                                        bot_client_cls=ReloadedBotClient,
+                                    )
+                                    nonlocal bot, pipeline
+                                    bot = service_manager.bot
+                                    pipeline = service_manager.pipeline
+                                    log_success(f"[b]↻ Reloaded:[/b] {path.name} (core module)")
+                                else:
+                                    command_loader._commands.clear()
+                                    count = command_loader.load_commands()
+                                    log_success(
+                                        f"[b]↻ Reloaded:[/b] {path.name} ({count} commands)"
+                                    )
+                        except Exception as e:
+                            log_error(f"Reload failed for {path.name}: {e}")
 
-        if auto_reload:
-            asyncio.create_task(watch_and_reload())
-        else:
-            log_info("Auto-reload disabled. Set 'auto_reload: true' in config.json to enable.")
+            if auto_reload:
+                asyncio.create_task(watch_and_reload())
+            else:
+                log_info("Auto-reload disabled. Set 'auto_reload: true' in config.json to enable.")
 
-        log_success("Bot is running! Press Ctrl+C to stop.")
-        await client.idle()
+            log_success("Bot is running! Press Ctrl+C to stop.")
+            await client.idle()
+
+        finally:
+            console.print("\n\n[yellow]■[/yellow] Bot stopping...")
+            try:
+                await client.stop()
+            except Exception:
+                pass
+            service_manager.stop_all()
+            os._exit(0)
 
     def interrupt_handler(sig, frame):
-        """Graceful shutdown handler."""
-        console.print("\n\n[yellow]■[/yellow] Bot stopping...")
-        loop = asyncio.get_event_loop()
-        asyncio.run_coroutine_threadsafe(ClientFactory.stop(), loop)
+        raise KeyboardInterrupt
 
     signal.signal(signal.SIGINT, interrupt_handler)
 
     try:
-        client.loop.run_until_complete(start_bot())
+        asyncio.run(start_bot())
     except KeyboardInterrupt:
         pass
+    finally:
+        import threading
+
+        print("Active threads at exit:")
+        for t in threading.enumerate():
+            print(f"  Thread: {t.name}, Daemon: {t.daemon}, Alive: {t.is_alive()}")
 
 
 def main():
