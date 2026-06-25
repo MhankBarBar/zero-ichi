@@ -43,10 +43,18 @@ class RuntimeServiceManager:
         return self.dashboard_task
 
     def start_tg_forwarder_if_needed(self, create_task_fn):
-        if self.tg_forwarder and not self.tg_forwarder.is_running:
-            cfg = self.runtime_config.get_telegram_forwarder()
-            if cfg.get("enabled", False):
-                create_task_fn(self.tg_forwarder.start())
+        if not self.tg_forwarder:
+            log_warning("Telegram forwarder: not initialized (tg_forwarder is None)")
+            return
+        if self.tg_forwarder.is_running:
+            log_info("Telegram forwarder: already running")
+            return
+        cfg = self.runtime_config.get_telegram_forwarder()
+        if not cfg.get("enabled", False):
+            log_info("Telegram forwarder: disabled in config")
+            return
+        log_info("Telegram forwarder: starting...")
+        create_task_fn(self.tg_forwarder.start())
 
     def register_config_callback(self, callback: Callable[[], None]):
         self._config_callbacks.append(callback)

@@ -1010,6 +1010,7 @@ def _init_bot(args):
                 return
 
             service_manager.start_scheduler_if_needed()
+            service_manager.start_tg_forwarder_if_needed(asyncio.create_task)
 
             async def watch_and_reload():
                 """Watch for file changes and reload commands and core modules."""

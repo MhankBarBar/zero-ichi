@@ -8,6 +8,7 @@ or WhatsApp Channels (newsletters) via neonize.
 
 from __future__ import annotations
 
+import os
 from io import BytesIO
 from typing import TYPE_CHECKING, Any
 
@@ -85,7 +86,6 @@ class TelegramForwarder:
             return
 
         session_file = f"{session}.session"
-        import os
         if not os.path.exists(session_file):
             log_error(f"Telegram forwarder: Session file '{session_file}' not found. Please run the login script on your VPS or upload the file.")
             return

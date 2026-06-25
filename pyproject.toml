@@ -7,7 +7,7 @@ name = "zero-ichi"
 version = "0.1.0"
 description = "WhatsApp Bot built with 💖"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
     "neonize @ git+https://github.com/krypton-byte/neonize.git@4fae9daaada242b64e6235219b759c5f434a814b",
     "qrcode>=7.4",
