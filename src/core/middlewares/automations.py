@@ -63,9 +63,7 @@ async def automations_middleware(ctx, next):
             if executed:
                 return
         except Exception as e:
-            log_warning(
-                f"Automation rule {rule.get('id', '?')} failed in {ctx.msg.chat_jid}: {e}"
-            )
+            log_warning(f"Automation rule {rule.get('id', '?')} failed in {ctx.msg.chat_jid}: {e}")
             continue
 
     await next()

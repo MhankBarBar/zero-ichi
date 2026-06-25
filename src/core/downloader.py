@@ -21,6 +21,7 @@ from core.constants import DOWNLOADS_DIR
 from core.logger import log_debug, log_error, log_info, log_warning
 from core.runtime_config import runtime_config
 
+
 def _get_max_file_size_mb() -> float:
     """Get max file size from runtime config (read dynamically, not cached at import)."""
     return runtime_config.get_nested("downloader", "max_file_size_mb", default=180)

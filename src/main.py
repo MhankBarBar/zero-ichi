@@ -55,7 +55,7 @@ from core.runtime_config import runtime_config
 from core.runtime_service_manager import RuntimeServiceManager
 from core.scheduler import init_scheduler
 from core.session import session_state
-from core.shared import set_bot
+from core.shared import set_bot, set_tg_forwarder
 
 _src_dir = Path(__file__).parent
 if str(_src_dir) not in sys.path:
@@ -625,11 +625,18 @@ def _init_bot(args):
     init_i18n()
     set_bot(bot)
 
+    from core.telegram_forwarder import TelegramForwarder
+
+    tg_config = runtime_config.get_telegram_forwarder()
+    tg_forwarder = TelegramForwarder(bot, tg_config)
+    set_tg_forwarder(tg_forwarder)
+
     scheduler = init_scheduler(bot)
     service_manager = RuntimeServiceManager(runtime_config)
     service_manager.bot = bot
     service_manager.message_cache = message_cache
     service_manager.scheduler = scheduler
+    service_manager.tg_forwarder = tg_forwarder
     _register_runtime_service_callbacks(service_manager, rate_limiter_module=rate_limiter_module)
     service_manager.notify_config_changed()
     pipeline = service_manager.rebuild_pipeline(factory=_build_live_pipeline)
@@ -858,6 +865,7 @@ def _init_bot(args):
             f"Connected event fired, scheduler: {scheduler}, running: {scheduler._scheduler.running if scheduler else 'N/A'}"
         )
         service_manager.start_scheduler_if_needed()
+        service_manager.start_tg_forwarder_if_needed(asyncio.create_task)
 
         owner_jid = runtime_config.get_owner_jid()
         if owner_jid:
@@ -1068,7 +1076,7 @@ def _init_bot(args):
                 await client.stop()
             except Exception:
                 pass
-            service_manager.stop_all()
+            await service_manager.stop_all()
             os._exit(0)
 
     def interrupt_handler(sig, frame):

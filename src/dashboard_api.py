@@ -35,6 +35,7 @@ from fastapi import (
     WebSocketDisconnect,
 )
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.security.utils import get_authorization_scheme_param
 from pydantic import BaseModel
 
@@ -390,9 +391,6 @@ class LoginRequest(BaseModel):
 
     username: str
     password: str
-
-
-from fastapi.responses import JSONResponse
 
 
 @app.post("/api/login")

@@ -18,6 +18,7 @@ class RuntimeServiceManager:
     webhook_runtime: Any = None
     bot: Any = None
     message_cache: Any = None
+    tg_forwarder: Any = None
     _config_callbacks: list[Callable[[], None]] = field(default_factory=list)
     _pipeline_factory: Callable[[], Any] | None = None
 
@@ -41,6 +42,12 @@ class RuntimeServiceManager:
         self.dashboard_task = create_task_fn(server.serve())
         return self.dashboard_task
 
+    def start_tg_forwarder_if_needed(self, create_task_fn):
+        if self.tg_forwarder and not self.tg_forwarder.is_running:
+            cfg = self.runtime_config.get_telegram_forwarder()
+            if cfg.get("enabled", False):
+                create_task_fn(self.tg_forwarder.start())
+
     def register_config_callback(self, callback: Callable[[], None]):
         self._config_callbacks.append(callback)
 
@@ -60,3 +67,21 @@ class RuntimeServiceManager:
         if self._pipeline_factory is not None:
             self.pipeline = self._pipeline_factory()
         return self.bot
+
+    async def stop_all(self):
+        """Stop all runtime services gracefully."""
+        if self.tg_forwarder and self.tg_forwarder.is_running:
+            try:
+                await self.tg_forwarder.stop()
+            except Exception as e:
+                log_warning(f"Error stopping tg_forwarder: {e}")
+
+        if self.scheduler and self.scheduler._scheduler.running:
+            try:
+                self.scheduler.shutdown()
+            except Exception as e:
+                log_warning(f"Error stopping scheduler: {e}")
+
+        if self.dashboard_task:
+            self.dashboard_task.cancel()
+            self.dashboard_task = None

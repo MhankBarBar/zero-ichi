@@ -13,6 +13,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import secrets
 import threading
 import time
@@ -73,9 +74,7 @@ def get_engine() -> Engine:
     return _engine
 
 
-import re as _re
-
-_SAFE_IDENTIFIER = _re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
+_SAFE_IDENTIFIER = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
 
 def _ensure_column(engine: Engine, table_name: str, column_name: str, column_sql: str) -> None:
