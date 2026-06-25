@@ -87,7 +87,9 @@ class TelegramForwarder:
 
         session_file = f"{session}.session"
         if not os.path.exists(session_file):
-            log_error(f"Telegram forwarder: Session file '{session_file}' not found. Please run the login script on your VPS or upload the file.")
+            log_error(
+                f"Telegram forwarder: Session file '{session_file}' not found. Please run the login script on your VPS or upload the file."
+            )
             return
 
         self._tg_app = Client(

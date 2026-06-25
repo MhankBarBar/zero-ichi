@@ -5,7 +5,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from core.logger import log_warning
+from core.logger import log_info, log_warning
 from core.shared import set_bot
 
 
