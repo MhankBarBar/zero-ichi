@@ -49,8 +49,23 @@ class TelegramForwarder:
 
     @property
     def source_ids(self) -> list[int]:
-        """All monitored Telegram chat IDs."""
-        return list(self._rules_by_source.keys())
+        """All monitored Telegram chat IDs (includes normalized versions)."""
+        ids = []
+        for src in self._rules_by_source.keys():
+            ids.append(src)
+            # If it's a positive ID, also listen to the -100 version
+            if src > 0:
+                try:
+                    ids.append(int(f"-100{src}"))
+                except ValueError:
+                    pass
+            # If it's a negative ID starting with -100, also listen to the positive version
+            elif str(src).startswith("-100"):
+                try:
+                    ids.append(int(str(src)[4:]))
+                except ValueError:
+                    pass
+        return list(set(ids))
 
     @property
     def is_running(self) -> bool:
@@ -142,7 +157,24 @@ class TelegramForwarder:
         """Handle an incoming Telegram message."""
         chat_id = message.chat.id
         chat_title = getattr(message.chat, "title", "") or ""
+        
+        # Get rules matching this chat ID
         rules = self._rules_by_source.get(chat_id, [])
+        
+        # If no rules found, try finding rules by the alternative ID format
+        if not rules:
+            if str(chat_id).startswith("-100"):
+                try:
+                    short_id = int(str(chat_id)[4:])
+                    rules = self._rules_by_source.get(short_id, [])
+                except ValueError:
+                    pass
+            elif chat_id > 0:
+                try:
+                    long_id = int(f"-100{chat_id}")
+                    rules = self._rules_by_source.get(long_id, [])
+                except ValueError:
+                    pass
 
         if not rules:
             log_warning(
