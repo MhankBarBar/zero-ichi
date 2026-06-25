@@ -397,7 +397,10 @@ class TelegramForwarder:
         }
         media_type = media_type_map.get(kind, MediaType.MediaDocument)
 
-        upload = await self._bot.raw.upload_newsletter(data, media_type)
+        # WORKAROUND: upload_newsletter panics in neonize 0.3.13 due to missing MediaKey in UploadResponse.
+        # We fallback to normal upload() which encrypts the media and provides a MediaKey, preventing the crash.
+        # WhatsApp clients can usually still decrypt it using the provided MediaKey.
+        upload = await self._bot.raw.upload(data, media_type)
         mime = libmagic.from_buffer(data, mime=True)
 
         target_jid = self._bot.to_jid(jid)
