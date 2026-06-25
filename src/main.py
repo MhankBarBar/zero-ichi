@@ -1010,7 +1010,11 @@ def _init_bot(args):
                 return
 
             service_manager.start_scheduler_if_needed()
-            service_manager.start_tg_forwarder_if_needed(asyncio.create_task)
+            try:
+                service_manager.start_tg_forwarder_if_needed(asyncio.create_task)
+            except Exception as e:
+                log_error(f"Failed to start Telegram forwarder: {e}")
+                log_error(traceback.format_exc())
 
             async def watch_and_reload():
                 """Watch for file changes and reload commands and core modules."""
@@ -1071,6 +1075,9 @@ def _init_bot(args):
             log_success("Bot is running! Press Ctrl+C to stop.")
             await client.idle()
 
+        except Exception as e:
+            log_error(f"Bot crashed: {e}")
+            log_error(traceback.format_exc())
         finally:
             console.print("\n\n[yellow]■[/yellow] Bot stopping...")
             try:
