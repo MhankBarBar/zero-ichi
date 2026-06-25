@@ -84,9 +84,9 @@ class RuntimeServiceManager:
             except Exception as e:
                 log_warning(f"Error stopping tg_forwarder: {e}")
 
-        if self.scheduler and self.scheduler._scheduler.running:
+        if self.scheduler:
             try:
-                self.scheduler.shutdown()
+                self.scheduler.stop()
             except Exception as e:
                 log_warning(f"Error stopping scheduler: {e}")
 
