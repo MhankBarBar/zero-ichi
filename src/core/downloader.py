@@ -172,12 +172,14 @@ class Downloader:
         return resolved if resolved.exists() else None
 
     def _merge_cookie_files(self, file_paths: list[str]) -> str | None:
-        """Merge multiple Netscape cookie files into a single temp file.
+        """Concatenate multiple Netscape cookie files into a single temp file.
 
+        Each file is read as raw text and concatenated as-is. No parsing is
+        performed — each input must already be valid Netscape format.
         Returns the path to the merged file, or None if no valid files found.
         """
-        merged_lines: list[str] = []
-        seen_domains: set[tuple[str, str, str]] = set()
+        chunks: list[str] = []
+        seen_header = False
 
         for p in file_paths:
             resolved = self._resolve_cookie_path(p)
@@ -191,34 +193,31 @@ class Downloader:
                 log_warning(f"[DOWNLOADER] Failed to read cookie file {p}: {e}")
                 continue
 
-            for line in content.splitlines():
-                stripped = line.strip()
-                if not stripped or stripped.startswith("#"):
-                    continue
-                parts = stripped.split("\t")
-                if len(parts) >= 7:
-                    domain = parts[0]
-                    key = parts[5]
-                    # dedup by (domain, key, path) so later files override earlier
-                    dedup_key = (domain, parts[2], key)
-                    if dedup_key not in seen_domains:
-                        seen_domains.add(dedup_key)
-                        merged_lines.append(stripped)
+            content = content.strip()
+            if not content:
+                continue
 
-        if not merged_lines:
+            if not seen_header:
+                chunks.append(content)
+                seen_header = True
+            else:
+                chunks.append(content)
+
+        if not chunks:
             return None
+
+        merged = "\n".join(chunks)
 
         fd, path = tempfile.mkstemp(
             prefix="ytdlp_cookies_", suffix=".txt", dir=str(self.download_dir)
         )
         with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write("# Merged Netscape HTTP Cookie File\n")
-            for line in merged_lines:
-                f.write(line + "\n")
+            f.write(merged + "\n")
 
+        total_lines = sum(1 for line in merged.splitlines() if line.strip() and not line.strip().startswith("#"))
         log_info(
-            f"[DOWNLOADER] Merged {len(merged_lines)} cookies from "
-            f"{len(file_paths)} file(s) into {path}"
+            f"[DOWNLOADER] Merged {len(chunks)} cookie file(s) "
+            f"({total_lines} cookie lines) into {path}"
         )
         return path
 
