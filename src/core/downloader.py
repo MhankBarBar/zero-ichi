@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import yt_dlp
+from yt_dlp.cookies import YoutubeDLCookieJar
 
 from core.constants import DOWNLOADS_DIR
 from core.logger import log_debug, log_error, log_info, log_warning
@@ -185,13 +186,11 @@ class Downloader:
     def _merge_cookies_to_file(self, file_paths: list[str]) -> str | None:
         """Load multiple Netscape cookie files into one and write back to a temp file.
 
-        Uses Python's http.cookiejar.MozillaCookieJar for both loading and
-        saving, ensuring the output is always valid Netscape format.
+        Uses yt-dlp's own YoutubeDLCookieJar for both loading and saving,
+        ensuring the output is 100% compatible with yt-dlp's ``--cookies``.
         Returns the temp file path, or None if no cookies were loaded.
         """
-        import http.cookiejar
-
-        jar = http.cookiejar.MozillaCookieJar()
+        jar = YoutubeDLCookieJar()
         loaded_any = False
 
         for p in file_paths:
