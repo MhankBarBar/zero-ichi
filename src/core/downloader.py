@@ -17,7 +17,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import yt_dlp
-from yt_dlp.cookies import YoutubeDLCookieJar
 
 from core.constants import DOWNLOADS_DIR
 from core.logger import log_debug, log_error, log_info, log_warning
@@ -184,31 +183,28 @@ class Downloader:
             self._merged_cookies_path = None
 
     def _merge_cookies_to_file(self, file_paths: list[str]) -> str | None:
-        """Load multiple Netscape cookie files into one and write back to a temp file.
+        """Concatenate multiple Netscape cookie files into one temp file.
 
-        Uses yt-dlp's own YoutubeDLCookieJar for both loading and saving,
-        ensuring the output is 100% compatible with yt-dlp's ``--cookies``.
-        Returns the temp file path, or None if no cookies were loaded.
+        Uses raw binary copy (shutil.copyfileobj) to preserve each file
+        byte-for-byte — no parsing, no re-serialization, no format changes.
+        If only one file is found, returns its path directly (no copy).
+
+        Returns the file path, or None if no valid files were found.
         """
-        jar = YoutubeDLCookieJar()
-        loaded_any = False
-
+        valid: list[Path] = []
         for p in file_paths:
             resolved = self._resolve_cookie_path(p)
-            if not resolved:
+            if resolved:
+                valid.append(resolved)
+            else:
                 log_debug(f"[DOWNLOADER] Cookie file not found, skipping: {p}")
-                continue
 
-            try:
-                jar.load(str(resolved))
-                loaded_any = True
-                log_debug(f"[DOWNLOADER] Loaded cookies from: {p}")
-            except Exception as e:
-                log_warning(f"[DOWNLOADER] Failed to load cookie file {p}: {e}")
-                continue
-
-        if not loaded_any:
+        if not valid:
             return None
+
+        if len(valid) == 1:
+            log_info(f"[DOWNLOADER] Using cookie file: {valid[0]}")
+            return str(valid[0])
 
         self._cleanup_merged_cookies()
 
@@ -218,9 +214,14 @@ class Downloader:
         os.close(fd)
 
         try:
-            jar.save(path, ignore_discard=True, ignore_expires=True)
+            with open(path, "wb") as dst:
+                for i, src_path in enumerate(valid):
+                    with open(src_path, "rb") as src:
+                        shutil.copyfileobj(src, dst)
+                    if i < len(valid) - 1:
+                        dst.write(b"\n")
         except Exception as e:
-            log_error(f"[DOWNLOADER] Failed to save merged cookies: {e}")
+            log_error(f"[DOWNLOADER] Failed to merge cookie files: {e}")
             try:
                 os.unlink(path)
             except Exception:
@@ -229,10 +230,14 @@ class Downloader:
 
         self._merged_cookies_path = path
 
+        with open(path, "rb") as _f:
+            line_count = sum(
+                1 for line in _f
+                if line.strip() and not line.startswith(b"#")
+            )
         log_info(
-            f"[DOWNLOADER] Merged {len(jar)} cookies from "
-            f"{sum(1 for p in file_paths if self._resolve_cookie_path(p))} file(s) "
-            f"into {path}"
+            f"[DOWNLOADER] Merged {len(valid)} cookie file(s) "
+            f"({line_count} cookie lines) into {path}"
         )
         return path
 
