@@ -376,6 +376,25 @@
                         }
                     }
                 },
+                "ytdlp": {
+                    "type": "object",
+                    "description": "yt-dlp cookie options (used by /dl, /audio, /video, and auto-download)",
+                    "properties": {
+                        "cookies_files": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "List of paths to Netscape-format cookie files for different sites (e.g. youtube_cookies.txt, instagram_cookies.txt). Files are merged into one before passing to yt-dlp. Can be overridden by YOUTUBE_COOKIES_PATH env var",
+                            "default": []
+                        },
+                        "cookies_from_browser": {
+                            "type": "string",
+                            "description": "Browser to extract cookies from (e.g. 'firefox', 'chrome'). Passed as --cookies-from-browser to yt-dlp. Can be overridden by YOUTUBE_COOKIES_FROM_BROWSER env var",
+                            "default": ""
+                        }
+                    }
+                },
                 "auto_link_download": {
                     "type": "object",
                     "description": "Automatic link download settings",

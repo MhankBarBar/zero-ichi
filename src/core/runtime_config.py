@@ -82,6 +82,10 @@ DEFAULT_CONFIG = {
             "cookies_from_browser": "",
             "extra_args": [],
         },
+        "ytdlp": {
+            "cookies_files": [],
+            "cookies_from_browser": "",
+        },
         "auto_link_download": {
             "enabled": False,
             "mode": "auto",

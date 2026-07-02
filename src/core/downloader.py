@@ -11,6 +11,7 @@ import asyncio
 import glob
 import os
 import shutil
+import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -147,6 +148,7 @@ class Downloader:
         self._max_size_mb_override = max_size_mb
         self.download_dir.mkdir(parents=True, exist_ok=True)
         self._active_downloads: dict[str, bool] = {}
+        self._merged_cookies_path: str | None = None
 
     @property
     def max_size_mb(self) -> float:
@@ -160,18 +162,105 @@ class Downloader:
         ts = int(time.time() * 1000)
         return str(self.download_dir / f"{prefix}_{ts}_%(id)s.%(ext)s")
 
-    def _add_cookies(self, ydl_opts: dict) -> None:
-        """Inject cookiefile into ydl_opts if env var is set."""
-        cookies_path_raw = os.getenv("YOUTUBE_COOKIES_PATH")
-        if cookies_path_raw:
-            project_root = Path(__file__).parent.parent.parent
-            cookies_path = project_root / cookies_path_raw
+    def _resolve_cookie_path(self, path_str: str) -> Path | None:
+        """Resolve a relative cookie path against the project root."""
+        project_root = Path(__file__).parent.parent.parent
+        candidate = Path(path_str)
+        if candidate.is_absolute():
+            return candidate if candidate.exists() else None
+        resolved = (project_root / path_str).resolve()
+        return resolved if resolved.exists() else None
 
-            if cookies_path.exists():
-                ydl_opts["cookiefile"] = str(cookies_path.absolute())
-                log_debug(f"[DOWNLOADER] Using cookies: {cookies_path.name}")
-            else:
-                log_debug(f"[DOWNLOADER] Cookie file not found at: {cookies_path}")
+    def _merge_cookie_files(self, file_paths: list[str]) -> str | None:
+        """Merge multiple Netscape cookie files into a single temp file.
+
+        Returns the path to the merged file, or None if no valid files found.
+        """
+        merged_lines: list[str] = []
+        seen_domains: set[tuple[str, str, str]] = set()
+
+        for p in file_paths:
+            resolved = self._resolve_cookie_path(p)
+            if not resolved:
+                log_debug(f"[DOWNLOADER] Cookie file not found, skipping: {p}")
+                continue
+
+            try:
+                content = resolved.read_text(encoding="utf-8")
+            except Exception as e:
+                log_warning(f"[DOWNLOADER] Failed to read cookie file {p}: {e}")
+                continue
+
+            for line in content.splitlines():
+                stripped = line.strip()
+                if not stripped or stripped.startswith("#"):
+                    continue
+                parts = stripped.split("\t")
+                if len(parts) >= 7:
+                    domain = parts[0]
+                    key = parts[5]
+                    # dedup by (domain, key, path) so later files override earlier
+                    dedup_key = (domain, parts[2], key)
+                    if dedup_key not in seen_domains:
+                        seen_domains.add(dedup_key)
+                        merged_lines.append(stripped)
+
+        if not merged_lines:
+            return None
+
+        fd, path = tempfile.mkstemp(
+            prefix="ytdlp_cookies_", suffix=".txt", dir=str(self.download_dir)
+        )
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write("# Merged Netscape HTTP Cookie File\n")
+            for line in merged_lines:
+                f.write(line + "\n")
+
+        log_info(
+            f"[DOWNLOADER] Merged {len(merged_lines)} cookies from "
+            f"{len(file_paths)} file(s) into {path}"
+        )
+        return path
+
+    def _add_cookies(self, ydl_opts: dict) -> None:
+        """Inject cookie options into ydl_opts from config or env vars.
+
+        Supports multiple Netscape-format cookie files (merged into one)
+        via config.json (downloader.ytdlp.cookies_files) or the
+        YOUTUBE_COOKIES_PATH env var (single file fallback).
+        Also supports browser cookie extraction via
+        downloader.ytdlp.cookies_from_browser or YOUTUBE_COOKIES_FROM_BROWSER.
+        """
+        cfg = runtime_config.get_nested("downloader", "ytdlp", default={})
+        if not isinstance(cfg, dict):
+            cfg = {}
+
+        # Collect cookie file paths: env var takes precedence, then config array
+        cookie_paths: list[str] = []
+
+        env_file = os.getenv("YOUTUBE_COOKIES_PATH")
+        if env_file:
+            cookie_paths.append(env_file)
+        else:
+            raw_list = cfg.get("cookies_files", [])
+            if isinstance(raw_list, list):
+                for p in raw_list:
+                    ps = str(p).strip()
+                    if ps:
+                        cookie_paths.append(ps)
+
+        if cookie_paths:
+            merged = self._merge_cookie_files(cookie_paths)
+            if merged:
+                ydl_opts["cookiefile"] = merged
+                self._merged_cookies_path = merged
+
+        cookies_from_browser = os.getenv("YOUTUBE_COOKIES_FROM_BROWSER") or str(
+            cfg.get("cookies_from_browser", "") or ""
+        )
+        if cookies_from_browser:
+            ydl_opts["cookiesfrombrowser"] = (cookies_from_browser,)
+            log_debug(f"[DOWNLOADER] Using yt-dlp browser cookies: {cookies_from_browser}")
 
     @staticmethod
     def _base_ydl_opts() -> dict:
@@ -697,10 +786,11 @@ class Downloader:
                 raise DownloadAbortedError("Download cancelled by user") from e
 
             error_msg = str(e)
-            if "Requested format is not available" in error_msg and os.getenv(
-                "YOUTUBE_COOKIES_PATH"
+            if "Requested format is not available" in error_msg and (
+                os.getenv("YOUTUBE_COOKIES_PATH")
+                or runtime_config.get_nested("downloader", "ytdlp", "cookies_files", default=[])
             ):
-                error_msg += f"\nTIP: This error is often caused by invalid/expired cookies in {os.getenv('YOUTUBE_COOKIES_PATH')}. Try updating them or disabling cookies."
+                error_msg += "\nTIP: This error is often caused by invalid/expired cookies. Try updating your cookie files or disabling cookies."
 
             raise DownloadError(f"Download failed: {error_msg}") from e
         finally:
@@ -733,8 +823,21 @@ class Downloader:
         except Exception as e:
             log_error(f"[DOWNLOADER] Cleanup failed: {e}")
 
+    def _cleanup_merged_cookies(self) -> None:
+        """Remove the temporary merged cookies file if it exists."""
+        if self._merged_cookies_path:
+            try:
+                p = Path(self._merged_cookies_path)
+                if p.exists():
+                    p.unlink()
+                    log_debug(f"[DOWNLOADER] Cleaned up merged cookies: {p.name}")
+            except Exception as e:
+                log_warning(f"[DOWNLOADER] Failed to clean up merged cookies: {e}")
+            self._merged_cookies_path = None
+
     def cleanup_all(self) -> None:
         """Remove all files in the download directory."""
+        self._cleanup_merged_cookies()
         try:
             if self.download_dir.exists():
                 shutil.rmtree(self.download_dir)

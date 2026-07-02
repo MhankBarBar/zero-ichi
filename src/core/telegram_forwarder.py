@@ -121,16 +121,6 @@ class TelegramForwarder:
         async def _handler(client, message):
             await self._on_message(message)
 
-        @self._tg_app.on_message()
-        async def _debug_handler(client, message):
-            chat = message.chat
-            log_info(
-                f"TG message received: chat_id={chat.id} "
-                f"title={getattr(chat, 'title', '') or ''} "
-                f"type={chat.type} "
-                f"text={message.text[:50] if message.text else '(media)'}..."
-            )
-
         try:
             await self._tg_app.start()
             self._started = True
