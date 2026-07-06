@@ -36,6 +36,10 @@ CONTEXT_FIELDS = (
     "stickerMessage",
     "documentMessage",
     "audioMessage",
+    "buttonsResponseMessage",
+    "templateButtonReplyMessage",
+    "interactiveResponseMessage",
+    "listResponseMessage",
 )
 
 TEXT_SOURCES = (

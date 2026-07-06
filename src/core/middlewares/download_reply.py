@@ -3,8 +3,8 @@
 import asyncio
 import re
 import time
-
-import httpx
+from dataclasses import replace
+from types import SimpleNamespace
 
 from core import symbols as sym
 from core.applemusic import AppleMusicError, applemusic_client
@@ -13,6 +13,20 @@ from core.downloader import (
     DownloadError,
     FileTooLargeError,
     downloader,
+)
+from core.downloader_render import (
+    build_album_header,
+    build_album_text,
+    build_format_sections,
+    build_options_header,
+    build_options_text,
+    build_playlist_header,
+    build_playlist_sections,
+    build_playlist_text,
+    build_search_header,
+    build_search_sections,
+    build_search_text,
+    build_track_sections,
 )
 from core.errors import report_error
 from core.i18n import t, t_error
@@ -24,6 +38,7 @@ from core.pending_store import (
     pending_downloads,
 )
 from core.progress import build_complete_bar, build_progress_text
+from core.selection_ui import send_selection
 
 
 async def download_reply_middleware(ctx, next):
@@ -34,6 +49,20 @@ async def download_reply_middleware(ctx, next):
         return
 
     text = ctx.msg.text.strip()
+    stanza_id = quoted.get("id", "")
+
+    nav_page = _parse_nav_page(text)
+    if nav_page is not None:
+        if not stanza_id:
+            await next()
+            return
+        pending = pending_downloads.get(stanza_id)
+        if not pending or ctx.msg.sender_jid != pending.sender_jid:
+            await next()
+            return
+        await _handle_page_nav(ctx, pending, nav_page)
+        return
+
     is_all = text.lower() in ("all", "0")
     selection = _parse_selection(text) if not is_all else None
 
@@ -41,7 +70,6 @@ async def download_reply_middleware(ctx, next):
         await next()
         return
 
-    stanza_id = quoted.get("id", "")
     if not stanza_id:
         await next()
         return
@@ -107,6 +135,85 @@ def _parse_selection(text: str) -> list[int] | None:
         return None
 
     return sorted(indices) if indices else None
+
+
+def _parse_nav_page(text: str) -> int | None:
+    """Parse a pagination nav row id like 'page:2' into its target page number."""
+    if not text.startswith("page:"):
+        return None
+    try:
+        page = int(text[5:])
+    except ValueError:
+        return None
+    return page if page >= 0 else None
+
+
+async def _handle_page_nav(ctx, pending, target_page: int) -> None:
+    """Re-render the requested page of a pending selection as a new button message.
+
+    Doesn't consume the pending item — the original page's message stays valid.
+    """
+    if isinstance(pending, PendingSearch):
+        response = await send_selection(
+            ctx.bot,
+            ctx.msg,
+            fallback_text=build_search_text(pending.query, pending.results),
+            sections=build_search_sections(pending.results),
+            header=build_search_header(pending.query),
+            menu_title="Choose a result",
+            card_title=f"{sym.SEARCH} Search Results",
+            page=target_page,
+        )
+    elif isinstance(pending, PendingDownload):
+        info = pending.info
+        response = await send_selection(
+            ctx.bot,
+            ctx.msg,
+            fallback_text=build_options_text(info),
+            sections=build_format_sections(info),
+            header=build_options_header(info),
+            menu_title="Choose a quality",
+            card_title=f"{sym.SPARKLE} {info.title}",
+            thumbnail=info.thumbnail or None,
+            page=target_page,
+        )
+    elif isinstance(pending, PendingPlaylist):
+        # PendingPlaylist only persists the shown entries, not the original total
+        # count, so re-rendered pages treat "shown" as "total".
+        playlist_like = SimpleNamespace(
+            title=pending.title, entries=pending.entries, count=len(pending.entries)
+        )
+        response = await send_selection(
+            ctx.bot,
+            ctx.msg,
+            fallback_text=build_playlist_text(playlist_like),
+            sections=build_playlist_sections(pending.entries),
+            header=build_playlist_header(playlist_like),
+            menu_title="Choose a track",
+            card_title=f"{sym.SPARKLE} {pending.title}",
+            allow_all=True,
+            page=target_page,
+        )
+    elif isinstance(pending, PendingAppleMusic):
+        # PendingAppleMusic doesn't persist the artist name, so it's omitted here.
+        album_like = SimpleNamespace(
+            album=pending.album_name, artist="", count=len(pending.tracks), tracks=pending.tracks
+        )
+        response = await send_selection(
+            ctx.bot,
+            ctx.msg,
+            fallback_text=build_album_text(album_like),
+            sections=build_track_sections(pending.tracks),
+            header=build_album_header(album_like),
+            menu_title="Choose a track",
+            card_title=f"{sym.MUSIC} {pending.album_name}",
+            allow_all=True,
+            page=target_page,
+        )
+    else:
+        return
+
+    pending_downloads.add(response.ID, replace(pending, created_at=time.time()))
 
 
 async def _handle_playlist_reply(ctx, pending, stanza_id, choice_num):
@@ -175,25 +282,16 @@ async def _handle_selection_reply(ctx, pending, stanza_id, choice_num, items):
 
     await ctx.bot.send_reaction(ctx.msg, "")
 
-    options_text = build_options_text(info)
-    response = None
-
-    if info.thumbnail:
-        try:
-            async with httpx.AsyncClient(timeout=5) as http:
-                resp = await http.get(info.thumbnail)
-                if resp.status_code == 200 and len(resp.content) > 0:
-                    response = await ctx.bot.send_image(
-                        ctx.msg.chat_jid,
-                        resp.content,
-                        caption=options_text,
-                        quoted=ctx.msg.event,
-                    )
-        except Exception:
-            pass
-
-    if not response:
-        response = await ctx.bot.reply(ctx.msg, options_text)
+    response = await send_selection(
+        ctx.bot,
+        ctx.msg,
+        fallback_text=build_options_text(info),
+        sections=build_format_sections(info),
+        header=build_options_header(info),
+        menu_title="Choose a quality",
+        card_title=f"{sym.SPARKLE} {info.title}",
+        thumbnail=info.thumbnail or None,
+    )
 
     pending_downloads.add(
         response.ID,
@@ -302,46 +400,6 @@ async def _handle_download_reply(ctx, pending, stanza_id, choice_num):
     except Exception as e:
         await ctx.bot.send_reaction(ctx.msg, "❌")
         await report_error(ctx.bot, ctx.msg, "dl", e)
-
-
-def build_options_text(info) -> str:
-    """Build the numbered format options text (shared with middleware)."""
-    lines = [
-        f"{sym.SPARKLE} *{info.title}*",
-        "",
-        f"{sym.ARROW} {info.uploader}",
-        f"{sym.BULLET} {info.platform} {sym.BULLET} {info.duration_str}",
-    ]
-
-    if info.filesize_approx:
-        lines[-1] += f" {sym.BULLET} ~{info.filesize_str}"
-
-    lines.append("")
-
-    video_formats = [f for f in info.formats if f.type == "video"]
-    audio_formats = [f for f in info.formats if f.type == "audio"]
-
-    idx = 1
-
-    if video_formats:
-        lines.append(f"*{sym.VIDEO} {t('downloader.video_options')}*")
-        for fmt in video_formats:
-            size = f" ({fmt.filesize_str})" if fmt.filesize else ""
-            lines.append(f" {sym.BULLET} `{idx}.` {fmt.quality} {fmt.ext.upper()}{size}")
-            idx += 1
-        lines.append("")
-
-    if audio_formats:
-        lines.append(f"*{sym.AUDIO} {t('downloader.audio_options')}*")
-        for fmt in audio_formats:
-            size = f" ({fmt.filesize_str})" if fmt.filesize else ""
-            lines.append(f" {sym.BULLET} `{idx}.` {fmt.quality} {fmt.ext.upper()}{size}")
-            idx += 1
-        lines.append("")
-
-    lines.append(f"{sym.INFO} {t('downloader.choose_hint')}")
-
-    return "\n".join(lines)
 
 
 async def _handle_applemusic_reply(ctx, pending, stanza_id, choice_num):

@@ -168,6 +168,33 @@ class BotClient:
                 break
         return message
 
+    def _apply_quote(self, message: Message, quoted: MessageHelper) -> Message:
+        """
+        Apply reply/quote context so `message` shows as a reply to `quoted`.
+
+        Same field-detection approach as `_apply_forwarded` — works for
+        interactive/button messages too since `interactiveMessage` is in
+        the field list.
+        """
+        context = ContextInfo(
+            stanzaID=quoted.message_id,
+            participant=quoted.sender_jid,
+            quotedMessage=quoted.raw_message,
+        )
+        for field in [
+            "extendedTextMessage",
+            "imageMessage",
+            "videoMessage",
+            "audioMessage",
+            "documentMessage",
+            "stickerMessage",
+            "interactiveMessage",
+        ]:
+            if message.HasField(field):
+                getattr(message, field).contextInfo.MergeFrom(context)
+                break
+        return message
+
     async def forward_message(
         self,
         to: str | JID,
@@ -609,6 +636,7 @@ class BotClient:
         title: str = "",
         image: str | bytes | None = None,
         forwarded: bool = False,
+        quoted: MessageHelper | None = None,
     ) -> SendResponse:
         """
         Send a message with interactive buttons using the modern API.
@@ -630,6 +658,7 @@ class BotClient:
             title: Optional title text
             image: Optional image bytes or url string
             forwarded: Whether to mark the message as forwarded
+            quoted: Optional MessageHelper to reply to/quote
 
         Returns:
             SendResponse
@@ -648,6 +677,8 @@ class BotClient:
         self._apply_buttons(msg, buttons)
 
         proto = await msg.prepare_asend(self._client)
+        if quoted:
+            self._apply_quote(proto, quoted)
         if forwarded:
             self._apply_forwarded(proto)
 

@@ -207,9 +207,9 @@ class TelegramForwarder:
         """Handle an incoming Telegram message."""
         chat_id = message.chat.id
         chat_title = getattr(message.chat, "title", "") or ""
-        
+
         rules = self._rules_by_source.get(chat_id, [])
-        
+
         if not rules:
             if str(chat_id).startswith("-100"):
                 try:

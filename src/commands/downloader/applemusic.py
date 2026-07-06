@@ -13,11 +13,13 @@ import time
 from core import symbols as sym
 from core.applemusic import AppleMusicError, applemusic_client
 from core.command import Command, CommandContext
+from core.downloader_render import build_album_header, build_album_text, build_track_sections
 from core.errors import report_error
 from core.i18n import t, t_error
 from core.logger import log_info
 from core.pending_store import PendingAppleMusic, pending_downloads
 from core.progress import build_complete_bar, build_progress_text
+from core.selection_ui import send_selection
 
 APPLE_MUSIC_URL_PATTERN = re.compile(
     r"https?://(?:music\.apple\.com|embed\.music\.apple\.com)/", re.IGNORECASE
@@ -78,15 +80,22 @@ class AppleMusicCommand(Command):
 
         await ctx.client.send_reaction(ctx.message, "")
 
-        text = self._build_album_text(info)
-        await ctx.client.edit_message(
-            ctx.message.chat_jid,
-            progress_msg.ID,
-            text,
+        header_text = build_album_header(info)
+        await ctx.client.edit_message(ctx.message.chat_jid, progress_msg.ID, header_text)
+
+        response = await send_selection(
+            ctx.client,
+            ctx.message,
+            fallback_text=build_album_text(info),
+            sections=build_track_sections(info.tracks),
+            header=header_text,
+            menu_title="Choose a track",
+            card_title=f"{sym.MUSIC} {info.album}",
+            allow_all=True,
         )
 
         pending_downloads.add(
-            progress_msg.ID,
+            response.ID,
             PendingAppleMusic(
                 tracks=info.tracks,
                 album_name=info.album,
@@ -158,24 +167,3 @@ class AppleMusicCommand(Command):
         except Exception as e:
             await ctx.client.send_reaction(ctx.message, "❌")
             await report_error(ctx.client, ctx.message, self.name, e)
-
-    @staticmethod
-    def _build_album_text(info) -> str:
-        """Build the album track list display text."""
-        lines = [
-            f"{sym.MUSIC} *{info.album}*",
-            f"{sym.ARROW} {info.artist} {sym.BULLET} {info.count} tracks",
-            "",
-        ]
-
-        for idx, track in enumerate(info.tracks, 1):
-            lines.append(f" `{idx}.` *{track.name}*")
-            detail = f"     {sym.ARROW} {track.artist}"
-            if track.duration:
-                detail += f" {sym.BULLET} {track.duration}"
-            lines.append(detail)
-
-        lines.append("")
-        lines.append(f"{sym.INFO} {t('applemusic.choose_hint')}")
-
-        return "\n".join(lines)

@@ -18,8 +18,19 @@ import re
 from core import symbols as sym
 from core.command import Command, CommandContext
 from core.downloader import DownloadAbortedError, DownloadError, FileTooLargeError, downloader
+from core.downloader_render import (
+    build_format_sections,
+    build_options_header,
+    build_options_text,
+    build_playlist_header,
+    build_playlist_sections,
+    build_playlist_text,
+    build_search_header,
+    build_search_sections,
+    build_search_text,
+)
 from core.i18n import t, t_error
-from core.logger import log_info, log_warning
+from core.logger import log_info
 from core.pending_store import (
     PendingDownload,
     PendingPlaylist,
@@ -27,6 +38,7 @@ from core.pending_store import (
     SearchResult,
     pending_downloads,
 )
+from core.selection_ui import send_selection
 
 URL_PATTERN = re.compile(r"https?://\S+", re.IGNORECASE)
 
@@ -98,8 +110,15 @@ class DlCommand(Command):
             for r in results
         ]
 
-        text = self._build_search_text(query, search_results)
-        response = await ctx.client.reply(ctx.message, text)
+        response = await send_selection(
+            ctx.client,
+            ctx.message,
+            fallback_text=build_search_text(query, search_results),
+            sections=build_search_sections(search_results),
+            header=build_search_header(query),
+            menu_title="Choose a result",
+            card_title=f"{sym.SEARCH} Search Results",
+        )
 
         pending_downloads.add(
             response.ID,
@@ -213,8 +232,16 @@ class DlCommand(Command):
 
         await ctx.client.send_reaction(ctx.message, "")
 
-        text = self._build_playlist_text(playlist)
-        response = await ctx.client.reply(ctx.message, text)
+        response = await send_selection(
+            ctx.client,
+            ctx.message,
+            fallback_text=build_playlist_text(playlist),
+            sections=build_playlist_sections(playlist.entries),
+            header=build_playlist_header(playlist),
+            menu_title="Choose a track",
+            card_title=f"{sym.SPARKLE} {playlist.title}",
+            allow_all=True,
+        )
 
         pending_downloads.add(
             response.ID,
@@ -226,98 +253,15 @@ class DlCommand(Command):
             ),
         )
 
-    def _build_search_text(self, query: str, results: list[SearchResult]) -> str:
-        """Build the search results display text."""
-        lines = [
-            f"{sym.SEARCH} *{t('downloader.search_results', query=query)}*",
-            "",
-        ]
-
-        for idx, r in enumerate(results, 1):
-            lines.append(f" `{idx}.` *{r.title}*")
-            lines.append(f"     {sym.ARROW} {r.uploader} {sym.BULLET} {r.duration}")
-            lines.append(f"     {sym.BULLET} {r.url}")
-            lines.append("")
-
-        lines.append(f"{sym.INFO} {t('downloader.choose_result_hint')}")
-
-        return "\n".join(lines)
-
-    def _build_options_text(self, info) -> str:
-        """Build the numbered format options text."""
-        lines = [
-            f"{sym.SPARKLE} *{info.title}*",
-            "",
-            f"{sym.ARROW} {info.uploader}",
-            f"{sym.BULLET} {info.platform} {sym.BULLET} {info.duration_str}",
-        ]
-
-        if info.filesize_approx:
-            lines[-1] += f" {sym.BULLET} ~{info.filesize_str}"
-
-        lines.append("")
-
-        video_formats = [f for f in info.formats if f.type == "video"]
-        audio_formats = [f for f in info.formats if f.type == "audio"]
-
-        idx = 1
-
-        if video_formats:
-            lines.append(f"*{sym.VIDEO} {t('downloader.video_options')}*")
-            for fmt in video_formats:
-                size = f" ({fmt.filesize_str})" if fmt.filesize else ""
-                lines.append(f" {sym.BULLET} `{idx}.` {fmt.quality} {fmt.ext.upper()}{size}")
-                idx += 1
-            lines.append("")
-
-        if audio_formats:
-            lines.append(f"*{sym.AUDIO} {t('downloader.audio_options')}*")
-            for fmt in audio_formats:
-                size = f" ({fmt.filesize_str})" if fmt.filesize else ""
-                lines.append(f" {sym.BULLET} `{idx}.` {fmt.quality} {fmt.ext.upper()}{size}")
-                idx += 1
-            lines.append("")
-
-        lines.append(f"{sym.INFO} {t('downloader.choose_hint')}")
-
-        return "\n".join(lines)
-
     async def _show_options(self, ctx: CommandContext, info):
-        """Show media info and numbered format options. Returns SendResponse."""
-        text = self._build_options_text(info)
-
-        if info.thumbnail:
-            try:
-                return await ctx.client.send_image(
-                    ctx.message.chat_jid,
-                    info.thumbnail,
-                    caption=text,
-                    quoted=ctx.message.event,
-                )
-            except Exception as e:
-                log_warning(f"Failed to send thumbnail: {e}")
-
-        return await ctx.client.reply(ctx.message, text)
-
-    def _build_playlist_text(self, playlist) -> str:
-        """Build the numbered playlist track list."""
-        showing = len(playlist.entries)
-        total = playlist.count
-
-        lines = [
-            f"{sym.SPARKLE} *{playlist.title}*",
-            f"{sym.BULLET} {t('downloader.playlist_tracks', showing=showing, total=total)}",
-            "",
-        ]
-
-        for entry in playlist.entries:
-            lines.append(f" `{entry.index}.` *{entry.title}*")
-            detail = f"     {sym.BULLET} {entry.duration}"
-            if entry.uploader:
-                detail += f" {sym.BULLET} {entry.uploader}"
-            lines.append(detail)
-            lines.append("")
-
-        lines.append(f"{sym.INFO} {t('downloader.choose_result_hint')}")
-
-        return "\n".join(lines)
+        """Show media info and format options (buttons or numbered text). Returns SendResponse."""
+        return await send_selection(
+            ctx.client,
+            ctx.message,
+            fallback_text=build_options_text(info),
+            sections=build_format_sections(info),
+            header=build_options_header(info),
+            menu_title="Choose a quality",
+            card_title=f"{sym.SPARKLE} {info.title}",
+            thumbnail=info.thumbnail or None,
+        )

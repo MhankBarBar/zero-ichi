@@ -145,6 +145,17 @@ class MessageHelper:
         return self._event.Info.ID
 
     @property
+    def is_web_client(self) -> bool:
+        """
+        Heuristic: WhatsApp Web/Desktop-generated message IDs start with '3EB0'.
+
+        Interactive button/list messages fail to render on these clients
+        ("This message couldn't load. Open the message on your phone to
+        view it."), so callers should send plain text instead when this is True.
+        """
+        return self.message_id.upper().startswith("3EB0")
+
+    @property
     def is_from_me(self) -> bool:
         """Check if this message was sent by the bot itself."""
         return self._event.Info.MessageSource.IsFromMe
