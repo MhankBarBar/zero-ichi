@@ -338,6 +338,19 @@ def show_pair_help() -> None:
     console.print()
 
 
+def show_pair_code(code: str) -> None:
+    """Show the WhatsApp pair code."""
+    console.print(
+        Panel(
+            f"[bold white]{code}[/bold white]",
+            title="[cyan]▶ Pair Code[/cyan]",
+            border_style="cyan",
+        ),
+        justify="center",
+    )
+    console.print()
+
+
 def show_connected(device: str, bot_name: str, commands_count: int) -> None:
     """Show connection success panel."""
     table = Table(show_header=False, box=None, padding=(0, 2))

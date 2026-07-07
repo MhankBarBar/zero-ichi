@@ -48,11 +48,11 @@ from core.logger import (
     log_warning,
     show_banner,
     show_connected,
+    show_pair_code,
     show_pair_help,
     show_qr_prompt,
 )
 from core.runtime_config import runtime_config
-from core.runtime_service_manager import RuntimeServiceManager
 from core.scheduler import init_scheduler
 from core.session import session_state
 from core.shared import set_bot, set_tg_forwarder
@@ -478,61 +478,6 @@ def _message_runtime_bindings(*, import_module=importlib.import_module):
     return message_module.MessageHelper, middleware_module.MessageContext
 
 
-def _register_runtime_service_callbacks(service_manager, *, rate_limiter_module):
-    """Register config-sensitive runtime refresh callbacks with the service manager."""
-
-    def refresh_rate_limiter():
-        rate_limiter_module.refresh_rate_limiter_from_runtime()
-
-    service_manager.register_config_callback(refresh_rate_limiter)
-
-
-def _build_dashboard_server(*, uvicorn_module, api_app):
-    """Build a dashboard server instance using the current uvicorn module."""
-    config = uvicorn_module.Config(api_app, host="0.0.0.0", port=8000, log_level="warning")
-    return uvicorn_module.Server(config)
-
-
-def _start_dashboard_via_manager(
-    service_manager,
-    *,
-    enabled: bool,
-    create_task_fn=asyncio.create_task,
-    uvicorn_module=None,
-    api_app=None,
-):
-    """Start dashboard API through the runtime service manager."""
-    if not enabled:
-        log_info("Dashboard API is disabled in config.json")
-        return service_manager.start_dashboard(
-            enabled=False,
-            create_task_fn=create_task_fn,
-            server_factory=lambda: None,
-        )
-
-    try:
-        if uvicorn_module is None:
-            import uvicorn as uvicorn_module
-        if api_app is None:
-            from dashboard_api import app as api_app
-
-        task = service_manager.start_dashboard(
-            enabled=True,
-            create_task_fn=create_task_fn,
-            server_factory=lambda: _build_dashboard_server(
-                uvicorn_module=uvicorn_module, api_app=api_app
-            ),
-        )
-        log_success("Dashboard API starting on http://localhost:8000")
-        return task
-    except ImportError:
-        log_warning("Dashboard API not available (install fastapi & uvicorn)")
-        return None
-    except Exception as e:
-        log_warning(f"Dashboard API failed to start: {e}")
-        return None
-
-
 def _maybe_start_dashboard_api(
     enabled: bool,
     *,
@@ -568,6 +513,21 @@ def _start_scheduler_if_needed(scheduler) -> None:
         log_success("Scheduler started")
 
 
+def _start_tg_forwarder_if_needed(tg_forwarder) -> None:
+    """Start the Telegram forwarder if configured, enabled, and not already running."""
+    if not tg_forwarder:
+        log_warning("Telegram forwarder: not initialized (tg_forwarder is None)")
+        return
+    if tg_forwarder.is_running:
+        log_info("Telegram forwarder: already running")
+        return
+    if not runtime_config.get_telegram_forwarder().get("enabled", False):
+        log_info("Telegram forwarder: disabled in config")
+        return
+    log_info("Telegram forwarder: starting...")
+    asyncio.create_task(tg_forwarder.start())
+
+
 async def _connect_client(client, login_method: str, phone_number: str) -> bool:
     """Connect to WhatsApp via pair code or QR flow."""
     if login_method == "PAIR_CODE":
@@ -577,7 +537,7 @@ async def _connect_client(client, login_method: str, phone_number: str) -> bool:
             session_state.phone_number = phone_number
             x = await client.PairPhone(phone_number, True)
             session_state.pair_code = x
-            console.print(x)
+            show_pair_code(x)
             show_pair_help()
             return True
         except Exception as e:
@@ -632,14 +592,8 @@ def _init_bot(args):
     set_tg_forwarder(tg_forwarder)
 
     scheduler = init_scheduler(bot)
-    service_manager = RuntimeServiceManager(runtime_config)
-    service_manager.bot = bot
-    service_manager.message_cache = message_cache
-    service_manager.scheduler = scheduler
-    service_manager.tg_forwarder = tg_forwarder
-    _register_runtime_service_callbacks(service_manager, rate_limiter_module=rate_limiter_module)
-    service_manager.notify_config_changed()
-    pipeline = service_manager.rebuild_pipeline(factory=_build_live_pipeline)
+    rate_limiter_module.refresh_rate_limiter_from_runtime()
+    pipeline = _build_live_pipeline()
 
     _handled_call_ids: dict[str, float] = {}
     _CALL_GUARD_DEDUP_TTL_SECONDS = 120.0
@@ -864,8 +818,8 @@ def _init_bot(args):
         log_info(
             f"Connected event fired, scheduler: {scheduler}, running: {scheduler._scheduler.running if scheduler else 'N/A'}"
         )
-        service_manager.start_scheduler_if_needed()
-        service_manager.start_tg_forwarder_if_needed(asyncio.create_task)
+        _start_scheduler_if_needed(scheduler)
+        _start_tg_forwarder_if_needed(tg_forwarder)
 
         owner_jid = runtime_config.get_owner_jid()
         if owner_jid:
@@ -995,7 +949,7 @@ def _init_bot(args):
             show_banner("Zero Ichi", "WhatsApp Bot built with 💖")
 
             dashboard_enabled = runtime_config.get_nested("dashboard", "enabled", default=False)
-            _start_dashboard_via_manager(service_manager, enabled=dashboard_enabled)
+            _maybe_start_dashboard_api(dashboard_enabled)
 
             log_step("Starting bot...")
             log_bullet(f"Session: {bot_name}")
@@ -1009,9 +963,9 @@ def _init_bot(args):
             if not await _connect_client(client, login_method, phone_number):
                 return
 
-            service_manager.start_scheduler_if_needed()
+            _start_scheduler_if_needed(scheduler)
             try:
-                service_manager.start_tg_forwarder_if_needed(asyncio.create_task)
+                _start_tg_forwarder_if_needed(tg_forwarder)
             except Exception as e:
                 log_error(f"Failed to start Telegram forwarder: {e}")
                 log_error(traceback.format_exc())
@@ -1048,15 +1002,11 @@ def _init_bot(args):
                                 elif module_name.startswith("core."):
                                     from core.client import BotClient as ReloadedBotClient
 
-                                    service_manager.reload_core_module(
-                                        client=client,
-                                        message_cache=message_cache,
-                                        core_client_module=sys.modules["core.client"],
-                                        bot_client_cls=ReloadedBotClient,
-                                    )
                                     nonlocal bot, pipeline
-                                    bot = service_manager.bot
-                                    pipeline = service_manager.pipeline
+                                    bot = ReloadedBotClient(client)
+                                    bot.message_cache = message_cache
+                                    set_bot(bot)
+                                    pipeline = _build_live_pipeline()
                                     log_success(f"[b]↻ Reloaded:[/b] {path.name} (core module)")
                                 else:
                                     command_loader._commands.clear()
@@ -1084,7 +1034,16 @@ def _init_bot(args):
                 await client.stop()
             except Exception:
                 pass
-            await service_manager.stop_all()
+            if tg_forwarder and tg_forwarder.is_running:
+                try:
+                    await tg_forwarder.stop()
+                except Exception as e:
+                    log_warning(f"Error stopping tg_forwarder: {e}")
+            if scheduler:
+                try:
+                    scheduler.stop()
+                except Exception as e:
+                    log_warning(f"Error stopping scheduler: {e}")
             os._exit(0)
 
     def interrupt_handler(sig, frame):

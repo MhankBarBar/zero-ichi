@@ -7,10 +7,12 @@ Uses database-backed storage so AFK state persists across restarts.
 from __future__ import annotations
 
 import time
+from datetime import timedelta
 
 from core import symbols as sym
 from core.db import kv_get_json, kv_set_json
 from core.i18n import t
+from core.utils import format_duration
 
 _AFK_SCOPE = "afk"
 _AFK_KEY = "state"
@@ -56,26 +58,11 @@ def get_afk(user_jid: str) -> dict | None:
     return _load_afk().get(user_jid)
 
 
-def _format_duration(seconds: float) -> str:
-    """Format seconds to human-readable duration."""
-    minutes = int(seconds // 60)
-    hours = int(minutes // 60)
-    days = int(hours // 24)
-
-    if days > 0:
-        return f"{days}d {hours % 24}h"
-    if hours > 0:
-        return f"{hours}h {minutes % 60}m"
-    if minutes > 0:
-        return f"{minutes}m"
-    return f"{int(seconds)}s"
-
-
 async def handle_afk_mentions(bot, msg) -> None:
     """Check AFK mentions and clear sender AFK if needed."""
     afk_data = remove_afk(msg.sender_jid)
     if afk_data:
-        duration = _format_duration(time.time() - afk_data["time"])
+        duration = format_duration(timedelta(seconds=time.time() - afk_data["time"]))
         await bot.reply(msg, f"{sym.WAVE} {t('afk.welcome_back', duration=duration)}")
 
     if not msg.text:
@@ -86,7 +73,7 @@ async def handle_afk_mentions(bot, msg) -> None:
         user_number = user_jid.split("@")[0]
         if f"@{user_number}" in msg.text:
             reason = afk_info.get("reason", "")
-            duration = _format_duration(time.time() - afk_info["time"])
+            duration = format_duration(timedelta(seconds=time.time() - afk_info["time"]))
 
             if reason:
                 text = t(
