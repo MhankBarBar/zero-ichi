@@ -18,6 +18,7 @@ MEMORY_DIR = DATA_DIR / "ai_memory"
 SKILLS_DIR = DATA_DIR / "ai_skills"
 
 TASKS_FILE = DATA_DIR / "scheduled_tasks.json"
+AMDL_ENDPOINTS_CACHE_FILE = DATA_DIR / "amdl_endpoints_cache.json"
 
 MEDIA_FIELDS = (
     ("imageMessage", "image"),

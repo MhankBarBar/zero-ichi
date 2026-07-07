@@ -43,6 +43,20 @@ from core.progress import build_complete_bar, build_progress_text
 from core.selection_ui import send_selection
 
 
+def _throttled(fn, seconds=3):
+    """Wrap fn so calls landing within `seconds` of the last one are skipped."""
+    last = [0.0]
+
+    def wrapped(*args):
+        now = time.time()
+        if now - last[0] < seconds:
+            return
+        last[0] = now
+        fn(*args)
+
+    return wrapped
+
+
 async def download_reply_middleware(ctx, next):
     """Handle replies to download option and search result messages."""
     quoted = ctx.msg.quoted_message
@@ -345,24 +359,19 @@ async def _handle_download_reply(ctx, pending, stanza_id, choice_num):
     )
 
     progress_msg_id = progress_msg.ID
-    last_edit_time = [0.0]
     loop = asyncio.get_running_loop()
 
-    def _progress_hook(downloaded_bytes, total_bytes, speed, eta):
-        now = time.time()
-        if now - last_edit_time[0] < 5:
-            return
-        last_edit_time[0] = now
-
+    def _edit_progress(downloaded_bytes, total_bytes, speed, eta):
         if not total_bytes or total_bytes <= 0:
             return
-
         header = f"{sym.ARROW} {t('downloader.downloading', title=pending.info.title, quality=quality_label)}\n\n"
         text = build_progress_text(header, downloaded_bytes, total_bytes, speed, eta)
         asyncio.run_coroutine_threadsafe(
             ctx.bot.edit_message(ctx.msg.chat_jid, progress_msg_id, text),
             loop,
         )
+
+    _progress_hook = _throttled(_edit_progress, seconds=5)
 
     try:
         filepath = await downloader.download_format(
@@ -447,17 +456,12 @@ async def _download_apple_track(ctx, track, quality: str, header: str, chat_jid:
     "atmos" go through amdl_client's job-polling/decrypt path (with its own
     atmos->alac->standard fallback), reporting status text instead of bytes.
     """
-    last_edit = [0.0]
     loop = asyncio.get_running_loop()
 
     if quality == "standard":
         dlink = await applemusic_client.get_download_link(track)
 
-        def _on_progress(downloaded: int, total: int):
-            now = time.time()
-            if now - last_edit[0] < 3:
-                return
-            last_edit[0] = now
+        def _edit_progress(downloaded: int, total: int):
             progress_text = build_progress_text(header, downloaded, total)
             asyncio.run_coroutine_threadsafe(
                 ctx.bot.edit_message(chat_jid, msg_id, progress_text),
@@ -465,20 +469,18 @@ async def _download_apple_track(ctx, track, quality: str, header: str, chat_jid:
             )
 
         safe_name = re.sub(r"[^\w\s-]", "", track.name)[:50] or "track"
-        filepath = await applemusic_client.download_track(dlink, f"am_{safe_name}", _on_progress)
+        filepath = await applemusic_client.download_track(
+            dlink, f"am_{safe_name}", _throttled(_edit_progress)
+        )
         return filepath, "standard", []
 
-    def _on_status(status: str):
-        now = time.time()
-        if now - last_edit[0] < 3:
-            return
-        last_edit[0] = now
+    def _edit_status(status: str):
         asyncio.run_coroutine_threadsafe(
             ctx.bot.edit_message(chat_jid, msg_id, f"{header}\n{sym.LOADING} {status}"),
             loop,
         )
 
-    return await amdl_client.download_with_fallback(track.raw, quality, _on_status)
+    return await amdl_client.download_with_fallback(track.raw, quality, _throttled(_edit_status))
 
 
 async def _handle_applemusic_quality(ctx, pending, stanza_id, quality):

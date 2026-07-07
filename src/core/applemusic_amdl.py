@@ -14,6 +14,14 @@ Ported from the am-dl project (am-dl.pages.dev backend). Covers:
 `download_with_fallback` tries the requested quality, then falls down the
 chain atmos -> alac -> standard (aaplmusicdownloader.com) -> standard
 (am-dl's own HLS path), stopping at the first one that succeeds.
+
+The site's API paths are obfuscated and rotate on every am-dl deploy, so
+endpoints aren't hardcoded — `_resolve_endpoints()` mirrors am-dl's own
+`_load_endpoints()`: fetch the live page, find the current JS bundle,
+deobfuscate it with `npx webcrack`, and extract the current paths. Cached
+to disk keyed by JS filename, refreshed only when that filename changes.
+Falls back to a hardcoded snapshot if npx/webcrack or the network isn't
+available.
 """
 
 from __future__ import annotations
@@ -22,6 +30,7 @@ import asyncio
 import base64
 import gzip
 import json
+import re
 import shutil
 import tempfile
 import time
@@ -34,18 +43,31 @@ from urllib.parse import urlparse
 import httpx
 
 from core.applemusic import AppleMusicTrack, applemusic_client
-from core.constants import DOWNLOADS_DIR
+from core.constants import AMDL_ENDPOINTS_CACHE_FILE, DOWNLOADS_DIR
 from core.logger import log_error, log_info
 
 AMDL_API_BASE = "https://am-dl.pages.dev"
-AMDL_ENDPOINTS = {
-    "album_fetch": f"{AMDL_API_BASE}/api/b3b4e6eb",
-    "track_details": f"{AMDL_API_BASE}/api/7d552b78",
-    "proxy": f"{AMDL_API_BASE}/api/4fe2201b",
-    "atmos_keys": f"{AMDL_API_BASE}/api/atmos/4514f21f",
-    "alac_submit": f"{AMDL_API_BASE}/api/alac/e04c01c3",
-    "alac_stream": f"{AMDL_API_BASE}/api/alac/eceed4e4",
-    "alac_file": f"{AMDL_API_BASE}/api/alac/eace656f",
+
+# JS variable name -> our internal endpoint key, mirrors am-dl's own _JS_KEY_MAP.
+_JS_KEY_MAP = {
+    "x7f": "album_fetch",
+    "k9m": "track_details",
+    "d4v": "proxy",
+    "atmosKeys": "atmos_keys",
+    "alacSubmit": "alac_submit",
+    "alacStream": "alac_stream",
+    "alacFile": "alac_file",
+}
+
+# Last-known-good snapshot, used only if live resolution fails.
+_FALLBACK_ENDPOINTS = {
+    "album_fetch": f"{AMDL_API_BASE}/api/197888c7",
+    "track_details": f"{AMDL_API_BASE}/api/274210f5",
+    "proxy": f"{AMDL_API_BASE}/api/af89167f",
+    "atmos_keys": f"{AMDL_API_BASE}/api/atmos/cb55b30e",
+    "alac_submit": f"{AMDL_API_BASE}/api/alac/434d3b46",
+    "alac_stream": f"{AMDL_API_BASE}/api/alac/ec6d92da",
+    "alac_file": f"{AMDL_API_BASE}/api/alac/b41cab17",
 }
 
 QUALITY_STANDARD = "standard"
@@ -58,6 +80,92 @@ DEFAULT_USER_AGENT = (
 )
 
 _TIMEOUT = 90
+
+_endpoints_cache: dict[str, str] | None = None
+_endpoints_lock = asyncio.Lock()
+
+
+async def _resolve_endpoints() -> dict[str, str]:
+    """Return the current am-dl API endpoints, resolved once per process."""
+    global _endpoints_cache
+    if _endpoints_cache is not None:
+        return _endpoints_cache
+
+    async with _endpoints_lock:
+        if _endpoints_cache is not None:
+            return _endpoints_cache
+        _endpoints_cache = await _load_endpoints()
+        return _endpoints_cache
+
+
+async def _load_endpoints() -> dict[str, str]:
+    try:
+        headers = {"User-Agent": DEFAULT_USER_AGENT}
+        async with httpx.AsyncClient(timeout=15, headers=headers) as client:
+            html = (await client.get(AMDL_API_BASE)).text
+            match = re.search(r'<script[^>]+src="([^"]+\.js)"', html)
+            if not match:
+                return _FALLBACK_ENDPOINTS
+
+            js_path = match.group(1).lstrip("/")
+            js_filename = Path(js_path).name
+
+            if AMDL_ENDPOINTS_CACHE_FILE.exists():
+                try:
+                    cached = json.loads(AMDL_ENDPOINTS_CACHE_FILE.read_text("utf-8"))
+                    if cached.get("script_name") == js_filename and cached.get("endpoints"):
+                        return cached["endpoints"]
+                except Exception:
+                    pass
+
+            js_content = (await client.get(f"{AMDL_API_BASE}/{js_path}")).text
+
+        if not shutil.which("npx"):
+            log_info("[AMDL] npx not found, using fallback endpoints")
+            return _FALLBACK_ENDPOINTS
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            js_file = tmp_path / js_filename
+            js_file.write_text(js_content, encoding="utf-8")
+            out_dir = tmp_path / "deobf"
+
+            proc = await asyncio.create_subprocess_exec(
+                "npx",
+                "-y",
+                "webcrack",
+                str(js_file),
+                "-o",
+                str(out_dir),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            try:
+                await asyncio.wait_for(proc.communicate(), timeout=60)
+            except TimeoutError:
+                proc.kill()
+                return _FALLBACK_ENDPOINTS
+
+            deobf_file = out_dir / "deobfuscated.js"
+            if proc.returncode != 0 or not deobf_file.exists():
+                return _FALLBACK_ENDPOINTS
+
+            content = deobf_file.read_text("utf-8")
+            endpoints = _FALLBACK_ENDPOINTS.copy()
+            for js_key, path in re.findall(r"(\w+)\s*:\s*[\"'](/api/[^\"']+)[\"']", content):
+                internal_key = _JS_KEY_MAP.get(js_key)
+                if internal_key:
+                    endpoints[internal_key] = f"{AMDL_API_BASE}{path}"
+
+            AMDL_ENDPOINTS_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+            AMDL_ENDPOINTS_CACHE_FILE.write_text(
+                json.dumps({"script_name": js_filename, "endpoints": endpoints}, indent=2),
+                encoding="utf-8",
+            )
+            return endpoints
+    except Exception as e:
+        log_error(f"[AMDL] Failed to resolve live endpoints, using fallback: {e}")
+        return _FALLBACK_ENDPOINTS
 
 
 class AmDlError(Exception):
@@ -336,13 +444,14 @@ class AmDlClient:
     async def fetch_album_data(self, url: str) -> dict | None:
         """Fetch album/track metadata from am-dl. Returns None on failure."""
         try:
+            endpoints = await _resolve_endpoints()
             q_data = {
                 "url": url,
                 "metadataStorefront": "default",
                 "allowUnsyncedLyricsFallback": True,
                 "fetchSyllable": False,
             }
-            request_url = f"{AMDL_ENDPOINTS['album_fetch']}?q={encode_q(q_data)}"
+            request_url = f"{endpoints['album_fetch']}?q={encode_q(q_data)}"
             async with httpx.AsyncClient(timeout=_TIMEOUT, headers=self._headers()) as client:
                 resp = await client.get(request_url)
                 resp.raise_for_status()
@@ -400,9 +509,10 @@ class AmDlClient:
         if not track_id:
             raise AmDlError("Track is missing an ID")
 
+        endpoints = await _resolve_endpoints()
         track_url = f"https://music.apple.com/us/song/-/{track_id}"
         q_data = {"url": track_url, "mode": QUALITY_ALAC, "originalUrl": track_url}
-        submit_url = f"{AMDL_ENDPOINTS['alac_submit']}?q={encode_q(q_data)}"
+        submit_url = f"{endpoints['alac_submit']}?q={encode_q(q_data)}"
 
         async with httpx.AsyncClient(timeout=_TIMEOUT, headers=self._headers()) as client:
             resp = await client.get(submit_url)
@@ -423,7 +533,7 @@ class AmDlClient:
                 await asyncio.sleep(5)
                 try:
                     status_resp = await client.get(
-                        f"{AMDL_ENDPOINTS['alac_stream']}?id={job_id}", timeout=10
+                        f"{endpoints['alac_stream']}?id={job_id}", timeout=10
                     )
                     status_text = status_resp.text
                 except Exception:
@@ -439,7 +549,7 @@ class AmDlClient:
             else:
                 raise AmDlError("ALAC server processing timed out")
 
-            download_url = f"{AMDL_ENDPOINTS['alac_file']}?id={job_id}"
+            download_url = f"{endpoints['alac_file']}?id={job_id}"
             dl_resp = await client.post(download_url, json={}, timeout=120)
             dl_resp.raise_for_status()
             data = dl_resp.content
@@ -482,7 +592,8 @@ class AmDlClient:
         if on_status:
             on_status("Fetching Atmos keys...")
 
-        request_url = f"{AMDL_ENDPOINTS['atmos_keys']}?q={encode_q(q_data)}"
+        endpoints = await _resolve_endpoints()
+        request_url = f"{endpoints['atmos_keys']}?q={encode_q(q_data)}"
 
         async with httpx.AsyncClient(timeout=_TIMEOUT, headers=self._headers()) as client:
             resp = await client.get(request_url)
@@ -511,7 +622,7 @@ class AmDlClient:
 
             if stream_url.endswith(".m3u8"):
                 playlist_resp = await client.get(
-                    f"{AMDL_ENDPOINTS['proxy']}?target={urlquote(stream_url, safe='')}"
+                    f"{endpoints['proxy']}?target={urlquote(stream_url, safe='')}"
                 )
                 playlist_resp.raise_for_status()
                 media_url = None
@@ -526,11 +637,11 @@ class AmDlClient:
                 if not media_url:
                     raise AmDlError("Failed to resolve Atmos HLS playlist")
                 encrypted_data = await self._download_file(
-                    client, f"{AMDL_ENDPOINTS['proxy']}?target={urlquote(media_url, safe='')}"
+                    client, f"{endpoints['proxy']}?target={urlquote(media_url, safe='')}"
                 )
             else:
                 encrypted_data = await self._download_file(
-                    client, f"{AMDL_ENDPOINTS['proxy']}?target={urlquote(stream_url, safe='')}"
+                    client, f"{endpoints['proxy']}?target={urlquote(stream_url, safe='')}"
                 )
 
             cover_url = track.get("coverUrl")
@@ -538,7 +649,7 @@ class AmDlClient:
             if cover_url:
                 try:
                     cover_data = await self._download_file(
-                        client, f"{AMDL_ENDPOINTS['proxy']}?target={urlquote(cover_url, safe='')}"
+                        client, f"{endpoints['proxy']}?target={urlquote(cover_url, safe='')}"
                     )
                 except Exception:
                     cover_data = None
@@ -563,7 +674,8 @@ class AmDlClient:
 
     async def fetch_track_details(self, track_id: str) -> dict | None:
         """Fetch HLS playlist URL + decryption key for am-dl's own standard-quality path."""
-        request_url = AMDL_ENDPOINTS["track_details"]
+        endpoints = await _resolve_endpoints()
+        request_url = endpoints["track_details"]
         async with httpx.AsyncClient(timeout=_TIMEOUT, headers=self._headers()) as client:
             resp = await client.post(request_url, json={"trackId": track_id, "isVideo": False})
             resp.raise_for_status()
@@ -621,9 +733,10 @@ class AmDlClient:
         if on_status:
             on_status("Downloading standard stream...")
 
+        endpoints = await _resolve_endpoints()
         async with httpx.AsyncClient(timeout=_TIMEOUT, headers=self._headers()) as client:
             playlist_resp = await client.get(
-                f"{AMDL_ENDPOINTS['proxy']}?target={urlquote(hls_url, safe='')}"
+                f"{endpoints['proxy']}?target={urlquote(hls_url, safe='')}"
             )
             playlist_resp.raise_for_status()
             media_url = None
@@ -639,7 +752,7 @@ class AmDlClient:
                 raise AmDlError("Failed to resolve standard HLS playlist")
 
             encrypted_data = await self._download_file(
-                client, f"{AMDL_ENDPOINTS['proxy']}?target={urlquote(media_url, safe='')}"
+                client, f"{endpoints['proxy']}?target={urlquote(media_url, safe='')}"
             )
 
             cover_url = track.get("coverUrl")
@@ -647,7 +760,7 @@ class AmDlClient:
             if cover_url:
                 try:
                     cover_data = await self._download_file(
-                        client, f"{AMDL_ENDPOINTS['proxy']}?target={urlquote(cover_url, safe='')}"
+                        client, f"{endpoints['proxy']}?target={urlquote(cover_url, safe='')}"
                     )
                 except Exception:
                     cover_data = None
@@ -734,12 +847,27 @@ class AmDlClient:
 
         STD_AAMDL = "standard_aamdl"
         STD_AMDL = "standard_amdl"
-        step_labels = {
-            QUALITY_ATMOS: "Atmos",
-            QUALITY_ALAC: "ALAC",
-            STD_AAMDL: "Standard",
-            STD_AMDL: "Standard (am-dl fallback)",
+
+        async def _aamdl_standard() -> Path:
+            track_id = track.get("trackId")
+            track_url = f"https://music.apple.com/us/song/-/{track_id}"
+            album_data = await applemusic_client.fetch_song_info(track_url)
+            dlink = await applemusic_client.get_download_link(album_data.tracks[0])
+            return await applemusic_client.download_track(dlink, f"am_std_{safe_name}")
+
+        # step -> (label, quality reported to the caller, runner returning
+        # either raw bytes needing _save_bytes, or an already-saved Path)
+        steps = {
+            QUALITY_ATMOS: ("Atmos", QUALITY_ATMOS, lambda: self.download_atmos(track, on_status)),
+            QUALITY_ALAC: ("ALAC", QUALITY_ALAC, lambda: self.download_alac(track, on_status)),
+            STD_AAMDL: ("Standard", QUALITY_STANDARD, _aamdl_standard),
+            STD_AMDL: (
+                "Standard (am-dl fallback)",
+                QUALITY_STANDARD,
+                lambda: self.download_standard(track, on_status),
+            ),
         }
+        needs_save = {QUALITY_ATMOS, QUALITY_ALAC, STD_AMDL}
         chain = {
             QUALITY_ATMOS: [QUALITY_ATMOS, QUALITY_ALAC, STD_AAMDL, STD_AMDL],
             QUALITY_ALAC: [QUALITY_ALAC, STD_AAMDL, STD_AMDL],
@@ -749,39 +877,13 @@ class AmDlClient:
         failures: list[str] = []
         last_error: Exception | None = None
         for step in chain:
-            label = step_labels[step]
+            label, quality_out, run = steps[step]
             try:
-                if step == QUALITY_ATMOS:
-                    if on_status:
-                        on_status("Trying Atmos...")
-                    data = await self.download_atmos(track, on_status)
-                    return self._save_bytes(data, safe_name, step), step, failures
-
-                if step == QUALITY_ALAC:
-                    if on_status:
-                        on_status("Trying ALAC...")
-                    data = await self.download_alac(track, on_status)
-                    return self._save_bytes(data, safe_name, step), step, failures
-
-                if step == STD_AAMDL:
-                    if on_status:
-                        on_status("Trying standard quality...")
-                    track_id = track.get("trackId")
-                    track_url = f"https://music.apple.com/us/song/-/{track_id}"
-                    album_data = await applemusic_client.fetch_song_info(track_url)
-                    std_track = album_data.tracks[0]
-                    dlink = await applemusic_client.get_download_link(std_track)
-                    path = await applemusic_client.download_track(dlink, f"am_std_{safe_name}")
-                    return path, QUALITY_STANDARD, failures
-
                 if on_status:
-                    on_status("Trying am-dl standard fallback...")
-                data = await self.download_standard(track, on_status)
-                return (
-                    self._save_bytes(data, safe_name, QUALITY_STANDARD),
-                    QUALITY_STANDARD,
-                    failures,
-                )
+                    on_status(f"Trying {label}...")
+                result = await run()
+                path = self._save_bytes(result, safe_name, step) if step in needs_save else result
+                return path, quality_out, failures
             except Exception as e:
                 last_error = e
                 reason = str(e) or type(e).__name__
