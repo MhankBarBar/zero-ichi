@@ -283,6 +283,27 @@ def _format_duration_ms(ms: int) -> str:
     return f"{seconds // 60}:{seconds % 60:02d}"
 
 
+def _clean_status_text(text: str) -> str:
+    """
+    Extract a human-readable status from am-dl's job-status polling response,
+    which sometimes returns a raw JSON object instead of a plain string —
+    without this, that JSON would get displayed to the user verbatim.
+    """
+    text = text.strip()
+    if text.startswith("{") or text.startswith("["):
+        try:
+            parsed = json.loads(text)
+        except Exception:
+            return text[:80]
+        if isinstance(parsed, dict):
+            for key in ("message", "status", "state", "error"):
+                value = parsed.get(key)
+                if isinstance(value, str) and value:
+                    return value[:80]
+        return "Processing..."
+    return text[:80]
+
+
 def raw_track_to_apple_music_track(raw: dict) -> AppleMusicTrack:
     """Adapt an am-dl raw track object (MP4 tag dict) into an AppleMusicTrack
     so it can flow through the existing selection UI / pending-store machinery
@@ -409,7 +430,7 @@ class AmDlClient:
                     continue
 
                 if on_status:
-                    on_status(status_text.strip()[:80])
+                    on_status(_clean_status_text(status_text))
 
                 if "Job Completed" in status_text or "complete" in status_text.lower():
                     break
@@ -695,11 +716,13 @@ class AmDlClient:
         track: dict,
         requested: str,
         on_status: Callable[[str], None] | None = None,
-    ) -> tuple[Path, str]:
+    ) -> tuple[Path, str, list[str]]:
         """
         Try the requested quality, falling back atmos -> alac -> standard
         (aaplmusicdownloader.com) -> standard (am-dl's own HLS path) on
-        failure. Returns (saved file path, quality actually used).
+        failure. Returns (saved file path, quality actually used, list of
+        "Label failed: reason" notes for every step that was tried and
+        failed before the one that succeeded).
         """
         tags = track.get("tags", {})
         safe_name = (
@@ -711,45 +734,61 @@ class AmDlClient:
 
         STD_AAMDL = "standard_aamdl"
         STD_AMDL = "standard_amdl"
+        step_labels = {
+            QUALITY_ATMOS: "Atmos",
+            QUALITY_ALAC: "ALAC",
+            STD_AAMDL: "Standard",
+            STD_AMDL: "Standard (am-dl fallback)",
+        }
         chain = {
             QUALITY_ATMOS: [QUALITY_ATMOS, QUALITY_ALAC, STD_AAMDL, STD_AMDL],
             QUALITY_ALAC: [QUALITY_ALAC, STD_AAMDL, STD_AMDL],
             QUALITY_STANDARD: [STD_AAMDL, STD_AMDL],
         }.get(requested, [STD_AAMDL, STD_AMDL])
 
+        failures: list[str] = []
         last_error: Exception | None = None
         for step in chain:
+            label = step_labels[step]
             try:
                 if step == QUALITY_ATMOS:
                     if on_status:
                         on_status("Trying Atmos...")
                     data = await self.download_atmos(track, on_status)
-                    return self._save_bytes(data, safe_name, step), step
+                    return self._save_bytes(data, safe_name, step), step, failures
 
                 if step == QUALITY_ALAC:
                     if on_status:
                         on_status("Trying ALAC...")
                     data = await self.download_alac(track, on_status)
-                    return self._save_bytes(data, safe_name, step), step
+                    return self._save_bytes(data, safe_name, step), step, failures
 
                 if step == STD_AAMDL:
                     if on_status:
-                        on_status("Falling back to standard quality...")
+                        on_status("Trying standard quality...")
                     track_id = track.get("trackId")
                     track_url = f"https://music.apple.com/us/song/-/{track_id}"
                     album_data = await applemusic_client.fetch_song_info(track_url)
                     std_track = album_data.tracks[0]
                     dlink = await applemusic_client.get_download_link(std_track)
                     path = await applemusic_client.download_track(dlink, f"am_std_{safe_name}")
-                    return path, QUALITY_STANDARD
+                    return path, QUALITY_STANDARD, failures
 
                 if on_status:
                     on_status("Trying am-dl standard fallback...")
                 data = await self.download_standard(track, on_status)
-                return self._save_bytes(data, safe_name, QUALITY_STANDARD), QUALITY_STANDARD
+                return (
+                    self._save_bytes(data, safe_name, QUALITY_STANDARD),
+                    QUALITY_STANDARD,
+                    failures,
+                )
             except Exception as e:
                 last_error = e
+                reason = str(e) or type(e).__name__
+                failures.append(f"{label} failed: {reason}")
                 log_info(f"[AMDL] {step} failed, trying next in chain: {e}")
+                if on_status:
+                    on_status(f"{label} failed: {reason} — trying next option...")
                 continue
 
         raise AmDlError(f"All quality options failed: {last_error}")

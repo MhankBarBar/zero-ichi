@@ -424,17 +424,24 @@ async def _handle_download_reply(ctx, pending, stanza_id, choice_num):
         await report_error(ctx.bot, ctx.msg, "dl", e)
 
 
-def _quality_done_text(requested: str, used: str) -> str:
-    """Completion text, noting an atmos->alac->standard fallback if one happened."""
-    if used == requested:
-        return t("applemusic.done")
-    return t("applemusic.quality_used", quality=used.upper())
+def _quality_done_text(requested: str, used: str, failures: list[str] | None = None) -> str:
+    """Completion text, listing any failed attempts before the fallback that succeeded."""
+    text = (
+        t("applemusic.done")
+        if used == requested
+        else t("applemusic.quality_used", quality=used.upper())
+    )
+    if failures:
+        notes = "\n".join(f"{sym.WARNING} {note}" for note in failures)
+        text = f"{text}\n{notes}"
+    return text
 
 
 async def _download_apple_track(ctx, track, quality: str, header: str, chat_jid: str, msg_id: str):
     """
     Download one Apple Music track at the given quality, editing the message at
-    msg_id with progress along the way. Returns (filepath, quality_actually_used).
+    msg_id with progress along the way. Returns (filepath, quality_actually_used,
+    failures) — failures lists any earlier fallback attempts that failed first.
 
     "standard" uses the existing byte-progress download path unchanged; "alac"/
     "atmos" go through amdl_client's job-polling/decrypt path (with its own
@@ -459,7 +466,7 @@ async def _download_apple_track(ctx, track, quality: str, header: str, chat_jid:
 
         safe_name = re.sub(r"[^\w\s-]", "", track.name)[:50] or "track"
         filepath = await applemusic_client.download_track(dlink, f"am_{safe_name}", _on_progress)
-        return filepath, "standard"
+        return filepath, "standard", []
 
     def _on_status(status: str):
         now = time.time()
@@ -521,7 +528,7 @@ async def _handle_applemusic_quality(ctx, pending, stanza_id, quality):
         )
 
         try:
-            filepath, used = await _download_apple_track(
+            filepath, used, failures = await _download_apple_track(
                 ctx, track, quality, header, ctx.msg.chat_jid, progress_msg.ID
             )
 
@@ -537,7 +544,7 @@ async def _handle_applemusic_quality(ctx, pending, stanza_id, quality):
             await ctx.bot.edit_message(
                 ctx.msg.chat_jid,
                 progress_msg.ID,
-                build_complete_bar(header, _quality_done_text(quality, used)),
+                build_complete_bar(header, _quality_done_text(quality, used, failures)),
             )
             await ctx.bot.send_reaction(ctx.msg, "✅")
         except (AppleMusicError, AmDlError) as e:
@@ -599,7 +606,7 @@ async def _handle_applemusic_reply(ctx, pending, stanza_id, choice_num):
     )
 
     try:
-        filepath, used = await _download_apple_track(
+        filepath, used, failures = await _download_apple_track(
             ctx, selected, pending.quality, header, ctx.msg.chat_jid, progress_msg.ID
         )
 
@@ -620,7 +627,7 @@ async def _handle_applemusic_reply(ctx, pending, stanza_id, choice_num):
         await ctx.bot.edit_message(
             ctx.msg.chat_jid,
             progress_msg.ID,
-            build_complete_bar(header, _quality_done_text(pending.quality, used)),
+            build_complete_bar(header, _quality_done_text(pending.quality, used, failures)),
         )
         await ctx.bot.send_reaction(ctx.msg, "✅")
 
@@ -676,7 +683,7 @@ async def _handle_applemusic_all(ctx, pending, stanza_id, selection=None):
                 f"{album_header}{sym.LOADING} {t('applemusic.track_progress', current=i, total=total)}\n{track_header}",
             )
 
-            filepath, _used = await _download_apple_track(
+            filepath, _used, _failures = await _download_apple_track(
                 ctx,
                 track,
                 pending.quality,
