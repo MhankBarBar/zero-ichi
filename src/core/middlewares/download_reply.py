@@ -2,7 +2,6 @@
 
 import asyncio
 import re
-import shutil
 import time
 from dataclasses import replace
 from types import SimpleNamespace
@@ -477,21 +476,15 @@ async def _download_apple_track(ctx, track, quality: str, header: str, chat_jid:
 
 async def _handle_applemusic_quality(ctx, pending, stanza_id, quality):
     """Handle a quality-picker reply: fetch info from the chosen backend, then
-    either download directly (single track) or show the track list (album)."""
+    either download directly (single track) or show the track list (album).
+
+    No placeholder "fetching..." message is sent up front — only the ⏳
+    reaction — so a single track/album ends up with exactly one bot message
+    (the download progress, or the track-list selection), matching the
+    /dl flow instead of stacking a redundant status message before it.
+    """
     pending_downloads.remove(stanza_id)
     await ctx.bot.send_reaction(ctx.msg, "⏳")
-
-    progress_msg = await ctx.bot.reply(
-        ctx.msg,
-        f"{sym.LOADING} {t('applemusic.fetching_info')}",
-    )
-
-    if quality == "atmos" and not shutil.which("mp4decrypt"):
-        await ctx.bot.edit_message(
-            ctx.msg.chat_jid,
-            progress_msg.ID,
-            f"{sym.INFO} {t('applemusic.atmos_unavailable')}",
-        )
 
     try:
         if quality == "standard":
@@ -504,16 +497,13 @@ async def _handle_applemusic_quality(ctx, pending, stanza_id, quality):
             tracks = [raw_track_to_apple_music_track(raw) for raw in album_data["tracks"] if raw]
     except (AppleMusicError, AmDlError) as e:
         await ctx.bot.send_reaction(ctx.msg, "❌")
-        await ctx.bot.edit_message(
-            ctx.msg.chat_jid, progress_msg.ID, t_error("applemusic.failed", error=str(e))
-        )
+        await ctx.bot.reply(ctx.msg, t_error("applemusic.failed", error=str(e)))
         return
 
     if not tracks:
         await ctx.bot.send_reaction(ctx.msg, "❌")
-        await ctx.bot.edit_message(
-            ctx.msg.chat_jid,
-            progress_msg.ID,
+        await ctx.bot.reply(
+            ctx.msg,
             f"{sym.WARNING} {t('applemusic.no_results', query=pending.url)}",
         )
         return
@@ -525,9 +515,8 @@ async def _handle_applemusic_quality(ctx, pending, stanza_id, quality):
             header += f" {sym.BULLET} {track.album}"
         header += "\n"
 
-        await ctx.bot.edit_message(
-            ctx.msg.chat_jid,
-            progress_msg.ID,
+        progress_msg = await ctx.bot.reply(
+            ctx.msg,
             f"{header}\n{sym.LOADING} {t('applemusic.fetching_link')}",
         )
 
@@ -564,15 +553,13 @@ async def _handle_applemusic_quality(ctx, pending, stanza_id, quality):
     album_like = SimpleNamespace(
         album=tracks[0].album, artist=tracks[0].artist, count=len(tracks), tracks=tracks
     )
-    header_text = build_album_header(album_like)
-    await ctx.bot.edit_message(ctx.msg.chat_jid, progress_msg.ID, header_text)
 
     response = await send_selection(
         ctx.bot,
         ctx.msg,
         fallback_text=build_album_text(album_like),
         sections=build_track_sections(tracks),
-        header=header_text,
+        header=build_album_header(album_like),
         menu_title="Choose a track",
         card_title=f"{sym.MUSIC} {album_like.album}",
         allow_all=True,
