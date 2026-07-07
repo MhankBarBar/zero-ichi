@@ -27,6 +27,7 @@ dependencies = [
     "Pillow>=10.0.0",
     "pyrogram>=2.0",
     "tgcrypto>=1.2",
+    "mutagen>=1.48.1",
 ]
 
 [project.scripts]

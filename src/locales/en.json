@@ -564,7 +564,16 @@
     "dm_notice": "Sending {count} tracks to your DM to avoid spamming the group.",
     "track_progress": "Downloading {current}/{total}...",
     "all_done": "All {count} tracks sent ✓",
-    "all_partial": "Sent {sent}/{total} tracks ({failed} failed)"
+    "all_partial": "Sent {sent}/{total} tracks ({failed} failed)",
+    "choose_quality_title": "Choose audio quality",
+    "choose_quality_hint": "Reply with 1, 2, 3, standard, alac, or atmos.",
+    "quality_standard": "Standard (M4A, works everywhere)",
+    "quality_alac": "ALAC (Lossless)",
+    "quality_atmos": "Atmos (Spatial audio)",
+    "quality_atmos_desc": "Spatial audio, needs mp4decrypt on the server",
+    "atmos_unavailable": "Atmos needs mp4decrypt installed on the server — will fall back to ALAC.",
+    "quality_used": "Sent ✓ ({quality})",
+    "fallback_notice": "{from} unavailable, falling back to {to}..."
   },
   "toimg": {
     "reply_to_sticker": "Reply to a sticker to convert it to an image.",

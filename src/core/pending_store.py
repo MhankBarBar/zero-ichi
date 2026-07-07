@@ -75,10 +75,23 @@ class PendingAppleMusic:
     album_name: str
     sender_jid: str
     chat_jid: str
+    quality: str = "standard"
     created_at: float = field(default_factory=time.time)
 
 
-PendingItem = PendingDownload | PendingSearch | PendingPlaylist | PendingAppleMusic
+@dataclass
+class PendingAppleMusicQuality:
+    """A pending Apple Music URL awaiting user's quality selection."""
+
+    url: str
+    sender_jid: str
+    chat_jid: str
+    created_at: float = field(default_factory=time.time)
+
+
+PendingItem = (
+    PendingDownload | PendingSearch | PendingPlaylist | PendingAppleMusic | PendingAppleMusicQuality
+)
 
 
 def _serialize_pending_item(pending: PendingItem) -> tuple[str, dict]:
@@ -141,6 +154,15 @@ def _deserialize_pending_item(kind: str, payload: dict) -> PendingItem | None:
         return PendingAppleMusic(
             tracks=tracks,
             album_name=str(payload.get("album_name", "")),
+            sender_jid=str(payload.get("sender_jid", "")),
+            chat_jid=str(payload.get("chat_jid", "")),
+            quality=str(payload.get("quality", "standard")),
+            created_at=float(payload.get("created_at", time.time())),
+        )
+
+    if kind == "PendingAppleMusicQuality":
+        return PendingAppleMusicQuality(
+            url=str(payload.get("url", "")),
             sender_jid=str(payload.get("sender_jid", "")),
             chat_jid=str(payload.get("chat_jid", "")),
             created_at=float(payload.get("created_at", time.time())),

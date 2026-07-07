@@ -73,6 +73,7 @@ class AppleMusicTrack:
     album: str
     duration: str
     thumb: str
+    raw: dict | None = None
 
 
 @dataclass

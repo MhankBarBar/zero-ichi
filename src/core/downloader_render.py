@@ -177,6 +177,43 @@ def build_playlist_sections(entries) -> list[SelectionSection]:
     ]
 
 
+def build_quality_text(atmos_available: bool) -> str:
+    """Build the numbered Apple Music quality-picker text."""
+    lines = [
+        f"{sym.MUSIC} *{t('applemusic.choose_quality_title')}*",
+        "",
+        f" `1.` {t('applemusic.quality_standard')}",
+        f" `2.` {t('applemusic.quality_alac')}",
+        f" `3.` {t('applemusic.quality_atmos')}",
+    ]
+    if not atmos_available:
+        lines.append(f"     {sym.INFO} {t('applemusic.atmos_unavailable')}")
+    lines.append("")
+    lines.append(f"{sym.INFO} {t('applemusic.choose_quality_hint')}")
+    return "\n".join(lines)
+
+
+def build_quality_sections(atmos_available: bool) -> list[SelectionSection]:
+    """Build the SelectionSection for the Apple Music quality picker."""
+    atmos_desc = (
+        t("applemusic.quality_atmos_desc") if atmos_available else t("applemusic.atmos_unavailable")
+    )
+    return [
+        SelectionSection(
+            title="Quality",
+            items=[
+                SelectionItem(
+                    id="standard", title="Standard", description=t("applemusic.quality_standard")
+                ),
+                SelectionItem(
+                    id="alac", title="ALAC (Lossless)", description=t("applemusic.quality_alac")
+                ),
+                SelectionItem(id="atmos", title="Atmos (Spatial)", description=atmos_desc),
+            ],
+        )
+    ]
+
+
 def build_album_text(info) -> str:
     """Build the numbered Apple Music album track list display text."""
     lines = [

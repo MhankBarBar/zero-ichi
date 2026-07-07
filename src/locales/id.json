@@ -564,7 +564,16 @@
     "dm_notice": "Ngirim {count} lagu ke DM kamu biar gak spam grup.",
     "track_progress": "Downloading {current}/{total}...",
     "all_done": "Semua {count} lagu udah dikirim ✓",
-    "all_partial": "Dikirim {sent}/{total} lagu ({failed} gagal)"
+    "all_partial": "Dikirim {sent}/{total} lagu ({failed} gagal)",
+    "choose_quality_title": "Pilih kualitas audio",
+    "choose_quality_hint": "Balas pake 1, 2, 3, standard, alac, atau atmos.",
+    "quality_standard": "Standard (M4A, jalan di mana aja)",
+    "quality_alac": "ALAC (Lossless)",
+    "quality_atmos": "Atmos (Spatial audio)",
+    "quality_atmos_desc": "Spatial audio, butuh mp4decrypt di server",
+    "atmos_unavailable": "Atmos butuh mp4decrypt di server — bakal fallback ke ALAC.",
+    "quality_used": "Udah dikirim ✓ ({quality})",
+    "fallback_notice": "{from} gak tersedia, fallback ke {to}..."
   },
   "toimg": {
     "reply_to_sticker": "Reply ke stiker buat convert jadi gambar.",

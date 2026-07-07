@@ -125,8 +125,7 @@ class TelegramForwarder:
             await self._tg_app.start()
             self._started = True
             log_success(
-                f"Telegram forwarder connected "
-                f"(watching {len(source_ids)} sources: {source_ids})"
+                f"Telegram forwarder connected (watching {len(source_ids)} sources: {source_ids})"
             )
         except Exception as e:
             log_error(f"Telegram forwarder failed to start: {e}")
@@ -387,9 +386,6 @@ class TelegramForwarder:
         }
         media_type = media_type_map.get(kind, MediaType.MediaDocument)
 
-        # WORKAROUND: upload_newsletter panics in neonize 0.3.13 due to missing MediaKey in UploadResponse.
-        # We fallback to normal upload() which encrypts the media and provides a MediaKey, preventing the crash.
-        # WhatsApp clients can usually still decrypt it using the provided MediaKey.
         upload = await self._bot.raw.upload(data, media_type)
         mime = libmagic.from_buffer(data, mime=True)
 

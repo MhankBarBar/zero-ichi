@@ -2,12 +2,14 @@
 
 import asyncio
 import re
+import shutil
 import time
 from dataclasses import replace
 from types import SimpleNamespace
 
 from core import symbols as sym
 from core.applemusic import AppleMusicError, applemusic_client
+from core.applemusic_amdl import AmDlError, amdl_client, raw_track_to_apple_music_track
 from core.downloader import (
     DownloadAbortedError,
     DownloadError,
@@ -32,6 +34,7 @@ from core.errors import report_error
 from core.i18n import t, t_error
 from core.pending_store import (
     PendingAppleMusic,
+    PendingAppleMusicQuality,
     PendingDownload,
     PendingPlaylist,
     PendingSearch,
@@ -63,19 +66,27 @@ async def download_reply_middleware(ctx, next):
         await _handle_page_nav(ctx, pending, nav_page)
         return
 
-    is_all = text.lower() in ("all", "0")
-    selection = _parse_selection(text) if not is_all else None
-
-    if not is_all and not selection:
-        await next()
-        return
-
     if not stanza_id:
         await next()
         return
 
     pending = pending_downloads.get(stanza_id)
     if not pending:
+        await next()
+        return
+
+    if isinstance(pending, PendingAppleMusicQuality):
+        quality_choice = _parse_quality(text)
+        if not quality_choice or ctx.msg.sender_jid != pending.sender_jid:
+            await next()
+            return
+        await _handle_applemusic_quality(ctx, pending, stanza_id, quality_choice)
+        return
+
+    is_all = text.lower() in ("all", "0")
+    selection = _parse_selection(text) if not is_all else None
+
+    if not is_all and not selection:
         await next()
         return
 
@@ -137,6 +148,21 @@ def _parse_selection(text: str) -> list[int] | None:
     return sorted(indices) if indices else None
 
 
+_QUALITY_ALIASES = {
+    "standard": "standard",
+    "1": "standard",
+    "alac": "alac",
+    "2": "alac",
+    "atmos": "atmos",
+    "3": "atmos",
+}
+
+
+def _parse_quality(text: str) -> str | None:
+    """Parse a quality-picker reply: 'standard'/'alac'/'atmos' or their '1'/'2'/'3' aliases."""
+    return _QUALITY_ALIASES.get(text.strip().lower())
+
+
 def _parse_nav_page(text: str) -> int | None:
     """Parse a pagination nav row id like 'page:2' into its target page number."""
     if not text.startswith("page:"):
@@ -178,8 +204,6 @@ async def _handle_page_nav(ctx, pending, target_page: int) -> None:
             page=target_page,
         )
     elif isinstance(pending, PendingPlaylist):
-        # PendingPlaylist only persists the shown entries, not the original total
-        # count, so re-rendered pages treat "shown" as "total".
         playlist_like = SimpleNamespace(
             title=pending.title, entries=pending.entries, count=len(pending.entries)
         )
@@ -195,7 +219,6 @@ async def _handle_page_nav(ctx, pending, target_page: int) -> None:
             page=target_page,
         )
     elif isinstance(pending, PendingAppleMusic):
-        # PendingAppleMusic doesn't persist the artist name, so it's omitted here.
         album_like = SimpleNamespace(
             album=pending.album_name, artist="", count=len(pending.tracks), tracks=pending.tracks
         )
@@ -402,6 +425,171 @@ async def _handle_download_reply(ctx, pending, stanza_id, choice_num):
         await report_error(ctx.bot, ctx.msg, "dl", e)
 
 
+def _quality_done_text(requested: str, used: str) -> str:
+    """Completion text, noting an atmos->alac->standard fallback if one happened."""
+    if used == requested:
+        return t("applemusic.done")
+    return t("applemusic.quality_used", quality=used.upper())
+
+
+async def _download_apple_track(ctx, track, quality: str, header: str, chat_jid: str, msg_id: str):
+    """
+    Download one Apple Music track at the given quality, editing the message at
+    msg_id with progress along the way. Returns (filepath, quality_actually_used).
+
+    "standard" uses the existing byte-progress download path unchanged; "alac"/
+    "atmos" go through amdl_client's job-polling/decrypt path (with its own
+    atmos->alac->standard fallback), reporting status text instead of bytes.
+    """
+    last_edit = [0.0]
+    loop = asyncio.get_running_loop()
+
+    if quality == "standard":
+        dlink = await applemusic_client.get_download_link(track)
+
+        def _on_progress(downloaded: int, total: int):
+            now = time.time()
+            if now - last_edit[0] < 3:
+                return
+            last_edit[0] = now
+            progress_text = build_progress_text(header, downloaded, total)
+            asyncio.run_coroutine_threadsafe(
+                ctx.bot.edit_message(chat_jid, msg_id, progress_text),
+                loop,
+            )
+
+        safe_name = re.sub(r"[^\w\s-]", "", track.name)[:50] or "track"
+        filepath = await applemusic_client.download_track(dlink, f"am_{safe_name}", _on_progress)
+        return filepath, "standard"
+
+    def _on_status(status: str):
+        now = time.time()
+        if now - last_edit[0] < 3:
+            return
+        last_edit[0] = now
+        asyncio.run_coroutine_threadsafe(
+            ctx.bot.edit_message(chat_jid, msg_id, f"{header}\n{sym.LOADING} {status}"),
+            loop,
+        )
+
+    return await amdl_client.download_with_fallback(track.raw, quality, _on_status)
+
+
+async def _handle_applemusic_quality(ctx, pending, stanza_id, quality):
+    """Handle a quality-picker reply: fetch info from the chosen backend, then
+    either download directly (single track) or show the track list (album)."""
+    pending_downloads.remove(stanza_id)
+    await ctx.bot.send_reaction(ctx.msg, "⏳")
+
+    progress_msg = await ctx.bot.reply(
+        ctx.msg,
+        f"{sym.LOADING} {t('applemusic.fetching_info')}",
+    )
+
+    if quality == "atmos" and not shutil.which("mp4decrypt"):
+        await ctx.bot.edit_message(
+            ctx.msg.chat_jid,
+            progress_msg.ID,
+            f"{sym.INFO} {t('applemusic.atmos_unavailable')}",
+        )
+
+    try:
+        if quality == "standard":
+            info = await applemusic_client.fetch_info(pending.url)
+            tracks = info.tracks
+        else:
+            album_data = await amdl_client.fetch_album_data(pending.url)
+            if not album_data or not album_data.get("tracks"):
+                raise AmDlError("Failed to fetch album data")
+            tracks = [raw_track_to_apple_music_track(raw) for raw in album_data["tracks"] if raw]
+    except (AppleMusicError, AmDlError) as e:
+        await ctx.bot.send_reaction(ctx.msg, "❌")
+        await ctx.bot.edit_message(
+            ctx.msg.chat_jid, progress_msg.ID, t_error("applemusic.failed", error=str(e))
+        )
+        return
+
+    if not tracks:
+        await ctx.bot.send_reaction(ctx.msg, "❌")
+        await ctx.bot.edit_message(
+            ctx.msg.chat_jid,
+            progress_msg.ID,
+            f"{sym.WARNING} {t('applemusic.no_results', query=pending.url)}",
+        )
+        return
+
+    if len(tracks) == 1:
+        track = tracks[0]
+        header = f"{sym.MUSIC} *{track.name}*\n{sym.ARROW} {track.artist}"
+        if track.album:
+            header += f" {sym.BULLET} {track.album}"
+        header += "\n"
+
+        await ctx.bot.edit_message(
+            ctx.msg.chat_jid,
+            progress_msg.ID,
+            f"{header}\n{sym.LOADING} {t('applemusic.fetching_link')}",
+        )
+
+        try:
+            filepath, used = await _download_apple_track(
+                ctx, track, quality, header, ctx.msg.chat_jid, progress_msg.ID
+            )
+
+            await ctx.bot.edit_message(
+                ctx.msg.chat_jid,
+                progress_msg.ID,
+                build_complete_bar(header, t("applemusic.sending")),
+            )
+
+            await ctx.bot.send_media(ctx.msg.chat_jid, "audio", str(filepath), quoted=ctx.msg.event)
+
+            applemusic_client.cleanup(filepath)
+            await ctx.bot.edit_message(
+                ctx.msg.chat_jid,
+                progress_msg.ID,
+                build_complete_bar(header, _quality_done_text(quality, used)),
+            )
+            await ctx.bot.send_reaction(ctx.msg, "✅")
+        except (AppleMusicError, AmDlError) as e:
+            await ctx.bot.send_reaction(ctx.msg, "❌")
+            await ctx.bot.reply(ctx.msg, t_error("applemusic.failed", error=str(e)))
+        except Exception as e:
+            await ctx.bot.send_reaction(ctx.msg, "❌")
+            await report_error(ctx.bot, ctx.msg, "applemusic", e)
+        return
+
+    await ctx.bot.send_reaction(ctx.msg, "")
+
+    album_like = SimpleNamespace(
+        album=tracks[0].album, artist=tracks[0].artist, count=len(tracks), tracks=tracks
+    )
+    header_text = build_album_header(album_like)
+    await ctx.bot.edit_message(ctx.msg.chat_jid, progress_msg.ID, header_text)
+
+    response = await send_selection(
+        ctx.bot,
+        ctx.msg,
+        fallback_text=build_album_text(album_like),
+        sections=build_track_sections(tracks),
+        header=header_text,
+        menu_title="Choose a track",
+        card_title=f"{sym.MUSIC} {album_like.album}",
+        allow_all=True,
+    )
+
+    pending_downloads.add(
+        response.ID,
+        PendingAppleMusic(
+            tracks=tracks,
+            album_name=album_like.album,
+            sender_jid=pending.sender_jid,
+            chat_jid=pending.chat_jid,
+            quality=quality,
+        ),
+    )
+
+
 async def _handle_applemusic_reply(ctx, pending, stanza_id, choice_num):
     """Handle reply to Apple Music track list: download selected track."""
     if choice_num < 1 or choice_num > len(pending.tracks):
@@ -424,30 +612,13 @@ async def _handle_applemusic_reply(ctx, pending, stanza_id, choice_num):
     )
 
     try:
-        dlink = await applemusic_client.get_download_link(selected)
-
-        last_edit = [0.0]
-        loop = asyncio.get_running_loop()
-        msg_id = progress_msg.ID
-
-        def _on_progress(downloaded: int, total: int):
-            now = time.time()
-            if now - last_edit[0] < 3:
-                return
-            last_edit[0] = now
-            text = build_progress_text(header, downloaded, total)
-            asyncio.run_coroutine_threadsafe(
-                ctx.bot.edit_message(ctx.msg.chat_jid, msg_id, text),
-                loop,
-            )
-
-        safe_name = re.sub(r"[^\w\s-]", "", selected.name)[:50] or "track"
-        filename = f"am_{safe_name}"
-        filepath = await applemusic_client.download_track(dlink, filename, _on_progress)
+        filepath, used = await _download_apple_track(
+            ctx, selected, pending.quality, header, ctx.msg.chat_jid, progress_msg.ID
+        )
 
         await ctx.bot.edit_message(
             ctx.msg.chat_jid,
-            msg_id,
+            progress_msg.ID,
             build_complete_bar(header, t("applemusic.sending")),
         )
 
@@ -461,12 +632,12 @@ async def _handle_applemusic_reply(ctx, pending, stanza_id, choice_num):
         applemusic_client.cleanup(filepath)
         await ctx.bot.edit_message(
             ctx.msg.chat_jid,
-            msg_id,
-            build_complete_bar(header, t("applemusic.done")),
+            progress_msg.ID,
+            build_complete_bar(header, _quality_done_text(pending.quality, used)),
         )
         await ctx.bot.send_reaction(ctx.msg, "✅")
 
-    except AppleMusicError as e:
+    except (AppleMusicError, AmDlError) as e:
         await ctx.bot.send_reaction(ctx.msg, "❌")
         await ctx.bot.reply(ctx.msg, t_error("applemusic.failed", error=str(e)))
     except Exception as e:
@@ -518,38 +689,14 @@ async def _handle_applemusic_all(ctx, pending, stanza_id, selection=None):
                 f"{album_header}{sym.LOADING} {t('applemusic.track_progress', current=i, total=total)}\n{track_header}",
             )
 
-            dlink = await applemusic_client.get_download_link(track)
-
-            last_edit = [0.0]
-            loop = asyncio.get_running_loop()
-            msg_id = progress_msg.ID
-
-            def _on_progress(
-                downloaded: int,
-                total_bytes: int,
-                _hdr=track_header,
-                _last=last_edit,
-                _loop=loop,
-                _mid=msg_id,
-                _idx=i,
-            ):
-                now = time.time()
-                if now - _last[0] < 3:
-                    return
-                _last[0] = now
-                text = build_progress_text(
-                    f"{album_header}{sym.BULLET} {_idx}/{total}\n{_hdr}",
-                    downloaded,
-                    total_bytes,
-                )
-                asyncio.run_coroutine_threadsafe(
-                    ctx.bot.edit_message(ctx.msg.chat_jid, _mid, text),
-                    _loop,
-                )
-
-            safe_name = re.sub(r"[^\w\s-]", "", track.name)[:50] or "track"
-            filename = f"am_{safe_name}"
-            filepath = await applemusic_client.download_track(dlink, filename, _on_progress)
+            filepath, _used = await _download_apple_track(
+                ctx,
+                track,
+                pending.quality,
+                f"{album_header}{sym.BULLET} {i}/{total}\n{track_header}",
+                ctx.msg.chat_jid,
+                progress_msg.ID,
+            )
 
             await ctx.bot.send_media(
                 send_to,
