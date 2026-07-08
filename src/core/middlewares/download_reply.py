@@ -4,11 +4,17 @@ import asyncio
 import re
 import time
 from dataclasses import replace
+from pathlib import Path
 from types import SimpleNamespace
 
 from core import symbols as sym
 from core.applemusic import AppleMusicError, applemusic_client
-from core.applemusic_amdl import AmDlError, amdl_client, raw_track_to_apple_music_track
+from core.applemusic_amdl import (
+    QUALITY_STANDARD,
+    AmDlError,
+    amdl_client,
+    raw_track_to_apple_music_track,
+)
 from core.downloader import (
     DownloadAbortedError,
     DownloadError,
@@ -483,6 +489,26 @@ async def _download_apple_track(ctx, track, quality: str, header: str, chat_jid:
     return await amdl_client.download_with_fallback(track.raw, quality, _throttled(_edit_status))
 
 
+async def _send_apple_music_track(
+    ctx, chat_jid: str, filepath: Path, used_quality: str, quoted=None
+):
+    """
+    Send a downloaded track, quoted to `quoted` if given.
+
+    ALAC/Atmos files go out as a document instead of an audio message —
+    WhatsApp's audio player re-encodes what it's sent, which corrupts
+    lossless ALAC and object-based Atmos streams. A document is delivered
+    byte-for-byte untouched. Standard-quality (plain AAC) files are
+    unaffected and keep going out as playable audio messages.
+    """
+    if used_quality == QUALITY_STANDARD:
+        await ctx.bot.send_media(chat_jid, "audio", str(filepath), quoted=quoted)
+    else:
+        await ctx.bot.send_media(
+            chat_jid, "document", str(filepath), filename=filepath.name, quoted=quoted
+        )
+
+
 async def _handle_applemusic_quality(ctx, pending, stanza_id, quality):
     """Handle a quality-picker reply: fetch info from the chosen backend, then
     either download directly (single track) or show the track list (album).
@@ -540,7 +566,9 @@ async def _handle_applemusic_quality(ctx, pending, stanza_id, quality):
                 build_complete_bar(header, t("applemusic.sending")),
             )
 
-            await ctx.bot.send_media(ctx.msg.chat_jid, "audio", str(filepath), quoted=ctx.msg.event)
+            await _send_apple_music_track(
+                ctx, ctx.msg.chat_jid, filepath, used, quoted=ctx.msg.event
+            )
 
             applemusic_client.cleanup(filepath)
             await ctx.bot.edit_message(
@@ -618,12 +646,7 @@ async def _handle_applemusic_reply(ctx, pending, stanza_id, choice_num):
             build_complete_bar(header, t("applemusic.sending")),
         )
 
-        await ctx.bot.send_media(
-            ctx.msg.chat_jid,
-            "audio",
-            str(filepath),
-            quoted=ctx.msg.event,
-        )
+        await _send_apple_music_track(ctx, ctx.msg.chat_jid, filepath, used, quoted=ctx.msg.event)
 
         applemusic_client.cleanup(filepath)
         await ctx.bot.edit_message(
@@ -685,7 +708,7 @@ async def _handle_applemusic_all(ctx, pending, stanza_id, selection=None):
                 f"{album_header}{sym.LOADING} {t('applemusic.track_progress', current=i, total=total)}\n{track_header}",
             )
 
-            filepath, _used, _failures = await _download_apple_track(
+            filepath, used, _failures = await _download_apple_track(
                 ctx,
                 track,
                 pending.quality,
@@ -694,11 +717,8 @@ async def _handle_applemusic_all(ctx, pending, stanza_id, selection=None):
                 progress_msg.ID,
             )
 
-            await ctx.bot.send_media(
-                send_to,
-                "audio",
-                str(filepath),
-                quoted=ctx.msg.event if not is_group else None,
+            await _send_apple_music_track(
+                ctx, send_to, filepath, used, quoted=ctx.msg.event if not is_group else None
             )
 
             applemusic_client.cleanup(filepath)

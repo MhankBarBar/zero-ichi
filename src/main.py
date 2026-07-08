@@ -528,13 +528,25 @@ def _start_tg_forwarder_if_needed(tg_forwarder) -> None:
     asyncio.create_task(tg_forwarder.start())
 
 
-async def _connect_client(client, login_method: str, phone_number: str) -> bool:
+async def _connect_client(
+    client, login_method: str, phone_number: str, qr_ready_event: asyncio.Event
+) -> bool:
     """Connect to WhatsApp via pair code or QR flow."""
     if login_method == "PAIR_CODE":
         log_step(f"Initiating Pair Code login for {phone_number}...")
         try:
             session_state.is_pairing = True
             session_state.phone_number = phone_number
+            await client.connect()
+            log_info("Pair Code: waiting for client to be ready...")
+            # whatsmeow requires the client to be connected (and to have fired its
+            # QR event, which we discard here) before PairPhone can be called.
+            try:
+                await asyncio.wait_for(qr_ready_event.wait(), timeout=30)
+            except TimeoutError:
+                log_warning("Pair Code: no readiness signal after 30s, trying PairPhone anyway...")
+            else:
+                log_info("Pair Code: client ready, requesting pair code...")
             x = await client.PairPhone(phone_number, True)
             session_state.pair_code = x
             show_pair_code(x)
@@ -594,6 +606,7 @@ def _init_bot(args):
     scheduler = init_scheduler(bot)
     rate_limiter_module.refresh_rate_limiter_from_runtime()
     pipeline = _build_live_pipeline()
+    qr_ready_event = asyncio.Event()
 
     _handled_call_ids: dict[str, float] = {}
     _CALL_GUARD_DEDUP_TTL_SECONDS = 120.0
@@ -788,8 +801,15 @@ def _init_bot(args):
 
     @client.qr
     async def qr_handler(c: NewAClient, qr_data: bytes) -> None:
-        """Handle QR code event - displays QR in terminal."""
+        """Handle QR code event - displays QR in terminal, or unblocks pair-code login."""
         session_state.is_logged_in = False
+
+        if login_method == "PAIR_CODE":
+            # whatsmeow still fires a QR event during phone-code pairing; it's
+            # discarded here and only used as the "client is ready" signal.
+            log_info("Pair Code: readiness signal (QR event) received")
+            qr_ready_event.set()
+            return
 
         show_qr_prompt()
         qr = segno.make_qr(qr_data)
@@ -960,7 +980,7 @@ def _init_bot(args):
 
             log_step("Connecting to WhatsApp...")
 
-            if not await _connect_client(client, login_method, phone_number):
+            if not await _connect_client(client, login_method, phone_number, qr_ready_event):
                 return
 
             _start_scheduler_if_needed(scheduler)
