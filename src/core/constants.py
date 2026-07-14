@@ -13,6 +13,7 @@ LOGS_DIR = BASE_DIR / "logs"
 LOCALES_DIR = Path(__file__).parent.parent / "locales"
 
 DOWNLOADS_DIR = DATA_DIR / "downloads"
+TORRENTS_DIR = DOWNLOADS_DIR / "torrents"
 MEDIA_DIR = DATA_DIR / "media"
 MEMORY_DIR = DATA_DIR / "ai_memory"
 SKILLS_DIR = DATA_DIR / "ai_skills"

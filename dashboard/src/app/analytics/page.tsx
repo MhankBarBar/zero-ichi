@@ -267,7 +267,7 @@ function LiveFeed({ events, connected }: { events: WsEvent[]; connected: boolean
                 </CardTitle>
             </CardHeader>
             <CardContent className="pt-2">
-                <div className="scrollbar-thin max-h-80 space-y-0.5 overflow-y-auto pr-1">
+                <div className="max-h-80 scrollbar-thin space-y-0.5 overflow-y-auto pr-1">
                     <AnimatePresence initial={false}>
                         {events.length === 0 ? (
                             <div className="py-10 text-center text-sm text-neutral-500">

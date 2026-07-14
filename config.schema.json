@@ -609,6 +609,58 @@
                 }
             }
         },
+        "torrent": {
+            "type": "object",
+            "description": "Torrent download settings (aria2c RPC)",
+            "properties": {
+                "rpc_secret": {
+                    "type": "string",
+                    "description": "RPC secret token for aria2c JSON-RPC authentication",
+                    "default": ""
+                },
+                "rpc_port": {
+                    "type": "integer",
+                    "description": "Port for aria2c RPC listener",
+                    "default": 6800,
+                    "minimum": 1024,
+                    "maximum": 65535
+                },
+                "max_concurrent": {
+                    "type": "integer",
+                    "description": "Maximum concurrent downloads",
+                    "default": 5,
+                    "minimum": 1,
+                    "maximum": 50
+                },
+                "seed_time": {
+                    "type": "integer",
+                    "description": "Time to seed after download in minutes (0 = don't seed)",
+                    "default": 0,
+                    "minimum": 0
+                },
+                "download_dir": {
+                    "type": "string",
+                    "description": "Directory for torrent downloads (relative to project root or absolute)",
+                    "default": "data/downloads/torrents"
+                }
+            }
+        },
+        "rclone": {
+            "type": "object",
+            "description": "rclone settings for uploading mirrors to cloud storage",
+            "properties": {
+                "remote": {
+                    "type": "string",
+                    "description": "rclone remote name with colon suffix (e.g. 'gdrive:', 'dropbox:')",
+                    "default": "gdrive:"
+                },
+                "remote_path": {
+                    "type": "string",
+                    "description": "Path within the remote to upload to",
+                    "default": "ZeroIchi/Mirrors/"
+                }
+            }
+        },
         "telegram_forwarder": {
             "type": "object",
             "description": "Auto-forward messages from Telegram channels to WhatsApp chats or channels (newsletters)",

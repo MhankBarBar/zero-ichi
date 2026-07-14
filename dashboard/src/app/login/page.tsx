@@ -133,7 +133,8 @@ export default function LoginPage() {
                     <span className="font-mono text-neutral-500">.env</span> file
                 </p>
                 <p className="mt-2 text-center text-xs text-neutral-600">
-                    Use non-default credentials. <span className="font-mono text-neutral-500">admin/admin</span> is blocked.
+                    Use non-default credentials.{" "}
+                    <span className="font-mono text-neutral-500">admin/admin</span> is blocked.
                 </p>
             </motion.div>
         </div>

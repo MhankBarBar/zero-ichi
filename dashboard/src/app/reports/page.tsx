@@ -53,7 +53,9 @@ function MediaBadge({ mediaType }: { mediaType?: string }) {
     const Icon = entry.icon;
 
     return (
-        <span className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 text-xs ${entry.cls}`}>
+        <span
+            className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 text-xs ${entry.cls}`}
+        >
             <Icon className="h-3.5 w-3.5" />
             {mt}
         </span>
@@ -64,11 +66,12 @@ function CollapsibleText({ text, limit = 220 }: { text: string; limit?: number }
     const [expanded, setExpanded] = useState(false);
     const normalized = (text || "").trim();
     const tooLong = normalized.length > limit || normalized.includes("\n");
-    const preview = tooLong && !expanded ? `${normalized.slice(0, limit).trimEnd()}...` : normalized;
+    const preview =
+        tooLong && !expanded ? `${normalized.slice(0, limit).trimEnd()}...` : normalized;
 
     return (
         <div className="space-y-1">
-            <p className="whitespace-pre-wrap break-words text-sm text-neutral-300">{preview}</p>
+            <p className="text-sm break-words whitespace-pre-wrap text-neutral-300">{preview}</p>
             {tooLong && (
                 <button
                     type="button"
@@ -191,7 +194,10 @@ export default function ReportsPage() {
                 </div>
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {[1, 2, 3].map((i) => (
-                        <Card key={i} className="animate-pulse border-neutral-700 bg-neutral-800/50">
+                        <Card
+                            key={i}
+                            className="animate-pulse border-neutral-700 bg-neutral-800/50"
+                        >
                             <CardContent className="p-6">
                                 <div className="mb-3 h-5 w-2/3 rounded bg-neutral-700" />
                                 <div className="h-4 w-1/2 rounded bg-neutral-700" />
@@ -246,7 +252,9 @@ export default function ReportsPage() {
                                         <IconUsers className="h-5 w-5 text-amber-300" />
                                     </div>
                                     <div className="min-w-0 flex-1">
-                                        <h3 className="truncate font-medium text-white">{group.name}</h3>
+                                        <h3 className="truncate font-medium text-white">
+                                            {group.name}
+                                        </h3>
                                         <p className="text-sm text-neutral-500">
                                             {group.memberCount} members
                                         </p>
@@ -271,20 +279,22 @@ export default function ReportsPage() {
                             ← Back to Groups
                         </Button>
 
-                        {(["all", "open", "resolved", "dismissed"] as StatusFilter[]).map((status) => (
-                            <Button
-                                key={status}
-                                variant={statusFilter === status ? "default" : "outline"}
-                                onClick={() => setStatusFilter(status)}
-                                className={
-                                    statusFilter === status
-                                        ? "bg-white text-black hover:bg-neutral-200"
-                                        : "border-neutral-700 text-neutral-400"
-                                }
-                            >
-                                {status.charAt(0).toUpperCase() + status.slice(1)}
-                            </Button>
-                        ))}
+                        {(["all", "open", "resolved", "dismissed"] as StatusFilter[]).map(
+                            (status) => (
+                                <Button
+                                    key={status}
+                                    variant={statusFilter === status ? "default" : "outline"}
+                                    onClick={() => setStatusFilter(status)}
+                                    className={
+                                        statusFilter === status
+                                            ? "bg-white text-black hover:bg-neutral-200"
+                                            : "border-neutral-700 text-neutral-400"
+                                    }
+                                >
+                                    {status.charAt(0).toUpperCase() + status.slice(1)}
+                                </Button>
+                            ),
+                        )}
 
                         <Button
                             variant="outline"
@@ -298,7 +308,7 @@ export default function ReportsPage() {
                             Refresh
                         </Button>
 
-                        <div className="relative min-w-[220px] max-w-md flex-1">
+                        <div className="relative max-w-md min-w-[220px] flex-1">
                             <IconSearch className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-neutral-500" />
                             <Input
                                 value={search}
@@ -328,7 +338,9 @@ export default function ReportsPage() {
                         <Card className="border-neutral-700 bg-neutral-800/50">
                             <CardContent className="p-12 text-center">
                                 <IconFlag className="mx-auto mb-4 h-12 w-12 text-neutral-600" />
-                                <h3 className="mb-2 text-lg font-medium text-neutral-300">No reports found</h3>
+                                <h3 className="mb-2 text-lg font-medium text-neutral-300">
+                                    No reports found
+                                </h3>
                                 <p className="text-sm text-neutral-500">
                                     {search
                                         ? "Try a different search term"
@@ -347,7 +359,9 @@ export default function ReportsPage() {
                                     const reporterLid = report.reporter_lid || "";
 
                                     const targetNumber =
-                                        report.target_number || userPart(targetPn) || userPart(report.target_jid);
+                                        report.target_number ||
+                                        userPart(targetPn) ||
+                                        userPart(report.target_jid);
                                     const reporterNumber =
                                         report.reporter_number ||
                                         userPart(reporterPn) ||
@@ -374,7 +388,9 @@ export default function ReportsPage() {
                                                                 {status}
                                                             </span>
                                                         </div>
-                                                        <p className="text-xs text-neutral-500">{createdAt}</p>
+                                                        <p className="text-xs text-neutral-500">
+                                                            {createdAt}
+                                                        </p>
                                                     </div>
 
                                                     <CollapsibleText
@@ -383,7 +399,7 @@ export default function ReportsPage() {
 
                                                     {report.evidence_text ? (
                                                         <div className="rounded-lg border border-neutral-700 bg-neutral-900/70 p-3 text-xs text-neutral-400">
-                                                            <p className="mb-2 text-[11px] uppercase tracking-wide text-neutral-500">
+                                                            <p className="mb-2 text-[11px] tracking-wide text-neutral-500 uppercase">
                                                                 Evidence
                                                             </p>
                                                             <CollapsibleText
@@ -407,7 +423,11 @@ export default function ReportsPage() {
 
                                                     {report.evidence_media_type ? (
                                                         <div className="flex items-center gap-2">
-                                                            <MediaBadge mediaType={report.evidence_media_type} />
+                                                            <MediaBadge
+                                                                mediaType={
+                                                                    report.evidence_media_type
+                                                                }
+                                                            />
                                                             {report.evidence_caption ? (
                                                                 <span className="text-xs text-neutral-500">
                                                                     {report.evidence_caption}
@@ -440,17 +460,22 @@ export default function ReportsPage() {
                                                                     updateStatus(report, "resolved")
                                                                 }
                                                             >
-                                                                <IconCheck className="mr-1 h-4 w-4" /> Resolve
+                                                                <IconCheck className="mr-1 h-4 w-4" />{" "}
+                                                                Resolve
                                                             </Button>
                                                             <Button
                                                                 size="sm"
                                                                 variant="outline"
                                                                 className="border-red-500/50 text-red-300"
                                                                 onClick={() =>
-                                                                    updateStatus(report, "dismissed")
+                                                                    updateStatus(
+                                                                        report,
+                                                                        "dismissed",
+                                                                    )
                                                                 }
                                                             >
-                                                                <IconX className="mr-1 h-4 w-4" /> Dismiss
+                                                                <IconX className="mr-1 h-4 w-4" />{" "}
+                                                                Dismiss
                                                             </Button>
                                                         </div>
                                                     )}

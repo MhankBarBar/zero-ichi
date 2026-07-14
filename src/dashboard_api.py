@@ -35,8 +35,9 @@ from fastapi import (
     WebSocketDisconnect,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.security.utils import get_authorization_scheme_param
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -80,6 +81,7 @@ from core.scheduler import get_scheduler
 from core.session import session_state
 from core.shared import get_bot
 from core.storage import GroupData, Storage
+from core.torrent_downloader import TorrentFile, aria2rpc
 from core.webhooks import (
     list_known_events,
     replay_webhook_delivery,
@@ -154,6 +156,11 @@ def _ensure_dotenv_loaded() -> None:
         return
     load_dotenv(_DOTENV_PATH)
     _dotenv_loaded = True
+
+
+def _get_public_url() -> str:
+    _ensure_dotenv_loaded()
+    return str(os.getenv("PUBLIC_URL", "http://localhost:8000")).rstrip("/")
 
 
 def _get_dashboard_credentials() -> tuple[str, str]:
@@ -382,6 +389,10 @@ app.add_middleware(
 _api = APIRouter(dependencies=[Depends(get_current_username)])
 
 storage = Storage()
+
+from core.constants import TORRENTS_DIR
+TORRENTS_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/api/torrents/files", StaticFiles(directory=str(TORRENTS_DIR)), name="torrents")
 
 
 class LoginRequest(BaseModel):
@@ -2280,6 +2291,52 @@ async def update_ai_config(config: AIConfigUpdate):
     )
     _audit("dashboard", "ai_config.update", "agentic_ai", config.dict())
     return {"success": True}
+
+
+@_api.get("/api/torrents")
+async def list_torrents():
+    jobs = []
+    for gid, job in aria2rpc._jobs.items():
+        jobs.append({
+            "gid": job.gid,
+            "uri": job.uri[:80],
+            "status": job.status,
+            "progress": round(job.progress, 1),
+            "completed_length": job.completed_length,
+            "total_length": job.total_length,
+            "download_speed": job.download_speed,
+            "files": [{"name": f.name, "size": f.size} for f in job.files],
+            "created_at": job.created_at,
+            "sender_jid": job.sender_jid,
+            "error": job.error,
+        })
+    return {"torrents": jobs}
+
+
+@_api.get("/api/torrents/{gid}")
+async def get_torrent(gid: str):
+    job = await aria2rpc.get_job(gid)
+    if not job:
+        raise HTTPException(status_code=404, detail="Torrent job not found")
+    files_list = []
+    for f in job.files:
+        rel_path = f"{job.gid}/{f.name}"
+        files_list.append({
+            "name": f.name,
+            "size": f.size,
+            "url": f"{_get_public_url()}/api/torrents/files/{job.gid}/{f.name}",
+        })
+    return {
+        "gid": job.gid,
+        "uri": job.uri,
+        "status": job.status,
+        "progress": round(job.progress, 1),
+        "completed_length": job.completed_length,
+        "total_length": job.total_length,
+        "download_speed": job.download_speed,
+        "files": files_list,
+        "error": job.error,
+    }
 
 
 app.include_router(_api)

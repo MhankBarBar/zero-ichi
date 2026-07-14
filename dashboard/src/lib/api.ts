@@ -77,7 +77,6 @@ export interface AIConfig {
     trigger_mode: string;
     owner_only: boolean;
     has_api_key: boolean;
-    
 }
 
 export interface Command {
@@ -97,7 +96,6 @@ export interface Group {
         welcome: boolean;
         mute: boolean;
     };
-    
 }
 
 export interface LogEntry {
@@ -305,8 +303,7 @@ export const api = {
             method: "POST",
             body: JSON.stringify({ username, password }),
         }),
-    logout: () =>
-        fetchAPI<{ success: boolean }>("/api/logout", { method: "POST" }),
+    logout: () => fetchAPI<{ success: boolean }>("/api/logout", { method: "POST" }),
 
     getStatus: () => fetchAPI<BotStatus>("/api/status"),
 
@@ -377,9 +374,9 @@ export const api = {
             has_qr: boolean;
             login_method: string;
         }>("/api/auth/status"),
-    
+
     getQR: () => fetchAPI<{ qr: string | null }>("/api/auth/qr"),
-    
+
     startPairing: (phone: string) =>
         fetchAPI("/api/auth/pair", {
             method: "POST",
@@ -390,16 +387,17 @@ export const api = {
         fetchAPI<{ logs: LogEntry[]; source: string }>(
             `/api/logs?limit=${limit}&source=${source}${level ? `&level=${level}` : ""}`,
         ),
-    
+
     getRateLimit: () => fetchAPI<RateLimitConfig>("/api/ratelimit"),
     updateRateLimit: (config: RateLimitConfig) =>
         fetchAPI("/api/ratelimit", {
             method: "PUT",
             body: JSON.stringify(config),
         }),
-    getWsToken: () => fetchAPI<{ token: string; expires_in: number }>("/api/ws-token", {
-        method: "POST",
-    }),
+    getWsToken: () =>
+        fetchAPI<{ token: string; expires_in: number }>("/api/ws-token", {
+            method: "POST",
+        }),
 
     getWelcome: (groupId: string) => fetchAPI<WelcomeConfig>(`/api/groups/${groupId}/welcome`),
     updateWelcome: (groupId: string, config: WelcomeConfig) =>
@@ -626,7 +624,8 @@ export const api = {
                 method: "POST",
             },
         ),
-    getIncomingWebhookKeys: () => fetchAPI<{ keys: IncomingWebhookKey[]; count: number }>("/api/incoming-webhook-keys"),
+    getIncomingWebhookKeys: () =>
+        fetchAPI<{ keys: IncomingWebhookKey[]; count: number }>("/api/incoming-webhook-keys"),
     createIncomingWebhookKey: (payload: {
         name: string;
         allowed_actions: string[];
@@ -657,9 +656,12 @@ export const api = {
             },
         ),
     rotateIncomingWebhookKey: (keyId: number) =>
-        fetchAPI<{ success: boolean; token: string }>(`/api/incoming-webhook-keys/${keyId}/rotate`, {
-            method: "POST",
-        }),
+        fetchAPI<{ success: boolean; token: string }>(
+            `/api/incoming-webhook-keys/${keyId}/rotate`,
+            {
+                method: "POST",
+            },
+        ),
     deleteIncomingWebhookKey: (keyId: number) =>
         fetchAPI<{ success: boolean }>(`/api/incoming-webhook-keys/${keyId}`, {
             method: "DELETE",

@@ -30,7 +30,11 @@ export default function AuditPage() {
 
     useEffect(() => {
         if (!lastEvent) return;
-        if (["config_update", "command_update", "group_update", "webhook_test"].includes(lastEvent.type)) {
+        if (
+            ["config_update", "command_update", "group_update", "webhook_test"].includes(
+                lastEvent.type,
+            )
+        ) {
             void fetchLogs();
         }
     }, [lastEvent, fetchLogs]);

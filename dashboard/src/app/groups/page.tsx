@@ -19,11 +19,19 @@ import {
     IconX,
 } from "@tabler/icons-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 
 import { useWebSocket } from "@/hooks/use-websocket";
 
 export default function GroupsPage() {
+    return (
+        <Suspense>
+            <GroupsInner />
+        </Suspense>
+    );
+}
+
+function GroupsInner() {
     const searchParams = useSearchParams();
     const router = useRouter();
     const [groups, setGroups] = useState<Group[]>([]);

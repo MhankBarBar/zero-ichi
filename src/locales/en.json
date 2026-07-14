@@ -547,6 +547,18 @@
     "all_done": "All {count} tracks sent ✓",
     "all_partial": "Sent {sent}/{total} tracks ({failed} failed)"
   },
+  "mirror": {
+    "starting": "Starting torrent download...",
+    "progress": "Downloading torrent...\n{bullet} {progress:.1f}%\n{bullet} Speed: {speed}/s\n{bullet} ETA: {eta}",
+    "complete": "Download complete! {count} file(s) downloaded.\nFiles available for 24h.",
+    "failed": "Torrent download failed: {error}",
+    "cancelled": "Torrent download cancelled."
+  },
+  "gdrive": {
+    "uploading": "Uploading to Google Drive...",
+    "done": "Uploaded to Google Drive ✓",
+    "upload_failed": "Upload failed: {error}"
+  },
   "applemusic": {
     "searching": "Searching Apple Music...",
     "search_results": "Apple Music results for: {query}",

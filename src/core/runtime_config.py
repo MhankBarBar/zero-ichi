@@ -141,6 +141,17 @@ DEFAULT_CONFIG = {
         "enabled": False,
         "cors_origins": ["http://localhost:3000", "http://127.0.0.1:3000"],
     },
+    "torrent": {
+        "rpc_secret": "",
+        "rpc_port": 6800,
+        "max_concurrent": 5,
+        "seed_time": 0,
+        "download_dir": "data/downloads/torrents",
+    },
+    "rclone": {
+        "remote": "gdrive:",
+        "remote_path": "ZeroIchi/Mirrors/",
+    },
     "telegram_forwarder": {
         "enabled": False,
         "api_id": 0,
@@ -413,6 +424,16 @@ class RuntimeConfig:
             if cleaned != cors_origins:
                 dashboard["cors_origins"] = cleaned
                 changed = True
+
+        torrent = config.get("torrent")
+        if not isinstance(torrent, dict):
+            config["torrent"] = deepcopy(DEFAULT_CONFIG["torrent"])
+            changed = True
+
+        rclone = config.get("rclone")
+        if not isinstance(rclone, dict):
+            config["rclone"] = deepcopy(DEFAULT_CONFIG["rclone"])
+            changed = True
 
         return config, changed
 

@@ -116,7 +116,10 @@ export default function DigestPage() {
                 </div>
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {[1, 2, 3].map((i) => (
-                        <Card key={i} className="animate-pulse border-neutral-700 bg-neutral-800/50">
+                        <Card
+                            key={i}
+                            className="animate-pulse border-neutral-700 bg-neutral-800/50"
+                        >
                             <CardContent className="p-6">
                                 <div className="mb-3 h-5 w-2/3 rounded bg-neutral-700" />
                                 <div className="h-4 w-1/2 rounded bg-neutral-700" />
@@ -152,7 +155,9 @@ export default function DigestPage() {
                                     <IconUsers className="h-5 w-5 text-green-300" />
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                    <h3 className="truncate font-medium text-white">{group.name}</h3>
+                                    <h3 className="truncate font-medium text-white">
+                                        {group.name}
+                                    </h3>
                                     <p className="text-sm text-neutral-500">
                                         {group.memberCount} members
                                     </p>
@@ -212,7 +217,9 @@ export default function DigestPage() {
 
                                 <div className="grid gap-4 sm:grid-cols-2">
                                     <div className="space-y-2">
-                                        <p className="text-sm font-medium text-neutral-300">Period</p>
+                                        <p className="text-sm font-medium text-neutral-300">
+                                            Period
+                                        </p>
                                         <CustomSelect
                                             options={periodOptions}
                                             value={config.period}
@@ -240,7 +247,9 @@ export default function DigestPage() {
                                 </div>
 
                                 <div className="space-y-2">
-                                    <p className="text-sm font-medium text-neutral-300">Time (HH:MM)</p>
+                                    <p className="text-sm font-medium text-neutral-300">
+                                        Time (HH:MM)
+                                    </p>
                                     <Input
                                         value={config.time}
                                         onChange={(e) =>
@@ -265,7 +274,9 @@ export default function DigestPage() {
                             <CardHeader>
                                 <CardTitle className="text-white">Preview</CardTitle>
                                 <CardDescription>
-                                    {groupLoading ? "Loading preview..." : "Latest generated digest message"}
+                                    {groupLoading
+                                        ? "Loading preview..."
+                                        : "Latest generated digest message"}
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
@@ -276,7 +287,7 @@ export default function DigestPage() {
                                         <div className="h-4 w-2/3 animate-pulse rounded bg-neutral-700" />
                                     </div>
                                 ) : preview ? (
-                                    <pre className="max-h-[420px] overflow-auto whitespace-pre-wrap rounded-lg border border-neutral-700 bg-neutral-900/70 p-3 text-xs leading-relaxed text-neutral-300">
+                                    <pre className="max-h-[420px] overflow-auto rounded-lg border border-neutral-700 bg-neutral-900/70 p-3 text-xs leading-relaxed whitespace-pre-wrap text-neutral-300">
                                         {preview}
                                     </pre>
                                 ) : (

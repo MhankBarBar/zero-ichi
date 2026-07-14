@@ -108,7 +108,9 @@ export default function AutomationsPage() {
     const toggleRule = async (rule: AutomationRule) => {
         if (!selectedGroup) return;
         try {
-            const res = await api.updateAutomation(selectedGroup.id, rule.id, { enabled: !rule.enabled });
+            const res = await api.updateAutomation(selectedGroup.id, rule.id, {
+                enabled: !rule.enabled,
+            });
             setRules((prev) => prev.map((r) => (r.id === rule.id ? res.rule : r)));
             toast.success(`Rule ${res.rule.enabled ? "enabled" : "disabled"}`, res.rule.id);
         } catch {
@@ -149,7 +151,10 @@ export default function AutomationsPage() {
                 </div>
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {[1, 2, 3].map((i) => (
-                        <Card key={i} className="animate-pulse border-neutral-700 bg-neutral-800/50">
+                        <Card
+                            key={i}
+                            className="animate-pulse border-neutral-700 bg-neutral-800/50"
+                        >
                             <CardContent className="p-6">
                                 <div className="mb-3 h-5 w-2/3 rounded bg-neutral-700" />
                                 <div className="h-4 w-1/2 rounded bg-neutral-700" />
@@ -185,7 +190,9 @@ export default function AutomationsPage() {
                                     <IconUsers className="h-5 w-5 text-violet-300" />
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                    <h3 className="truncate font-medium text-white">{group.name}</h3>
+                                    <h3 className="truncate font-medium text-white">
+                                        {group.name}
+                                    </h3>
                                     <p className="text-sm text-neutral-500">
                                         {group.memberCount} members
                                     </p>
@@ -204,7 +211,7 @@ export default function AutomationsPage() {
                         >
                             ← Back to Groups
                         </Button>
-                        <div className="relative min-w-[220px] max-w-md flex-1">
+                        <div className="relative max-w-md min-w-[220px] flex-1">
                             <IconSearch className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-neutral-500" />
                             <Input
                                 value={search}
@@ -273,7 +280,10 @@ export default function AutomationsPage() {
                                 className="border-neutral-700 bg-neutral-900 text-white"
                             />
 
-                            <Button onClick={createRule} className="bg-violet-600 hover:bg-violet-500">
+                            <Button
+                                onClick={createRule}
+                                className="bg-violet-600 hover:bg-violet-500"
+                            >
                                 <IconPlus className="mr-2 h-4 w-4" /> Add Rule
                             </Button>
                         </CardContent>
@@ -319,19 +329,26 @@ export default function AutomationsPage() {
                                             <CardContent className="flex flex-wrap items-center justify-between gap-4 p-4">
                                                 <div className="min-w-0 flex-1 text-sm text-neutral-300">
                                                     <div className="mb-1 flex items-center gap-2">
-                                                        <span className="font-mono text-white">{rule.id}</span>
+                                                        <span className="font-mono text-white">
+                                                            {rule.id}
+                                                        </span>
                                                         <span className="rounded bg-neutral-700 px-2 py-0.5 text-xs text-neutral-200">
                                                             {rule.name || "Unnamed rule"}
                                                         </span>
                                                     </div>
                                                     <p className="truncate text-neutral-300">
-                                                        if <span className="text-violet-300">{rule.trigger_type}</span>
+                                                        if{" "}
+                                                        <span className="text-violet-300">
+                                                            {rule.trigger_type}
+                                                        </span>
                                                         {" = "}
                                                         <span className="text-neutral-100">
                                                             {rule.trigger_value || "(link trigger)"}
                                                         </span>
                                                         {" => "}
-                                                        <span className="text-cyan-300">{rule.action_type}</span>
+                                                        <span className="text-cyan-300">
+                                                            {rule.action_type}
+                                                        </span>
                                                     </p>
                                                     {rule.action_value ? (
                                                         <p className="mt-1 truncate text-xs text-neutral-500">
@@ -342,7 +359,9 @@ export default function AutomationsPage() {
 
                                                 <div className="flex items-center gap-2">
                                                     <div className="flex items-center gap-2 rounded-lg border border-neutral-700 bg-neutral-900/60 px-2 py-1">
-                                                        <span className="text-xs text-neutral-400">Enabled</span>
+                                                        <span className="text-xs text-neutral-400">
+                                                            Enabled
+                                                        </span>
                                                         <Switch
                                                             checked={rule.enabled}
                                                             onCheckedChange={() => toggleRule(rule)}

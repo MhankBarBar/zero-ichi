@@ -293,7 +293,9 @@ export default function WebhooksPage() {
         try {
             await api.updateIncomingWebhookKey(keyId, {
                 name: editingIncomingKeyName.trim() || "Incoming Key",
-                allowed_actions: editingIncomingActions.length ? editingIncomingActions : ["send_message"],
+                allowed_actions: editingIncomingActions.length
+                    ? editingIncomingActions
+                    : ["send_message"],
                 rate_limit_per_minute: Math.max(1, editingIncomingKeyRate),
                 enabled: editingIncomingKeyEnabled,
             });
@@ -328,32 +330,44 @@ export default function WebhooksPage() {
 
             <div className="grid gap-4 md:grid-cols-4">
                 <div className="rounded-xl border border-neutral-800 bg-neutral-900/60 p-4">
-                    <p className="text-xs font-medium tracking-wide text-neutral-500 uppercase">Dispatcher</p>
+                    <p className="text-xs font-medium tracking-wide text-neutral-500 uppercase">
+                        Dispatcher
+                    </p>
                     <p className="mt-2 text-2xl font-semibold text-white">
                         {loading || !health ? "—" : health.webhooks.running ? "Running" : "Stopped"}
                     </p>
                     <p className="mt-1 text-sm text-neutral-500">Webhook delivery worker state</p>
                 </div>
                 <div className="rounded-xl border border-neutral-800 bg-neutral-900/60 p-4">
-                    <p className="text-xs font-medium tracking-wide text-neutral-500 uppercase">Queue Size</p>
+                    <p className="text-xs font-medium tracking-wide text-neutral-500 uppercase">
+                        Queue Size
+                    </p>
                     <p className="mt-2 text-2xl font-semibold text-white">
                         {loading || !health ? "—" : health.webhooks.queue_size}
                     </p>
                     <p className="mt-1 text-sm text-neutral-500">Queued webhook events</p>
                 </div>
                 <div className="rounded-xl border border-neutral-800 bg-neutral-900/60 p-4">
-                    <p className="text-xs font-medium tracking-wide text-neutral-500 uppercase">Dropped Events</p>
-                    <p className="mt-2 text-2xl font-semibold text-white">
-                        {loading || !health ? "—" : health.webhooks.dropped_events ?? 0}
+                    <p className="text-xs font-medium tracking-wide text-neutral-500 uppercase">
+                        Dropped Events
                     </p>
-                    <p className="mt-1 text-sm text-neutral-500">Events dropped because queue was full</p>
+                    <p className="mt-2 text-2xl font-semibold text-white">
+                        {loading || !health ? "—" : (health.webhooks.dropped_events ?? 0)}
+                    </p>
+                    <p className="mt-1 text-sm text-neutral-500">
+                        Events dropped because queue was full
+                    </p>
                 </div>
                 <div className="rounded-xl border border-neutral-800 bg-neutral-900/60 p-4">
-                    <p className="text-xs font-medium tracking-wide text-neutral-500 uppercase">Disabled Hooks</p>
-                    <p className="mt-2 text-2xl font-semibold text-white">
-                        {loading || !health ? "—" : health.webhooks.disabled_hook_count ?? 0}
+                    <p className="text-xs font-medium tracking-wide text-neutral-500 uppercase">
+                        Disabled Hooks
                     </p>
-                    <p className="mt-1 text-sm text-neutral-500">Endpoints currently auto-disabled or turned off</p>
+                    <p className="mt-2 text-2xl font-semibold text-white">
+                        {loading || !health ? "—" : (health.webhooks.disabled_hook_count ?? 0)}
+                    </p>
+                    <p className="mt-1 text-sm text-neutral-500">
+                        Endpoints currently auto-disabled or turned off
+                    </p>
                 </div>
             </div>
 
@@ -480,7 +494,9 @@ export default function WebhooksPage() {
                                     <div className="grid gap-3 md:grid-cols-3">
                                         <input
                                             value={editingIncomingKeyName}
-                                            onChange={(e) => setEditingIncomingKeyName(e.target.value)}
+                                            onChange={(e) =>
+                                                setEditingIncomingKeyName(e.target.value)
+                                            }
                                             className="rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm"
                                         />
                                         <input
@@ -498,18 +514,23 @@ export default function WebhooksPage() {
                                             <input
                                                 type="checkbox"
                                                 checked={editingIncomingKeyEnabled}
-                                                onChange={(e) => setEditingIncomingKeyEnabled(e.target.checked)}
+                                                onChange={(e) =>
+                                                    setEditingIncomingKeyEnabled(e.target.checked)
+                                                }
                                             />
                                             Enabled
                                         </label>
                                     </div>
                                     <div className="flex flex-wrap gap-2">
                                         {INCOMING_ACTIONS.map((actionName) => {
-                                            const active = editingIncomingActions.includes(actionName);
+                                            const active =
+                                                editingIncomingActions.includes(actionName);
                                             return (
                                                 <button
                                                     key={actionName}
-                                                    onClick={() => toggleEditingIncomingAction(actionName)}
+                                                    onClick={() =>
+                                                        toggleEditingIncomingAction(actionName)
+                                                    }
                                                     className={`rounded-md border px-2 py-1 text-xs ${
                                                         active
                                                             ? "border-sky-500 bg-sky-500/20 text-sky-300"
@@ -541,7 +562,8 @@ export default function WebhooksPage() {
                                     <div>
                                         <p className="text-sm font-medium text-white">{key.name}</p>
                                         <p className="text-neutral-400">
-                                            actions: {key.allowed_actions.join(", ")} • rate/min: {key.rate_limit_per_minute}
+                                            actions: {key.allowed_actions.join(", ")} • rate/min:{" "}
+                                            {key.rate_limit_per_minute}
                                         </p>
                                     </div>
                                     <div className="flex gap-2">
@@ -621,7 +643,9 @@ export default function WebhooksPage() {
                                             <input
                                                 type="checkbox"
                                                 checked={editingWebhookEnabled}
-                                                onChange={(e) => setEditingWebhookEnabled(e.target.checked)}
+                                                onChange={(e) =>
+                                                    setEditingWebhookEnabled(e.target.checked)
+                                                }
                                             />
                                             Enabled
                                         </label>
@@ -632,7 +656,9 @@ export default function WebhooksPage() {
                                             return (
                                                 <button
                                                     key={eventName}
-                                                    onClick={() => toggleEditingWebhookEvent(eventName)}
+                                                    onClick={() =>
+                                                        toggleEditingWebhookEvent(eventName)
+                                                    }
                                                     className={`rounded-md border px-2 py-1 text-xs ${
                                                         active
                                                             ? "border-emerald-500 bg-emerald-500/20 text-emerald-300"
@@ -670,10 +696,14 @@ export default function WebhooksPage() {
                                             </p>
                                             <p className="mt-1 text-xs text-neutral-500">
                                                 Failures: {hook.failure_count}/{hook.max_failures}
-                                                {hook.disabled_reason ? ` • ${hook.disabled_reason}` : ""}
+                                                {hook.disabled_reason
+                                                    ? ` • ${hook.disabled_reason}`
+                                                    : ""}
                                             </p>
                                             {hook.last_error ? (
-                                                <p className="mt-1 text-xs text-red-400">Last error: {hook.last_error}</p>
+                                                <p className="mt-1 text-xs text-red-400">
+                                                    Last error: {hook.last_error}
+                                                </p>
                                             ) : null}
                                         </div>
                                         <div className="flex flex-wrap gap-2">
@@ -729,7 +759,9 @@ export default function WebhooksPage() {
                                                     <div className="flex items-center gap-2">
                                                         <span
                                                             className={
-                                                                d.success ? "text-emerald-400" : "text-red-400"
+                                                                d.success
+                                                                    ? "text-emerald-400"
+                                                                    : "text-red-400"
                                                             }
                                                         >
                                                             {d.success
@@ -737,7 +769,9 @@ export default function WebhooksPage() {
                                                                 : d.error || "Failed"}
                                                         </span>
                                                         <button
-                                                            onClick={() => void replayDelivery(hook.id, d.id)}
+                                                            onClick={() =>
+                                                                void replayDelivery(hook.id, d.id)
+                                                            }
                                                             className="rounded border border-neutral-700 px-2 py-0.5 text-[11px]"
                                                         >
                                                             Replay

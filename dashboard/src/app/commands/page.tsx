@@ -16,9 +16,17 @@ import {
     IconSearch,
 } from "@tabler/icons-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 
 export default function CommandsPage() {
+    return (
+        <Suspense>
+            <CommandsInner />
+        </Suspense>
+    );
+}
+
+function CommandsInner() {
     const searchParams = useSearchParams();
     const router = useRouter();
     const [commands, setCommands] = useState<Command[]>([]);

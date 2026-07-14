@@ -49,7 +49,11 @@ export default function OpsPage() {
     useEffect(() => {
         if (!events.length) return;
         const latest = events[0];
-        if (["config_update", "command_update", "group_update", "webhook_test"].includes(latest.type)) {
+        if (
+            ["config_update", "command_update", "group_update", "webhook_test"].includes(
+                latest.type,
+            )
+        ) {
             void fetchHealth();
         }
     }, [events, fetchHealth]);
@@ -65,7 +69,11 @@ export default function OpsPage() {
                         </p>
                     </div>
                     <div className="flex items-center gap-2">
-                        <HealthBadge ok={connected} good="Live WS connected" bad="Live WS disconnected" />
+                        <HealthBadge
+                            ok={connected}
+                            good="Live WS connected"
+                            bad="Live WS disconnected"
+                        />
                         <button
                             onClick={() => void fetchHealth()}
                             className="inline-flex items-center gap-2 rounded-lg bg-neutral-800 px-4 py-2 text-sm hover:bg-neutral-700"
@@ -95,7 +103,11 @@ export default function OpsPage() {
                         <div className="space-y-3 text-sm">
                             <div className="flex items-center justify-between">
                                 <span className="text-neutral-400">Overall</span>
-                                <HealthBadge ok={health.status === "ok"} good="OK" bad={health.status} />
+                                <HealthBadge
+                                    ok={health.status === "ok"}
+                                    good="OK"
+                                    bad={health.status}
+                                />
                             </div>
                             <div className="flex items-center justify-between">
                                 <span className="text-neutral-400">Live updates</span>
@@ -120,7 +132,11 @@ export default function OpsPage() {
                         <div className="space-y-3 text-sm">
                             <div className="flex items-center justify-between">
                                 <span className="text-neutral-400">Status</span>
-                                <HealthBadge ok={health.database.ok} good="Healthy" bad="Degraded" />
+                                <HealthBadge
+                                    ok={health.database.ok}
+                                    good="Healthy"
+                                    bad="Degraded"
+                                />
                             </div>
                             <div>
                                 <p className="text-neutral-400">Endpoint</p>
@@ -131,7 +147,9 @@ export default function OpsPage() {
                             {health.database.error ? (
                                 <div>
                                     <p className="text-neutral-400">Error</p>
-                                    <p className="mt-1 text-xs text-red-300">{health.database.error}</p>
+                                    <p className="mt-1 text-xs text-red-300">
+                                        {health.database.error}
+                                    </p>
                                 </div>
                             ) : null}
                         </div>
@@ -149,7 +167,11 @@ export default function OpsPage() {
                         <div className="space-y-3 text-sm">
                             <div className="flex items-center justify-between">
                                 <span className="text-neutral-400">Dispatcher</span>
-                                <HealthBadge ok={health.webhooks.running} good="Running" bad="Stopped" />
+                                <HealthBadge
+                                    ok={health.webhooks.running}
+                                    good="Running"
+                                    bad="Stopped"
+                                />
                             </div>
                             <div className="flex items-center justify-between">
                                 <span className="text-neutral-400">Queue size</span>
@@ -166,7 +188,9 @@ export default function OpsPage() {
                             {health.webhooks.last_error ? (
                                 <div>
                                     <p className="text-neutral-400">Last error</p>
-                                    <p className="mt-1 text-xs text-red-300">{health.webhooks.last_error}</p>
+                                    <p className="mt-1 text-xs text-red-300">
+                                        {health.webhooks.last_error}
+                                    </p>
                                 </div>
                             ) : (
                                 <div className="flex items-center gap-2 text-xs text-neutral-500">
@@ -194,8 +218,12 @@ export default function OpsPage() {
                                 className="rounded-lg border border-neutral-800 bg-black/20 p-3 text-sm"
                             >
                                 <div className="flex flex-wrap items-center justify-between gap-2">
-                                    <span className="font-medium text-emerald-300">{event.type}</span>
-                                    <span className="text-xs text-neutral-500">{event.timestamp}</span>
+                                    <span className="font-medium text-emerald-300">
+                                        {event.type}
+                                    </span>
+                                    <span className="text-xs text-neutral-500">
+                                        {event.timestamp}
+                                    </span>
                                 </div>
                                 <pre className="mt-2 overflow-x-auto text-xs text-neutral-400">
                                     {JSON.stringify(event.data, null, 2)}

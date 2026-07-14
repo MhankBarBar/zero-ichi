@@ -88,5 +88,16 @@
   "disabled_commands": [],
   "dashboard": {
     "enabled": false
+  },
+  "torrent": {
+    "rpc_secret": "",
+    "rpc_port": 6800,
+    "max_concurrent": 5,
+    "seed_time": 0,
+    "download_dir": "data/downloads/torrents"
+  },
+  "rclone": {
+    "remote": "gdrive:",
+    "remote_path": "ZeroIchi/Mirrors/"
   }
 }
