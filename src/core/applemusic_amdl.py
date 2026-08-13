@@ -44,7 +44,7 @@ import httpx
 
 from core.applemusic import AppleMusicTrack, applemusic_client
 from core.constants import AMDL_ENDPOINTS_CACHE_FILE, DOWNLOADS_DIR
-from core.logger import log_error, log_info
+from core.logger import log_error, log_info, log_warning
 
 AMDL_API_BASE = "https://am-dl.pages.dev"
 
@@ -86,7 +86,11 @@ _endpoints_lock = asyncio.Lock()
 
 
 async def _resolve_endpoints() -> dict[str, str]:
-    """Return the current am-dl API endpoints, resolved once per process."""
+    """Return the current am-dl API endpoints, resolved once per process.
+
+    Retries transient network failures a few times; falls back to the last
+    known-good endpoints from disk if the live resolution keeps failing.
+    """
     global _endpoints_cache
     if _endpoints_cache is not None:
         return _endpoints_cache
@@ -94,8 +98,37 @@ async def _resolve_endpoints() -> dict[str, str]:
     async with _endpoints_lock:
         if _endpoints_cache is not None:
             return _endpoints_cache
-        _endpoints_cache = await _load_endpoints()
-        return _endpoints_cache
+
+        last_err: str = "unknown error"
+        for attempt in range(3):
+            try:
+                resolved = await _load_endpoints()
+                _endpoints_cache = resolved
+                return resolved
+            except Exception as e:
+                last_err = str(e)
+                log_warning(f"[AMDL] endpoint resolution failed (attempt {attempt + 1}/3): {e}")
+                await asyncio.sleep(1.5 * (attempt + 1))
+
+        # Last resort: whatever is on disk, even if stale, beats a hard fail.
+        try:
+            if AMDL_ENDPOINTS_CACHE_FILE.exists():
+                cached = json.loads(AMDL_ENDPOINTS_CACHE_FILE.read_text("utf-8"))
+                if cached.get("endpoints"):
+                    resolved = cached["endpoints"]
+                    _endpoints_cache = resolved
+                    log_warning("[AMDL] using cached endpoints after resolution failures")
+                    return resolved
+        except Exception:
+            pass
+
+        raise AmDlError(f"Failed to resolve am-dl endpoints: {last_err}") from None
+
+
+def _reset_endpoints_cache() -> None:
+    """Force the next call to re-resolve endpoints (after repeated failures)."""
+    global _endpoints_cache
+    _endpoints_cache = None
 
 
 async def _load_endpoints() -> dict[str, str]:
@@ -442,7 +475,27 @@ class AmDlClient:
         }
 
     async def fetch_album_data(self, url: str) -> dict | None:
-        """Fetch album/track metadata from am-dl. Returns None on failure."""
+        """Fetch album/track metadata from am-dl. Returns None on failure.
+
+        Retries a few times with backoff — the am-dl backend is flaky
+        (intermittent 4xx/5xx). Between attempts the endpoint cache is
+        reset so a stale resolution doesn't poison every retry.
+        """
+        for attempt in range(3):
+            try:
+                result = await self._fetch_album_data_once(url)
+                if result is not None:
+                    return result
+            except AmDlError:
+                raise
+            except Exception as e:
+                log_error(f"[AMDL] fetch_album_data attempt {attempt + 1} failed: {e}")
+            log_warning(f"[AMDL] fetch_album_data returned nothing (attempt {attempt + 1}/3), retrying...")
+            _reset_endpoints_cache()
+            await asyncio.sleep(1.5 * (attempt + 1))
+        return None
+
+    async def _fetch_album_data_once(self, url: str) -> dict | None:
         try:
             endpoints = await _resolve_endpoints()
             q_data = {
