@@ -82,6 +82,9 @@ def _parse_args():
     parser.add_argument("--session", type=str, metavar="NAME", help="Override session name")
     parser.add_argument("--auto-reload", action="store_true", help="Enable auto-reload")
     parser.add_argument("--dashboard", action="store_true", help="Enable dashboard API")
+    parser.add_argument(
+        "--hermes-bridge", action="store_true", help="Enable Hermes Agent WhatsApp gateway bridge"
+    )
 
     return parser.parse_args()
 
@@ -444,6 +447,9 @@ def _apply_cli_runtime_overrides(config, args) -> None:
     if args.dashboard:
         config._config.setdefault("dashboard", {})["enabled"] = True
 
+    if getattr(args, "hermes_bridge", False):
+        config._config.setdefault("hermes_bridge", {})["enabled"] = True
+
 
 def _watch_targets(project_dir: Path) -> tuple[list[Path], list[Path]]:
     """Return directory and file watch targets for auto-reload."""
@@ -504,6 +510,16 @@ def _maybe_start_dashboard_api(
         log_warning("Dashboard API not available (install fastapi & uvicorn)")
     except Exception as e:
         log_warning(f"Dashboard API failed to start: {e}")
+
+
+def _maybe_start_hermes_bridge(bridge, *, create_task_fn=asyncio.create_task) -> None:
+    """Start the Hermes Agent gateway bridge server when a bridge is active."""
+    if bridge is None:
+        return
+    try:
+        create_task_fn(bridge.start())
+    except Exception as e:
+        log_warning(f"Hermes bridge failed to start: {e}")
 
 
 def _start_scheduler_if_needed(scheduler) -> None:
@@ -596,6 +612,23 @@ def _init_bot(args):
 
     init_i18n()
     set_bot(bot)
+
+    # Hermes Agent gateway bridge: reuse this neonize connection as the
+    # WhatsApp transport for the Hermes gateway (see core/hermes_bridge.py).
+    hb_cfg = runtime_config.get_nested("hermes_bridge", default={}) or {}
+    hb_enabled = bool(hb_cfg.get("enabled", False))
+    if hb_enabled:
+        try:
+            from core.hermes_bridge import HermesBridge
+            from core.shared import set_hermes_bridge
+
+            hb_port = int(hb_cfg.get("port", 3000))
+            set_hermes_bridge(HermesBridge(bot, port=hb_port))
+            log_success(f"Hermes bridge enabled on port {hb_port}")
+        except Exception as e:
+            log_warning(f"Hermes bridge init failed: {e}")
+    else:
+        log_info("Hermes bridge disabled (set hermes_bridge.enabled: true in config.json)")
 
     from core.telegram_forwarder import TelegramForwarder
 
@@ -929,6 +962,18 @@ def _init_bot(args):
         message_helper_cls, message_context_cls = _message_runtime_bindings()
         msg = message_helper_cls(event)
 
+        # Hermes gateway bridge: forward inbound messages to the bridge queue
+        # (skipping the bot's own echoes) so the Hermes WhatsApp adapter can
+        # pick them up. Media download happens inside the bridge worker task.
+        try:
+            from core.shared import get_hermes_bridge
+
+            bridge = get_hermes_bridge()
+            if bridge is not None and not msg.is_from_me:
+                bridge.push_message(msg, event)
+        except Exception as e:
+            log_error(f"Hermes bridge push failed: {e}")
+
         try:
             raw_msg_dict = MessageToDict(event.Message)
         except Exception:
@@ -970,6 +1015,10 @@ def _init_bot(args):
 
             dashboard_enabled = runtime_config.get_nested("dashboard", "enabled", default=False)
             _maybe_start_dashboard_api(dashboard_enabled)
+
+            from core.shared import get_hermes_bridge
+
+            _maybe_start_hermes_bridge(get_hermes_bridge())
 
             log_step("Starting bot...")
             log_bullet(f"Session: {bot_name}")
