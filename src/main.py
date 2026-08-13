@@ -461,7 +461,10 @@ def _watch_targets(project_dir: Path) -> tuple[list[Path], list[Path]]:
         project_dir / "ai",
         locales_dir,
     ]
-    watch_files = [project_dir / "dashboard_api.py"]
+    watch_files = [
+        project_dir / "dashboard_api.py",
+        project_dir / "config.json",
+    ]
     return watch_dirs, watch_files
 
 
@@ -1056,6 +1059,16 @@ def _init_bot(args):
                             ):
                                 reload_locales()
                                 log_success(f"[b]↻ Reloaded:[/b] {path.name} (locales)")
+                                continue
+
+                            if path.name == "config.json":
+                                try:
+                                    from core.runtime_config import runtime_config
+
+                                    runtime_config.reload()
+                                    log_success("[b]↻ Reloaded:[/b] config.json")
+                                except Exception as e:
+                                    log_error(f"Config reload failed for {path.name}: {e}")
                                 continue
 
                             if path.suffix == ".py" and not path.name.startswith("_"):

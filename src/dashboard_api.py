@@ -722,6 +722,18 @@ async def start_pairing(req: PairRequest):
     }
 
 
+@_api.post("/api/config/reload")
+async def reload_config():
+    """Re-read config.json from disk (hot-reload without bot restart)."""
+    runtime_config.reload()
+    hub_cfg = runtime_config.get_nested("hub", default={}) or {}
+    return {
+        "success": True,
+        "hub_configured": bool(hub_cfg.get("auth_code")),
+        "hub_channel": hub_cfg.get("channel_name", ""),
+    }
+
+
 @_api.get("/api/config")
 async def get_config():
     """Get all configuration."""
