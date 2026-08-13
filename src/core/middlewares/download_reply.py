@@ -36,6 +36,7 @@ from core.downloader_render import (
     build_track_sections,
 )
 from core.errors import report_error
+from core.hub_upload import HubUploadError, sanitize_filename, upload_file
 from core.i18n import t, t_error
 from core.pending_store import (
     PendingAppleMusic,
@@ -490,23 +491,69 @@ async def _download_apple_track(ctx, track, quality: str, header: str, chat_jid:
 
 
 async def _send_apple_music_track(
-    ctx, chat_jid: str, filepath: Path, used_quality: str, quoted=None
+    ctx,
+    chat_jid: str,
+    filepath: Path,
+    used_quality: str,
+    track=None,
+    quoted=None,
+    on_status=None,
 ):
     """
     Send a downloaded track, quoted to `quoted` if given.
 
-    ALAC/Atmos files go out as a document instead of an audio message —
-    WhatsApp's audio player re-encodes what it's sent, which corrupts
-    lossless ALAC and object-based Atmos streams. A document is delivered
-    byte-for-byte untouched. Standard-quality (plain AAC) files are
-    unaffected and keep going out as playable audio messages.
+    Standard-quality (plain AAC) files go out as playable audio messages.
+    ALAC/Atmos files can't go over WhatsApp without corruption (WhatsApp's
+    audio pipeline re-encodes, and even document sends corrupt large lossless
+    streams), so they are uploaded to the Joy Hub first and only a *link* is
+    sent. The multipart filename is the real track name — no timestamps.
     """
     if used_quality == QUALITY_STANDARD:
         await ctx.bot.send_media(chat_jid, "audio", str(filepath), quoted=quoted)
+        return
+
+    real_name = _hub_filename(track, filepath)
+    try:
+        url = await upload_file(filepath, real_filename=real_name, on_status=on_status)
+    except HubUploadError as e:
+        raise AmDlError(f"Hub upload failed: {e}") from e
+
+    await ctx.bot.send_message(
+        chat_jid,
+        t("applemusic.hub_link", filename=real_name, url=url),
+        quoted=quoted,
+    )
+
+
+def _hub_filename(track, filepath: Path) -> str:
+    """Build a real, timestamp-free filename for the hub upload.
+
+    Uses the track's artist/name when available, falling back to the local
+    file stem. The extension is preserved (m4a for ALAC/Atmos, zip for
+    album bundles).
+    """
+    name = getattr(track, "name", "") or ""
+    artist = getattr(track, "artist", "") or ""
+    if artist and name:
+        base = f"{artist} - {name}"
+    elif name:
+        base = name
     else:
-        await ctx.bot.send_media(
-            chat_jid, "document", str(filepath), filename=filepath.name, quoted=quoted
+        base = filepath.stem
+    return sanitize_filename(base) + (filepath.suffix or ".m4a")
+
+
+def _make_status_editor(ctx, chat_jid: str, msg_id: str, header: str):
+    """Throttled progress-message editor for upload status updates."""
+    loop = asyncio.get_running_loop()
+
+    def _edit(status: str):
+        asyncio.run_coroutine_threadsafe(
+            ctx.bot.edit_message(chat_jid, msg_id, f"{header}\n{sym.LOADING} {status}"),
+            loop,
         )
+
+    return _throttled(_edit)
 
 
 async def _handle_applemusic_quality(ctx, pending, stanza_id, quality):
@@ -567,7 +614,13 @@ async def _handle_applemusic_quality(ctx, pending, stanza_id, quality):
             )
 
             await _send_apple_music_track(
-                ctx, ctx.msg.chat_jid, filepath, used, quoted=ctx.msg.event
+                ctx,
+                ctx.msg.chat_jid,
+                filepath,
+                used,
+                track=track,
+                quoted=ctx.msg.event,
+                on_status=_make_status_editor(ctx, ctx.msg.chat_jid, progress_msg.ID, header),
             )
 
             applemusic_client.cleanup(filepath)
@@ -646,7 +699,15 @@ async def _handle_applemusic_reply(ctx, pending, stanza_id, choice_num):
             build_complete_bar(header, t("applemusic.sending")),
         )
 
-        await _send_apple_music_track(ctx, ctx.msg.chat_jid, filepath, used, quoted=ctx.msg.event)
+        await _send_apple_music_track(
+            ctx,
+            ctx.msg.chat_jid,
+            filepath,
+            used,
+            track=selected,
+            quoted=ctx.msg.event,
+            on_status=_make_status_editor(ctx, ctx.msg.chat_jid, progress_msg.ID, header),
+        )
 
         applemusic_client.cleanup(filepath)
         await ctx.bot.edit_message(
@@ -718,7 +779,13 @@ async def _handle_applemusic_all(ctx, pending, stanza_id, selection=None):
             )
 
             await _send_apple_music_track(
-                ctx, send_to, filepath, used, quoted=ctx.msg.event if not is_group else None
+                ctx,
+                send_to,
+                filepath,
+                used,
+                track=track,
+                quoted=ctx.msg.event if not is_group else None,
+                on_status=_make_status_editor(ctx, ctx.msg.chat_jid, progress_msg.ID, track_header),
             )
 
             applemusic_client.cleanup(filepath)

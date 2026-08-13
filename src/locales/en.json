@@ -585,7 +585,9 @@
     "quality_atmos_desc": "Spatial audio, needs mp4decrypt on the server",
     "atmos_unavailable": "Atmos needs mp4decrypt installed on the server — will fall back to ALAC.",
     "quality_used": "Sent ✓ ({quality})",
-    "fallback_notice": "{from} unavailable, falling back to {to}..."
+    "fallback_notice": "{from} unavailable, falling back to {to}...",
+    "uploading": "Uploading to hub...",
+    "hub_link": "*{filename}*\n{url}"
   },
   "toimg": {
     "reply_to_sticker": "Reply to a sticker to convert it to an image.",

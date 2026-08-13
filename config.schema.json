@@ -722,6 +722,49 @@
                     "default": []
                 }
             }
+        },
+        "hub": {
+            "type": "object",
+            "description": "Joy Hub upload service settings (for ALAC/Atmos link delivery)",
+            "properties": {
+                "url": {
+                    "type": "string",
+                    "description": "Hub base URL",
+                    "default": "https://hub.mhankbarbar.dev"
+                },
+                "auth_code": {
+                    "type": "string",
+                    "description": "Hub auth code (secret)"
+                },
+                "channel": {
+                    "type": "string",
+                    "description": "uploadChannel, e.g. telegram",
+                    "default": "telegram"
+                },
+                "channel_name": {
+                    "type": "string",
+                    "description": "channelName, e.g. T2",
+                    "default": ""
+                }
+            }
+        },
+        "hermes_bridge": {
+            "type": "object",
+            "description": "Hermes Agent gateway bridge (reuse this WhatsApp connection as a Hermes gateway)",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Serve the Hermes WhatsApp bridge HTTP contract on a local port",
+                    "default": false
+                },
+                "port": {
+                    "type": "integer",
+                    "description": "Bridge HTTP port (default 3000)",
+                    "minimum": 1024,
+                    "maximum": 65535,
+                    "default": 3000
+                }
+            }
         }
     },
     "required": [

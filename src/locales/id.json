@@ -573,7 +573,9 @@
     "quality_atmos_desc": "Spatial audio, butuh mp4decrypt di server",
     "atmos_unavailable": "Atmos butuh mp4decrypt di server — bakal fallback ke ALAC.",
     "quality_used": "Udah dikirim ✓ ({quality})",
-    "fallback_notice": "{from} gak tersedia, fallback ke {to}..."
+    "fallback_notice": "{from} gak tersedia, fallback ke {to}...",
+    "uploading": "Lagi upload ke hub...",
+    "hub_link": "*{filename}*\n{url}"
   },
   "toimg": {
     "reply_to_sticker": "Reply ke stiker buat convert jadi gambar.",
