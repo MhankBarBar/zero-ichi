@@ -449,6 +449,18 @@
     "platform": "Platform",
     "python": "Python"
   },
+  "system": {
+    "title": "System",
+    "bot_uptime": "Bot uptime",
+    "uptime": "System uptime",
+    "ram": "RAM",
+    "swap": "Swap",
+    "cpu": "CPU load",
+    "disk": "Disk",
+    "process": "Process",
+    "host": "Host",
+    "python": "Python"
+  },
   "joke": {
     "title": "Random Joke"
   },
