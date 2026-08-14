@@ -463,7 +463,7 @@ def _watch_targets(project_dir: Path) -> tuple[list[Path], list[Path]]:
     ]
     watch_files = [
         project_dir / "dashboard_api.py",
-        project_dir / "config.json",
+        project_dir.parent / "config.json",  # repo root, not src/
     ]
     return watch_dirs, watch_files
 
@@ -1050,7 +1050,19 @@ def _init_bot(args):
 
                 log_info("Auto-reload enabled. Watching for file changes...")
 
-                async for changes in awatch(*watch_dirs, *watch_files):
+                # Only watch paths that exist — a missing target (e.g. a
+                # removed module dir) would make RustNotify raise
+                # FileNotFoundError and kill the whole watcher task.
+                watch_paths = [
+                    p
+                    for p in [*watch_dirs, *watch_files]
+                    if p.exists()
+                ]
+                if not watch_paths:
+                    log_warning("Auto-reload: no watch paths exist, skipping")
+                    return
+
+                async for changes in awatch(*watch_paths):
                     for _, path in changes:
                         path = Path(path)
                         try:
