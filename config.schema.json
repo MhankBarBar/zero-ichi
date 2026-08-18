@@ -765,6 +765,29 @@
                     "default": 3000
                 }
             }
+        },
+        "steam_redeem": {
+            "type": "object",
+            "description": "Steam key auto-redeem (session cookies from a logged-in browser)",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Auto-redeem Steam keys detected by dmonitor",
+                    "default": false
+                },
+                "sessionid": {
+                    "type": "string",
+                    "description": "Steam sessionid cookie (secret)"
+                },
+                "steam_login_secure": {
+                    "type": "string",
+                    "description": "Steam steamLoginSecure cookie (secret)"
+                },
+                "extra_cookies": {
+                    "type": "string",
+                    "description": "Optional extra cookies as 'name=value; name2=value2'"
+                }
+            }
         }
     },
     "required": [
