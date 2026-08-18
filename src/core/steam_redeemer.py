@@ -31,7 +31,7 @@ import httpx
 
 from core.logger import log_error, log_info, log_warning
 
-ACTIVATE_URL = "https://store.steampowered.com/account/activatesubkey"
+ACTIVATE_URL = "https://store.steampowered.com/account/ajaxregisterkey"
 REGISTER_URL = "https://store.steampowered.com/account/registerkey"
 
 _HEADERS = {
@@ -93,6 +93,28 @@ def _normalize_key(key: str) -> str:
     return str(key or "").strip().upper()
 
 
+# Steam purchase-result codes returned in `purchase_result_details`.
+_PURCHASE_RESULT_MESSAGES = {
+    9: "Invalid product code",
+    13: "Something went wrong while activating this product",
+    15: "This product code has already been activated by another account",
+    29: "There have been too many activation attempts. Please wait and try again later",
+    42: "Your account is restricted from using this product",
+    45: "This product code has already been redeemed on this account",
+}
+
+
+def _result_message(data: dict) -> str:
+    """Resolve the human-readable failure message from a Steam response."""
+    raw = data.get("purchase_result_details") or data.get("message") or ""
+    message = str(raw).strip()
+    if not message:
+        return ""
+    if message.isdigit():
+        return _PURCHASE_RESULT_MESSAGES.get(int(message), f"Steam error {message}")
+    return message
+
+
 async def redeem_steam_key(
     key: str,
     on_status: Callable[[str], None] | None = None,
@@ -123,7 +145,7 @@ async def redeem_steam_key(
         async with httpx.AsyncClient(timeout=30, headers=_HEADERS, cookies=cookies) as client:
             resp = await client.post(
                 ACTIVATE_URL,
-                data={"sessionid": cfg["sessionid"], "key": key},
+                data={"product_key": key, "sessionid": cfg["sessionid"]},
             )
     except httpx.HTTPError as e:
         log_error(f"[Steam] redeem request failed for {key}: {e}")
@@ -153,14 +175,20 @@ async def redeem_steam_key(
         }
 
     success = data.get("success")
-    message = str(data.get("message") or "").strip()
+    message = _result_message(data)
     log_info(f"[Steam] {key} -> success={success} {message[:120]}")
 
     if success == 1:
+        receipt = data.get("purchase_receipt_info") or {}
+        games = []
+        for item in (receipt.get("line_items") or [])[:3]:
+            if item.get("line_item_description"):
+                games.append(item["line_item_description"])
+        detail = "Redeemed" + (f": {', '.join(games)}" if games else "")
         return {
             "ok": True,
             "key": key,
-            "message": message or "Redeemed",
+            "message": detail,
             "action": "redeemed",
         }
 
@@ -173,7 +201,12 @@ async def redeem_steam_key(
         return {"ok": False, "key": key, "message": message, "action": "needs_login"}
     if "invalid" in low or "not valid" in low or "restricted" in low:
         return {"ok": False, "key": key, "message": message, "action": "invalid"}
-    return {"ok": False, "key": key, "message": message or "Unknown error", "action": "error"}
+    return {
+        "ok": False,
+        "key": key,
+        "message": message or "Invalid or unusable product code",
+        "action": "invalid",
+    }
 
 
 def extract_steam_keys(text: str) -> list[str]:
