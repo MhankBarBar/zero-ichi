@@ -768,7 +768,7 @@
         },
         "steam_redeem": {
             "type": "object",
-            "description": "Steam key auto-redeem (session cookies from a logged-in browser)",
+            "description": "Steam key auto-redeem (session cookies OR steamguard auto-login)",
             "properties": {
                 "enabled": {
                     "type": "boolean",
@@ -786,6 +786,18 @@
                 "extra_cookies": {
                     "type": "string",
                     "description": "Optional extra cookies as 'name=value; name2=value2'"
+                },
+                "username": {
+                    "type": "string",
+                    "description": "Steam account name (steamguard auto-login)"
+                },
+                "password": {
+                    "type": "string",
+                    "description": "Steam password (secret)"
+                },
+                "shared_secret": {
+                    "type": "string",
+                    "description": "Steam 2FA shared secret, base64 (secret)"
                 }
             }
         }

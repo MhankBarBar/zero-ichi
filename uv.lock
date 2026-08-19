@@ -618,6 +618,18 @@ wheels = [
 ]
 
 [[package]]
+name = "faker"
+version = "40.36.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "tzdata", marker = "sys_platform == 'win32'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/98/d2/026af1e002bbc6df534d1f8262b18ec79a974f928e9290bfbfdfe7c7b2af/faker-40.36.0.tar.gz", hash = "sha256:754048c76c03afa7de83eee8f4bcee3cf668cbb7d995f54a4e9678db7f110308", size = 2025903, upload-time = "2026-07-24T21:11:33.088Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/50/9a/b947ed175ce9a0dcb070ccf3607f0ce8720cfb5ed1a36166a150b2acd5af/faker-40.36.0-py3-none-any.whl", hash = "sha256:82b9497d9cfe017048075bcf969298a74b1b6e39f5e4dad1211085d1133f7b62", size = 2062829, upload-time = "2026-07-24T21:11:31.37Z" },
+]
+
+[[package]]
 name = "fakeredis"
 version = "2.33.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3152,6 +3164,20 @@ wheels = [
 ]
 
 [[package]]
+name = "steamguard"
+version = "1.0.6"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "beautifulsoup4" },
+    { name = "requests" },
+    { name = "rsa" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a0/81/c18046e257eb0d47f247a88d2683b38d5f2fbe5a1992c5704ebed6e4ae91/steamguard-1.0.6.tar.gz", hash = "sha256:a45d3c42d3a9e9fd36b636cccdd3140915d71cf50a0d9842bd5dd9fcd4cb78c1", size = 11442, upload-time = "2024-08-25T10:14:26.795Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d4/37/28a76d8e745dc28674a9c8ab661a02cf88795b0e2b6938d1ef4bb13b87ed/steamguard-1.0.6-py3-none-any.whl", hash = "sha256:db3fbdc982be4449bd867c7b1df2e9ba53b7ea0ab34556d1a3486f898f37d638", size = 12491, upload-time = "2024-08-25T10:14:25.893Z" },
+]
+
+[[package]]
 name = "temporalio"
 version = "1.20.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3657,6 +3683,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "apscheduler" },
+    { name = "faker" },
     { name = "fastapi" },
     { name = "gallery-dl" },
     { name = "httpx" },
@@ -3669,7 +3696,9 @@ dependencies = [
     { name = "pyrogram" },
     { name = "python-dotenv" },
     { name = "rich" },
+    { name = "rsa" },
     { name = "sqlalchemy" },
+    { name = "steamguard" },
     { name = "tgcrypto" },
     { name = "uvicorn" },
     { name = "watchfiles" },
@@ -3687,6 +3716,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "apscheduler", specifier = ">=3.10.0" },
+    { name = "faker", specifier = ">=40.36.0" },
     { name = "fastapi", specifier = ">=0.115.0" },
     { name = "gallery-dl", specifier = ">=1.31.7" },
     { name = "httpx", specifier = ">=0.28.1" },
@@ -3699,7 +3729,9 @@ requires-dist = [
     { name = "pyrogram", specifier = ">=2.0" },
     { name = "python-dotenv", specifier = ">=1.2.1" },
     { name = "rich", specifier = ">=13.0" },
+    { name = "rsa", specifier = ">=4.9" },
     { name = "sqlalchemy", specifier = ">=2.0.43" },
+    { name = "steamguard", specifier = ">=1.0.6" },
     { name = "tgcrypto", specifier = ">=1.2" },
     { name = "uvicorn", specifier = ">=0.34.0" },
     { name = "watchfiles", specifier = ">=1.1.1" },

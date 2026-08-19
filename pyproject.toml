@@ -27,6 +27,9 @@ dependencies = [
     "pyrogram>=2.0",
     "tgcrypto>=1.2",
     "mutagen>=1.48.1",
+    "faker>=40.36.0",
+    "steamguard>=1.0.6",
+    "rsa>=4.9",
 ]
 
 [project.scripts]
